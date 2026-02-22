@@ -274,7 +274,6 @@ function Nav({ tab, setTab }) {
     { id: "dashboard", label: "Dashboard", icon: "⊞" },
     { id: "animals",   label: "Animals",   icon: "🐄" },
     { id: "gestation", label: "Gestation", icon: "📅" },
-    { id: "weather",   label: "Weather",   icon: "🌤" },
     { id: "notes",     label: "Journal",   icon: "📖" },
   ];
   return (
@@ -1052,133 +1051,6 @@ function Gestation({ animals, gestations, setGestations }) {
   );
 }
 
-// ── Weather ───────────────────────────────────────────────────────────────────
-function Weather() {
-  const [location, setLocation] = useState("");
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("hl-apikey") || "");
-  const [showKeyInput, setShowKeyInput] = useState(false);
-  const [keyVal, setKeyVal] = useState("");
-
-  function saveKey() {
-    localStorage.setItem("hl-apikey", keyVal);
-    setApiKey(keyVal);
-    setShowKeyInput(false);
-  }
-
-  async function fetchWeather() {
-    if (!location.trim()) return;
-    if (!apiKey) { setShowKeyInput(true); return; }
-    setLoading(true); setError(""); setData(null);
-    try {
-      const resp = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          tools: [{ type: "web_search_20250305", name: "web_search" }],
-          system: `You are a farm weather advisor. Search for current weather and 5-day forecast. Return ONLY valid JSON: {"current":{"temp":"72°F","condition":"Partly Cloudy","humidity":"65%","wind":"SW 12 mph","feels":"70°F","desc":"Brief plain-language description of current conditions for farmers."},"forecast":[{"day":"Mon","high":"74","low":"55","condition":"Fair","farmNote":"Good day for field work"},{"day":"Tue","high":"68","low":"50","condition":"Rain","farmNote":"Keep livestock sheltered"},{"day":"Wed","high":"62","low":"45","condition":"Clearing","farmNote":"Check fences post-storm"},{"day":"Thu","high":"65","low":"48","condition":"Fair","farmNote":"Good hay drying"},{"day":"Fri","high":"70","low":"52","condition":"Partly Cloudy","farmNote":"Favorable for outdoor work"}],"advice":"Two sentence farming advice for this week.","bestDays":"Which specific days are best for outdoor work."}`,
-          messages: [{ role: "user", content: `Weather for: ${location}` }]
-        })
-      });
-      const json = await resp.json();
-      if (json.error) throw new Error(json.error.message);
-      const text = json.content.filter(c => c.type === "text").map(c => c.text).join("");
-      setData(JSON.parse(text.trim()));
-    } catch(e) {
-      setError("Could not retrieve weather. Check your API key or location.");
-    }
-    setLoading(false);
-  }
-
-  return (
-    <div className="hl-page hl-page-gestation hl-fade-in">
-      <SectionTitle>Weather Observatory</SectionTitle>
-
-      {showKeyInput && (
-        <Card style={{ padding: "20px", marginBottom: "20px", borderLeft: "4px solid var(--brass)" }}>
-          <div style={{ fontWeight: 600, marginBottom: "4px" }}>Anthropic API Key Required</div>
-          <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "12px" }}>Get a free key at console.anthropic.com — stored only in your browser.</div>
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-            <input type="password" value={keyVal} onChange={e => setKeyVal(e.target.value)} placeholder="sk-ant-..." style={{ flex: 1, padding: "9px 12px", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", fontSize: "14px", outline: "none" }} />
-            <Btn onClick={saveKey}>Save Key</Btn>
-            <Btn variant="secondary" onClick={() => setShowKeyInput(false)}>Cancel</Btn>
-          </div>
-        </Card>
-      )}
-
-      <div className="hl-weather-search">
-        <Input placeholder="Enter town, county, or ZIP code..." value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchWeather()} style={{ flex: 1 }} />
-        <Btn onClick={fetchWeather} disabled={loading}>{loading ? "Loading..." : "Get Weather"}</Btn>
-      </div>
-
-      <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "24px" }}>
-        {apiKey ? <>API key saved · <button onClick={() => setShowKeyInput(true)} style={{ background: "none", border: "none", color: "var(--green)", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}>change</button></> : <button onClick={() => setShowKeyInput(true)} style={{ background: "none", border: "none", color: "var(--brass2)", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}>Add API key to enable weather</button>}
-      </div>
-
-      {loading && (
-        <Card style={{ padding: "60px", textAlign: "center" }}>
-          <div style={{ fontSize: "32px", marginBottom: "10px" }}>🌤</div>
-          <div style={{ color: "var(--muted)" }}>Fetching current conditions...</div>
-        </Card>
-      )}
-
-      {error && <Card style={{ padding: "16px 20px", borderLeft: "4px solid var(--danger2)" }}><span style={{ color: "var(--danger2)" }}>{error}</span></Card>}
-
-      {data && (
-        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }} className="hl-fade-in">
-          <Card style={{ padding: "24px" }}>
-            <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "14px" }}>Current Conditions · {location}</div>
-            <div className="hl-weather-current">
-              <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "'Playfair Display'", fontSize: "64px", fontWeight: 700, color: "var(--green)", lineHeight: 1 }}>{data.current.temp}</div>
-                <div style={{ fontSize: "15px", color: "var(--ink2)", fontWeight: 500, marginTop: "4px" }}>{data.current.condition}</div>
-              </div>
-              <div>
-                <div className="hl-weather-stats">
-                  {[["Humidity", data.current.humidity], ["Wind", data.current.wind], ["Feels Like", data.current.feels]].map(([k, v]) => (
-                    <div key={k}>
-                      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{k}</div>
-                      <div style={{ fontSize: "15px", fontWeight: 500, marginTop: "2px" }}>{v}</div>
-                    </div>
-                  ))}
-                </div>
-                <p style={{ fontSize: "14px", color: "var(--ink2)", lineHeight: 1.6, borderLeft: "3px solid var(--brass)", paddingLeft: "12px", fontStyle: "italic" }}>{data.current.desc}</p>
-              </div>
-            </div>
-          </Card>
-
-          <div className="hl-weather-forecast">
-            {data.forecast.map((f, i) => (
-              <Card key={i} style={{ padding: "14px 12px", textAlign: "center" }}>
-                <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>{f.day}</div>
-                <div style={{ fontSize: "14px", fontWeight: 500, marginBottom: "6px" }}>{f.condition}</div>
-                <div style={{ marginBottom: "8px" }}>
-                  <span style={{ fontWeight: 700, color: "var(--green)" }}>{f.high}°</span>
-                  <span style={{ color: "var(--muted)", marginLeft: "4px" }}>{f.low}°</span>
-                </div>
-                <div style={{ fontSize: "11px", color: "var(--ink2)", fontStyle: "italic", lineHeight: 1.4 }}>{f.farmNote}</div>
-              </Card>
-            ))}
-          </div>
-
-          <div className="hl-weather-advice">
-            {[["🌾 Farming Advice", data.advice], ["📅 Best Days This Week", data.bestDays]].map(([title, text]) => (
-              <Card key={title} style={{ padding: "18px 20px" }}>
-                <div style={{ fontWeight: 600, marginBottom: "8px" }}>{title}</div>
-                <p style={{ fontSize: "14px", color: "var(--ink2)", lineHeight: 1.7 }}>{text}</p>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ── Notes ─────────────────────────────────────────────────────────────────────
 function Notes({ notes, setNotes }) {
   const [newTitle, setNewTitle] = useState("");
@@ -1263,7 +1135,6 @@ export default function App() {
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} moon={moon} season={season} />}
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} />}
       {tab === "gestation" && <Gestation animals={animals} gestations={gestations} setGestations={setGestations} />}
-      {tab === "weather"   && <Weather />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} />}
     </div>
   );

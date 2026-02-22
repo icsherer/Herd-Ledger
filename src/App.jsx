@@ -88,6 +88,21 @@ function isOverdue(g) {
   const d = daysUntilDue(g);
   return d.isRange ? d.end < 0 : d.start < 0;
 }
+function ageFromDob(dobStr) {
+  if (!dobStr) return "Unknown";
+  const birth = new Date(dobStr + "T12:00:00");
+  const now = new Date();
+  const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  if (now.getDate() < birth.getDate()) return ageFromDobMonths(months - 1);
+  return ageFromDobMonths(months);
+}
+function ageFromDobMonths(months) {
+  if (months < 0) return "Unknown";
+  if (months >= 24) return `${Math.floor(months / 12)} years`;
+  if (months >= 12) return "1 year";
+  if (months >= 1) return `${months} month${months === 1 ? "" : "s"}`;
+  return "Under 1 month";
+}
 
 // ── Global Styles ─────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
@@ -514,6 +529,14 @@ function Animals({ animals, setAnimals, offspring, setOffspring }) {
     dob: "",
     weaningDate: "",
   });
+  const [showCastrationForm, setShowCastrationForm] = useState(false);
+  const [castrationForm, setCastrationForm] = useState({
+    date: "",
+    method: "Banding",
+    age: "",
+    performer: "Owner",
+    notes: "",
+  });
 
   function add() {
     if (!form.name) return;
@@ -538,6 +561,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring }) {
     const a = viewing;
     const offspringForMother = (offspring && offspring[a.id]) || [];
     const isFemale = a.sex === "Female";
+    const isMale = a.sex === "Male";
 
     function saveOffspring() {
       const rec = {
@@ -569,6 +593,31 @@ function Animals({ animals, setAnimals, offspring, setOffspring }) {
       });
     }
 
+    function saveCastration() {
+      const rec = {
+        date: castrationForm.date || undefined,
+        method: castrationForm.method || undefined,
+        age: castrationForm.age || undefined,
+        performer: castrationForm.performer || undefined,
+        notes: castrationForm.notes || undefined,
+        recordedAt: new Date().toISOString(),
+      };
+      setAnimals(prev =>
+        prev.map(an => (an.id === a.id ? { ...an, castration: rec } : an))
+      );
+      setViewing(prev =>
+        prev && prev.id === a.id ? { ...prev, castration: rec } : prev
+      );
+      setShowCastrationForm(false);
+      setCastrationForm({
+        date: "",
+        method: "Banding",
+        age: "",
+        performer: "Owner",
+        notes: "",
+      });
+    }
+
     return (
       <div className="hl-page hl-page-narrow hl-fade-in">
         <button onClick={() => setViewing(null)} style={{ background: "none", border: "none", color: "var(--green)", fontWeight: 600, fontSize: "14px", cursor: "pointer", marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
@@ -596,6 +645,118 @@ function Animals({ animals, setAnimals, offspring, setOffspring }) {
               <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "16px", borderLeft: "3px solid var(--brass)" }}>
                 <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "6px" }}>Notes</div>
                 <p style={{ fontSize: "14px", lineHeight: 1.7, color: "var(--ink2)" }}>{a.notes}</p>
+              </div>
+            )}
+            {isMale && (
+              <div style={{ marginTop: "24px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+                    Castration Record
+                  </div>
+                  <Btn
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      const existing = a.castration || {};
+                      setShowCastrationForm(true);
+                      setCastrationForm({
+                        date: existing.date || "",
+                        method: existing.method || "Banding",
+                        age: existing.age || "",
+                        performer: existing.performer || "Owner",
+                        notes: existing.notes || "",
+                      });
+                    }}
+                  >
+                    Log Castration
+                  </Btn>
+                </div>
+
+                {!a.castration && !showCastrationForm && (
+                  <p style={{ fontSize: "13px", color: "var(--muted)" }}>No castration recorded for this animal.</p>
+                )}
+
+                {a.castration && (
+                  <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)", marginBottom: "10px" }}>
+                    <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>
+                      {a.castration.date ? <>Performed {fmt(a.castration.date)}</> : "Date not recorded"}
+                    </div>
+                    <div style={{ fontSize: "13px", color: "var(--ink2)" }}>
+                      {a.castration.method && <div><strong>Method:</strong> {a.castration.method}</div>}
+                      {a.castration.age && <div><strong>Age at castration:</strong> {a.castration.age}</div>}
+                      {a.castration.performer && <div><strong>Performed by:</strong> {a.castration.performer}</div>}
+                      {a.castration.notes && (
+                        <div style={{ marginTop: "4px" }}>
+                          <strong>Notes:</strong> {a.castration.notes}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {showCastrationForm && (
+                  <Card style={{ padding: "18px 20px", borderLeft: "3px solid var(--brass)" }}>
+                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
+                      Log Castration
+                    </div>
+                    <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                      <Input
+                        label="Date performed"
+                        type="date"
+                        value={castrationForm.date}
+                        onChange={e => setCastrationForm(p => ({ ...p, date: e.target.value }))}
+                      />
+                      <Select
+                        label="Method"
+                        value={castrationForm.method}
+                        onChange={e => setCastrationForm(p => ({ ...p, method: e.target.value }))}
+                      >
+                        <option>Banding</option>
+                        <option>Surgical</option>
+                        <option>Burdizzo</option>
+                      </Select>
+                      <Input
+                        label="Age at castration"
+                        value={castrationForm.age}
+                        onChange={e => setCastrationForm(p => ({ ...p, age: e.target.value }))}
+                        placeholder="e.g. 6 months"
+                      />
+                      <Select
+                        label="Performed by"
+                        value={castrationForm.performer}
+                        onChange={e => setCastrationForm(p => ({ ...p, performer: e.target.value }))}
+                      >
+                        <option>Owner</option>
+                        <option>Vet</option>
+                      </Select>
+                    </div>
+                    <Textarea
+                      label="Notes"
+                      value={castrationForm.notes}
+                      onChange={e => setCastrationForm(p => ({ ...p, notes: e.target.value }))}
+                      rows={3}
+                    />
+                    <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                      <Btn size="sm" onClick={saveCastration}>Save Record</Btn>
+                      <Btn
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => {
+                          setShowCastrationForm(false);
+                          setCastrationForm({
+                            date: "",
+                            method: "Banding",
+                            age: "",
+                            performer: "Owner",
+                            notes: "",
+                          });
+                        }}
+                      >
+                        Cancel
+                      </Btn>
+                    </div>
+                  </Card>
+                )}
               </div>
             )}
             {isFemale && (
@@ -798,7 +959,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring }) {
             </div>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{a.name}</div>
             <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {a.sex}</div>
-            {a.dob && <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>Born {fmt(a.dob)}</div>}
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>{ageFromDob(a.dob)}</div>
           </Card>
         ))}
       </div>

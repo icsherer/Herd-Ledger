@@ -1,29 +1,29 @@
 import { useState, useEffect } from "react";
 
-// ── Data ─────────────────────────────────────────────────────────────────────
+// ── Species Data ──────────────────────────────────────────────────────────────
 const SPECIES = {
-  Cattle:  { days: 283, sign: "♉", color: "#7a4f2e" },
-  Horse:   { days: 340, sign: "♐", color: "#5a3e28" },
-  Pig:     { days: 114, sign: "♓", color: "#b97b72" },
-  Sheep:   { days: 147, sign: "♈", color: "#8a7a6a" },
-  Goat:    { days: 150, sign: "♑", color: "#6b5e4a" },
-  Llama:   { days: 350, sign: "♊", color: "#a08866" },
-  Alpaca:  { days: 345, sign: "♊", color: "#b8a48c" },
-  Donkey:  { days: 365, sign: "♑", color: "#7a6a5a" },
-  Rabbit:  { days: 31,  sign: "♋", color: "#a8886a" },
-  Dog:     { days: 63,  sign: "♌", color: "#c49060" },
-  Cat:     { days: 65,  sign: "♍", color: "#9a8878" },
+  Cattle:  { days: 283, emoji: "🐄" },
+  Horse:   { days: 340, emoji: "🐎" },
+  Pig:     { days: 114, emoji: "🐖" },
+  Sheep:   { days: 147, emoji: "🐑" },
+  Goat:    { days: 150, emoji: "🐐" },
+  Llama:   { days: 350, emoji: "🦙" },
+  Alpaca:  { days: 345, emoji: "🦙" },
+  Donkey:  { days: 365, emoji: "🫏" },
+  Rabbit:  { days: 31,  emoji: "🐇" },
+  Dog:     { days: 63,  emoji: "🐕" },
+  Cat:     { days: 65,  emoji: "🐈" },
 };
 
-const MOON_ICONS = ["🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘"];
-const MOON_NAMES = ["New Moon","Waxing Crescent","First Quarter","Waxing Gibbous","Full Moon","Waning Gibbous","Last Quarter","Waning Crescent"];
+const MOON_ICONS  = ["🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘"];
+const MOON_NAMES  = ["New Moon","Waxing Crescent","First Quarter","Waxing Gibbous","Full Moon","Waning Gibbous","Last Quarter","Waning Crescent"];
 
 function getMoonPhase(date = new Date()) {
   let y = date.getFullYear(), m = date.getMonth() + 1, d = date.getDate();
   if (m < 3) { y--; m += 12; } m++;
   const jd = Math.floor(365.25 * y) + Math.floor(30.6 * m) + d - 694039.09;
   const b = Math.round((jd / 29.5305882 % 1) * 8) % 8;
-  return { icon: MOON_ICONS[b], name: MOON_NAMES[b], index: b };
+  return { icon: MOON_ICONS[b], name: MOON_NAMES[b] };
 }
 
 function getSeason(d = new Date()) {
@@ -41,14 +41,9 @@ const TIPS = {
   Autumn: ["Mark your breeding dates carefully — spring arrives quickly.","Stock the hayloft full; winter feeds the heaviest animals hardest.","Thicker woolly bears predict harsher winters.","Harvest when the moon wanes for longest storage."],
 };
 
-const DIVIDER = "✦ ✦ ✦";
-
-// ── Storage (localStorage) ────────────────────────────────────────────────────
+// ── Storage ───────────────────────────────────────────────────────────────────
 function loadData(key, fallback) {
-  try {
-    const v = localStorage.getItem(key);
-    return v ? JSON.parse(v) : fallback;
-  } catch { return fallback; }
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
 }
 function saveData(key, value) {
   try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
@@ -73,93 +68,234 @@ function fmt(dateStr) {
   if (!dateStr) return "—";
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
-function var_(name) { return `var(--${name})`; }
 
-// ── CSS ───────────────────────────────────────────────────────────────────────
-const FONTS = `
-  @import url('https://fonts.googleapis.com/css2?family=IM+Fell+English:ital@0;1&family=Cardo:ital,wght@0,400;0,700;1,400&display=swap');
+// ── Global Styles ─────────────────────────────────────────────────────────────
+const GLOBAL_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --parch: #f2e8d0;
-    --parch2: #e8d8b8;
-    --parch3: #d8c8a0;
-    --ink: #1c0f06;
-    --ink2: #3a2010;
-    --red: #8b1a1a;
-    --red2: #6b1010;
-    --brown: #5a3a1a;
-    --brown2: #8b6040;
-    --faded: #9a8060;
-    --border: 2px solid #5a3a1a;
+    --green:    #1B3A2B;
+    --green2:   #254D39;
+    --green3:   #2E6347;
+    --brass:    #C9952A;
+    --brass2:   #A67A1E;
+    --brass3:   #F0C060;
+    --cream:    #F7F2E8;
+    --cream2:   #EDE6D6;
+    --cream3:   #E0D5C0;
+    --ink:      #141A14;
+    --ink2:     #2C3A2C;
+    --muted:    #7A8C7A;
+    --danger:   #8B2020;
+    --danger2:  #C0392B;
+    --white:    #FFFFFF;
+    --shadow:   0 1px 3px rgba(20,26,20,0.10), 0 4px 12px rgba(20,26,20,0.06);
+    --shadow2:  0 2px 8px rgba(20,26,20,0.14), 0 8px 24px rgba(20,26,20,0.08);
+    --radius:   6px;
+    --radius2:  10px;
   }
 
   body {
-    background: var(--parch);
+    background: var(--cream);
     color: var(--ink);
-    font-family: 'Cardo', Georgia, serif;
-    min-height: 100vh;
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
   }
 
-  .paper-texture {
-    background-image:
-      repeating-linear-gradient(0deg, transparent, transparent 28px, rgba(90,58,26,0.04) 28px, rgba(90,58,26,0.04) 29px),
-      radial-gradient(ellipse at 20% 50%, rgba(180,140,80,0.08) 0%, transparent 60%),
-      radial-gradient(ellipse at 80% 20%, rgba(160,120,60,0.06) 0%, transparent 50%);
-  }
+  button { cursor: pointer; font-family: 'Source Sans 3', sans-serif; }
+  input, select, textarea { font-family: 'Source Sans 3', sans-serif; }
 
-  .ornament { color: var(--red); text-align: center; letter-spacing: 8px; font-size: 12px; margin: 12px 0; }
+  .hl-fade-in { animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
-  button { cursor: pointer; font-family: 'Cardo', Georgia, serif; }
-  input, select, textarea { font-family: 'Cardo', Georgia, serif; }
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: var(--cream2); }
+  ::-webkit-scrollbar-thumb { background: var(--cream3); border-radius: 3px; }
 `;
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Shared UI ─────────────────────────────────────────────────────────────────
+function Card({ children, style = {} }) {
+  return (
+    <div style={{
+      background: "#fff",
+      borderRadius: var2("radius2"),
+      boxShadow: "var(--shadow)",
+      border: "1px solid var(--cream3)",
+      ...style
+    }}>{children}</div>
+  );
+}
 
+function Badge({ children, color = "var(--green)" }) {
+  return (
+    <span style={{
+      display: "inline-block",
+      padding: "2px 10px",
+      borderRadius: "20px",
+      fontSize: "12px",
+      fontWeight: 600,
+      background: color,
+      color: "#fff",
+      letterSpacing: "0.3px",
+    }}>{children}</span>
+  );
+}
+
+function ProgressBar({ value, color = "var(--green3)", height = 6 }) {
+  return (
+    <div style={{ background: "var(--cream2)", height, borderRadius: 99, overflow: "hidden" }}>
+      <div style={{ width: `${value}%`, height: "100%", background: color, borderRadius: 99, transition: "width 0.5s ease" }} />
+    </div>
+  );
+}
+
+function SectionTitle({ children, action }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+      <h2 style={{ fontFamily: "'Playfair Display'", fontSize: "24px", fontWeight: 700, color: "var(--ink)" }}>{children}</h2>
+      {action}
+    </div>
+  );
+}
+
+function Btn({ children, onClick, variant = "primary", disabled, size = "md" }) {
+  const sizes = { sm: "6px 14px", md: "9px 20px", lg: "12px 28px" };
+  const styles = {
+    primary:   { background: "var(--green)",  color: "#fff",           border: "none" },
+    secondary: { background: "transparent",   color: "var(--green)",   border: "1.5px solid var(--green)" },
+    brass:     { background: "var(--brass)",   color: "#fff",           border: "none" },
+    danger:    { background: "var(--danger2)", color: "#fff",           border: "none" },
+    ghost:     { background: "transparent",   color: "var(--muted)",   border: "none" },
+  };
+  return (
+    <button onClick={onClick} disabled={disabled} style={{
+      ...styles[variant],
+      padding: sizes[size],
+      borderRadius: "var(--radius)",
+      fontSize: size === "sm" ? "13px" : "14px",
+      fontWeight: 600,
+      letterSpacing: "0.2px",
+      transition: "all 0.15s",
+      opacity: disabled ? 0.6 : 1,
+      cursor: disabled ? "not-allowed" : "pointer",
+    }}
+    onMouseEnter={e => { if (!disabled) e.currentTarget.style.filter = "brightness(1.1)"; }}
+    onMouseLeave={e => { e.currentTarget.style.filter = ""; }}
+    >{children}</button>
+  );
+}
+
+function Input({ label, ...props }) {
+  return (
+    <div>
+      {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
+      <input {...props} style={{
+        width: "100%", padding: "9px 12px",
+        border: "1.5px solid var(--cream3)",
+        borderRadius: "var(--radius)",
+        fontSize: "14px", color: "var(--ink)",
+        background: "#fff", outline: "none",
+        transition: "border-color 0.15s",
+        ...props.style,
+      }}
+      onFocus={e => e.target.style.borderColor = "var(--green3)"}
+      onBlur={e => e.target.style.borderColor = "var(--cream3)"}
+      />
+    </div>
+  );
+}
+
+function Select({ label, children, ...props }) {
+  return (
+    <div>
+      {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
+      <select {...props} style={{
+        width: "100%", padding: "9px 12px",
+        border: "1.5px solid var(--cream3)",
+        borderRadius: "var(--radius)",
+        fontSize: "14px", color: "var(--ink)",
+        background: "#fff", outline: "none",
+        ...props.style,
+      }}>{children}</select>
+    </div>
+  );
+}
+
+function Textarea({ label, ...props }) {
+  return (
+    <div>
+      {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
+      <textarea {...props} style={{
+        width: "100%", padding: "9px 12px",
+        border: "1.5px solid var(--cream3)",
+        borderRadius: "var(--radius)",
+        fontSize: "14px", color: "var(--ink)",
+        background: "#fff", outline: "none",
+        resize: "vertical",
+        ...props.style,
+      }}
+      onFocus={e => e.target.style.borderColor = "var(--green3)"}
+      onBlur={e => e.target.style.borderColor = "var(--cream3)"}
+      />
+    </div>
+  );
+}
+
+function var2(name) { return `var(--${name})`; }
+
+// ── Navigation ────────────────────────────────────────────────────────────────
 function Nav({ tab, setTab }) {
-  const tabs = ["Dashboard", "Animals", "Gestation", "Weather", "Notes"];
+  const tabs = [
+    { id: "dashboard", label: "Dashboard", icon: "⊞" },
+    { id: "animals",   label: "Animals",   icon: "🐄" },
+    { id: "gestation", label: "Gestation", icon: "📅" },
+    { id: "weather",   label: "Weather",   icon: "🌤" },
+    { id: "notes",     label: "Journal",   icon: "📖" },
+  ];
   return (
-    <nav style={{ background: var_("ink2"), borderBottom: "3px solid var(--red)", display: "flex", gap: 0, overflowX: "auto" }}>
-      {tabs.map(t => (
-        <button key={t} onClick={() => setTab(t.toLowerCase())} style={{
-          padding: "10px 20px",
-          background: tab === t.toLowerCase() ? "var(--red2)" : "transparent",
-          color: tab === t.toLowerCase() ? "var(--parch)" : "var(--parch3)",
-          border: "none",
-          borderRight: "1px solid rgba(255,255,255,0.1)",
-          fontFamily: "'IM Fell English', Georgia, serif",
-          fontSize: "15px", letterSpacing: "1px",
-          transition: "all 0.2s", whiteSpace: "nowrap",
-        }}>{t}</button>
-      ))}
-    </nav>
-  );
-}
+    <header style={{ background: "var(--green)", borderBottom: "3px solid var(--brass)" }}>
+      <div style={{ padding: "0 24px", display: "flex", alignItems: "center", gap: "0" }}>
+        {/* Logo */}
+        <div style={{ padding: "14px 0", marginRight: "32px", flexShrink: 0 }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "#fff", letterSpacing: "0.5px", lineHeight: 1 }}>
+            Herd Ledger
+          </div>
+          <div style={{ fontSize: "10px", color: "var(--brass3)", letterSpacing: "2px", textTransform: "uppercase", marginTop: "2px" }}>
+            Livestock Management
+          </div>
+        </div>
 
-function MoonWidget({ moon }) {
-  return (
-    <div style={{ textAlign: "center", padding: "16px" }}>
-      <div style={{ fontSize: "48px", lineHeight: 1 }}>{moon.icon}</div>
-      <div style={{ fontFamily: "'IM Fell English'", color: "var(--red)", fontSize: "13px", marginTop: "4px", letterSpacing: "1px" }}>{moon.name}</div>
-    </div>
-  );
-}
-
-function ProgressBar({ value, color = "var(--red)" }) {
-  return (
-    <div style={{ background: "var(--parch3)", height: "8px", borderRadius: 0, border: "1px solid var(--brown2)", overflow: "hidden" }}>
-      <div style={{ width: `${value}%`, height: "100%", background: color, transition: "width 0.5s" }} />
-    </div>
-  );
-}
-
-function SectionHeader({ children }) {
-  return (
-    <div style={{ textAlign: "center", margin: "24px 0 16px" }}>
-      <div style={{ fontFamily: "'IM Fell English'", fontSize: "22px", color: "var(--ink2)", letterSpacing: "2px" }}>{children}</div>
-      <div className="ornament">{DIVIDER}</div>
-    </div>
+        {/* Tabs */}
+        <nav style={{ display: "flex", gap: "2px", overflowX: "auto" }}>
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{
+              display: "flex", alignItems: "center", gap: "6px",
+              padding: "16px 18px",
+              background: tab === t.id ? "rgba(255,255,255,0.12)" : "transparent",
+              color: tab === t.id ? "#fff" : "rgba(255,255,255,0.6)",
+              border: "none",
+              borderBottom: tab === t.id ? "3px solid var(--brass)" : "3px solid transparent",
+              fontSize: "14px", fontWeight: tab === t.id ? 600 : 400,
+              whiteSpace: "nowrap",
+              transition: "all 0.15s",
+              cursor: "pointer",
+              marginBottom: "-3px",
+            }}
+            onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.color = "#fff"; }}
+            onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+            >
+              <span style={{ fontSize: "16px" }}>{t.icon}</span>
+              {t.label}
+            </button>
+          ))}
+        </nav>
+      </div>
+    </header>
   );
 }
 
@@ -167,77 +303,145 @@ function SectionHeader({ children }) {
 function Dashboard({ animals, gestations, moon, season }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
-  const month = today.toLocaleString("default", { month: "long" });
-  const year = today.getFullYear();
 
-  const upcoming = gestations
-    .filter(g => g.status !== "Delivered")
+  const speciesCounts = animals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
+  const activeGestations = gestations.filter(g => g.status !== "Delivered");
+
+  const upcoming = activeGestations
     .map(g => { const a = animals.find(x => x.id === g.animalId); const due = daysUntil(g.dueDate); return { ...g, animal: a, due }; })
     .filter(g => g.due >= 0 && g.due <= 30)
     .sort((a, b) => a.due - b.due);
 
-  const overdue = gestations
-    .filter(g => g.status !== "Delivered")
+  const overdue = activeGestations
     .map(g => ({ ...g, due: daysUntil(g.dueDate), animal: animals.find(x => x.id === g.animalId) }))
     .filter(g => g.due < 0);
 
   return (
-    <div>
-      <div style={{ textAlign: "center", padding: "32px 24px 16px", borderBottom: "3px double var(--brown)", background: "linear-gradient(180deg, var(--parch2) 0%, var(--parch) 100%)" }}>
-        <div style={{ fontFamily: "'IM Fell English'", fontSize: "11px", letterSpacing: "6px", color: "var(--faded)", textTransform: "uppercase", marginBottom: "4px" }}>The Stockman's</div>
-        <div style={{ fontFamily: "'IM Fell English'", fontStyle: "italic", fontSize: "42px", color: "var(--ink)", lineHeight: 1, marginBottom: "4px" }}>Farmer's Almanac</div>
-        <div style={{ fontFamily: "'IM Fell English'", fontSize: "13px", color: "var(--red)", letterSpacing: "3px" }}>{month.toUpperCase()} · {year}</div>
-        <div className="ornament" style={{ marginTop: "12px" }}>— {season} —</div>
+    <div style={{ padding: "28px 24px", maxWidth: "1100px", margin: "0 auto" }} className="hl-fade-in">
+
+      {/* Top stats row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "14px", marginBottom: "24px" }}>
+        {[
+          { label: "Total Animals", value: animals.length, sub: `${Object.keys(speciesCounts).length} species`, icon: "🐄" },
+          { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅" },
+          { label: "Due This Month",value: upcoming.length, sub: overdue.length > 0 ? `${overdue.length} overdue` : "none overdue", icon: "⚠️", alert: overdue.length > 0 },
+          { label: "Moon Phase",    value: moon.icon, sub: moon.name, icon: null, large: true },
+        ].map((s, i) => (
+          <Card key={i} style={{ padding: "18px 20px", borderLeft: s.alert ? "4px solid var(--danger2)" : "4px solid var(--brass)" }}>
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "6px" }}>{s.label}</div>
+            <div style={{ fontFamily: s.large ? "inherit" : "'Playfair Display'", fontSize: s.large ? "32px" : "30px", fontWeight: 700, color: s.alert ? "var(--danger2)" : "var(--green)", lineHeight: 1, marginBottom: "4px" }}>{s.value}</div>
+            <div style={{ fontSize: "12px", color: s.alert ? "var(--danger2)" : "var(--muted)" }}>{s.sub}</div>
+          </Card>
+        ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "1px", background: "var(--brown)", borderBottom: "2px solid var(--brown)" }}>
-        <div style={{ background: "var(--parch)", padding: "16px", textAlign: "center" }}>
-          <div style={{ fontFamily: "'IM Fell English'", fontSize: "11px", color: "var(--faded)", letterSpacing: "3px", marginBottom: "4px" }}>MOON</div>
-          <MoonWidget moon={moon} />
-        </div>
-        <div style={{ background: "var(--parch)", padding: "16px" }}>
-          <div style={{ fontFamily: "'IM Fell English'", fontSize: "11px", color: "var(--faded)", letterSpacing: "3px", marginBottom: "12px", textAlign: "center" }}>STOCK COUNT</div>
-          {Object.entries(animals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {})).map(([sp, n]) => (
-            <div key={sp} style={{ display: "flex", justifyContent: "space-between", borderBottom: "1px dotted var(--parch3)", padding: "3px 0", fontSize: "15px" }}>
-              <span>{sp}</span><span style={{ fontWeight: "bold", color: "var(--red2)" }}>{n}</span>
-            </div>
-          ))}
-          {!animals.length && <div style={{ color: "var(--faded)", fontStyle: "italic", textAlign: "center", fontSize: "14px" }}>No animals registered</div>}
-        </div>
-        <div style={{ background: "var(--parch)", padding: "16px", textAlign: "center" }}>
-          <div style={{ fontFamily: "'IM Fell English'", fontSize: "11px", color: "var(--faded)", letterSpacing: "3px", marginBottom: "8px" }}>TODAY</div>
-          <div style={{ fontFamily: "'IM Fell English'", fontSize: "36px", color: "var(--red)", lineHeight: 1 }}>{today.getDate()}</div>
-          <div style={{ fontFamily: "'IM Fell English'", fontSize: "14px", color: "var(--ink2)", marginTop: "2px" }}>{today.toLocaleDateString("en-US", { weekday: "long" })}</div>
-          <div style={{ marginTop: "8px", fontSize: "12px", color: "var(--faded)", letterSpacing: "1px" }}>{gestations.filter(g => g.status !== "Delivered").length} Expecting</div>
-        </div>
-      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "20px", alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 
-      <div style={{ margin: "24px", padding: "20px 28px", border: "2px solid var(--brown2)", background: "var(--parch2)", position: "relative" }}>
-        <div style={{ position: "absolute", top: "-11px", left: "50%", transform: "translateX(-50%)", background: "var(--parch2)", padding: "0 12px", fontFamily: "'IM Fell English'", fontSize: "11px", color: "var(--red)", letterSpacing: "4px" }}>ALMANAC WISDOM</div>
-        <p style={{ fontFamily: "'IM Fell English'", fontStyle: "italic", fontSize: "18px", color: "var(--ink2)", textAlign: "center", lineHeight: 1.6 }}>"{tip}"</p>
-      </div>
-
-      {(upcoming.length > 0 || overdue.length > 0) && (
-        <div style={{ margin: "0 24px 24px" }}>
-          <SectionHeader>Births Expected Within 30 Days</SectionHeader>
-          {overdue.map(g => (
-            <div key={g.id} style={{ background: "#5a1a1a", color: "var(--parch)", padding: "12px 16px", marginBottom: "8px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div><span style={{ fontFamily: "'IM Fell English'", fontSize: "16px" }}>{g.animal?.name || "Unknown"}</span><span style={{ fontSize: "13px", marginLeft: "8px", opacity: 0.8 }}>{g.animal?.species}</span></div>
-              <div style={{ fontFamily: "'IM Fell English'", color: "#ffcccc" }}>OVERDUE — CHECK NOW</div>
-            </div>
-          ))}
-          {upcoming.map(g => (
-            <div key={g.id} style={{ background: "var(--parch2)", border: "1px solid var(--brown2)", padding: "12px 16px", marginBottom: "8px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
-                <div><span style={{ fontFamily: "'IM Fell English'", fontSize: "16px" }}>{g.animal?.name || "Unknown"}</span><span style={{ fontSize: "13px", color: "var(--faded)", marginLeft: "8px" }}>{g.animal?.species}</span></div>
-                <div style={{ fontFamily: "'IM Fell English'", color: "var(--red)", fontSize: "14px" }}>{g.due === 0 ? "Due Today!" : `${g.due} day${g.due !== 1 ? "s" : ""}`}</div>
+          {/* Overdue alerts */}
+          {overdue.length > 0 && (
+            <Card style={{ borderLeft: "4px solid var(--danger2)", padding: "0" }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span style={{ fontSize: "16px" }}>⚠️</span>
+                <span style={{ fontWeight: 700, color: "var(--danger2)", fontSize: "14px" }}>Overdue — Check Immediately</span>
               </div>
-              <ProgressBar value={progress(g.breedingDate, g.gestationDays)} />
-              <div style={{ fontSize: "12px", color: "var(--faded)", marginTop: "4px" }}>Due {fmt(g.dueDate)}</div>
-            </div>
-          ))}
+              {overdue.map(g => (
+                <div key={g.id} style={{ padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--cream2)" }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>{g.animal?.name || "Unknown"}</span>
+                    <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{g.animal?.species}</span>
+                  </div>
+                  <Badge color="var(--danger2)">{Math.abs(g.due)}d overdue</Badge>
+                </div>
+              ))}
+            </Card>
+          )}
+
+          {/* Upcoming births */}
+          {upcoming.length > 0 && (
+            <Card style={{ padding: "0" }}>
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)" }}>
+                <span style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600 }}>Upcoming Births</span>
+                <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>next 30 days</span>
+              </div>
+              {upcoming.map(g => (
+                <div key={g.id} style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "8px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                      <span style={{ fontSize: "20px" }}>{SPECIES[g.animal?.species]?.emoji}</span>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>{g.animal?.name || "Unknown"}</div>
+                        <div style={{ fontSize: "12px", color: "var(--muted)" }}>{g.animal?.species} · Due {fmt(g.dueDate)}</div>
+                      </div>
+                    </div>
+                    <Badge color={g.due <= 7 ? "var(--brass2)" : "var(--green3)"}>
+                      {g.due === 0 ? "Today" : `${g.due}d`}
+                    </Badge>
+                  </div>
+                  <ProgressBar value={progress(g.breedingDate, g.gestationDays)} />
+                </div>
+              ))}
+            </Card>
+          )}
+
+          {/* Herd breakdown */}
+          {animals.length > 0 && (
+            <Card style={{ padding: "20px" }}>
+              <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Herd Breakdown</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                {Object.entries(speciesCounts).map(([sp, n]) => (
+                  <div key={sp}>
+                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
+                        <span>{SPECIES[sp]?.emoji}</span> {sp}
+                      </span>
+                      <span style={{ fontWeight: 600, color: "var(--green)" }}>{n}</span>
+                    </div>
+                    <ProgressBar value={(n / animals.length) * 100} height={4} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {!animals.length && !activeGestations.length && (
+            <Card style={{ padding: "48px", textAlign: "center" }}>
+              <div style={{ fontSize: "48px", marginBottom: "12px" }}>🐄</div>
+              <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600, marginBottom: "8px" }}>Welcome to Herd Ledger</div>
+              <div style={{ color: "var(--muted)", fontSize: "14px" }}>Start by registering your first animal in the Animals tab.</div>
+            </Card>
+          )}
         </div>
-      )}
+
+        {/* Right column */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+          {/* Date & Season */}
+          <Card style={{ padding: "20px", textAlign: "center", background: "var(--green)", border: "none" }}>
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--brass3)", textTransform: "uppercase", letterSpacing: "1.5px", marginBottom: "4px" }}>{season}</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "52px", fontWeight: 700, color: "#fff", lineHeight: 1 }}>{today.getDate()}</div>
+            <div style={{ fontSize: "14px", color: "rgba(255,255,255,0.7)", marginTop: "4px" }}>
+              {today.toLocaleDateString("en-US", { weekday: "long", month: "long", year: "numeric" })}
+            </div>
+          </Card>
+
+          {/* Moon */}
+          <Card style={{ padding: "20px", textAlign: "center" }}>
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>Moon Phase</div>
+            <div style={{ fontSize: "52px", lineHeight: 1, marginBottom: "6px" }}>{moon.icon}</div>
+            <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "14px" }}>{moon.name}</div>
+          </Card>
+
+          {/* Almanac Wisdom */}
+          <Card style={{ padding: "20px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--brass2)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "10px" }}>
+              Almanac Wisdom
+            </div>
+            <p style={{ fontFamily: "'Playfair Display'", fontStyle: "italic", fontSize: "15px", color: "var(--ink2)", lineHeight: 1.7 }}>
+              "{tip}"
+            </p>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
@@ -245,118 +449,125 @@ function Dashboard({ animals, gestations, moon, season }) {
 // ── Animals ───────────────────────────────────────────────────────────────────
 function Animals({ animals, setAnimals }) {
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: "", species: "Cattle", sex: "Female", dob: "", color: "", tag: "", notes: "" });
+  const [form, setForm] = useState({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
   const [viewing, setViewing] = useState(null);
+  const [search, setSearch] = useState("");
 
   function add() {
     if (!form.name) return;
     setAnimals(p => [...p, { ...form, id: Date.now().toString() }]);
-    setForm({ name: "", species: "Cattle", sex: "Female", dob: "", color: "", tag: "", notes: "" });
+    setForm({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
     setShowAdd(false);
   }
 
   function remove(id) {
     if (!confirm("Remove this animal from the register?")) return;
     setAnimals(p => p.filter(a => a.id !== id));
+    setViewing(null);
   }
 
-  const inputStyle = { width: "100%", padding: "8px 10px", background: "var(--parch)", border: "1px solid var(--brown2)", color: "var(--ink)", fontSize: "15px", outline: "none" };
-  const labelStyle = { fontFamily: "'IM Fell English'", fontSize: "12px", letterSpacing: "2px", color: "var(--faded)", display: "block", marginBottom: "4px" };
+  const filtered = animals.filter(a =>
+    a.name.toLowerCase().includes(search.toLowerCase()) ||
+    a.species.toLowerCase().includes(search.toLowerCase()) ||
+    (a.tag || "").toLowerCase().includes(search.toLowerCase())
+  );
 
   if (viewing) {
     const a = viewing;
     return (
-      <div style={{ padding: "24px" }}>
-        <button onClick={() => setViewing(null)} style={{ background: "none", border: "none", color: "var(--red)", fontFamily: "'IM Fell English'", fontSize: "14px", letterSpacing: "1px", marginBottom: "16px" }}>← Back to Register</button>
-        <div style={{ border: "2px solid var(--brown)", background: "var(--parch2)", padding: "28px" }}>
-          <div style={{ textAlign: "center", marginBottom: "20px" }}>
-            <div style={{ fontFamily: "'IM Fell English'", fontSize: "32px", color: "var(--ink)" }}>{a.name}</div>
-            <div style={{ color: "var(--red)", letterSpacing: "4px", fontSize: "12px", fontFamily: "'IM Fell English'" }}>{a.species.toUpperCase()} · {a.sex?.toUpperCase()}</div>
-          </div>
-          <div className="ornament">{DIVIDER}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginTop: "16px" }}>
-            {[["Date of Birth", fmt(a.dob)], ["Tag / ID", a.tag || "—"], ["Color / Markings", a.color || "—"]].map(([k, v]) => (
-              <div key={k}><div style={labelStyle}>{k}</div><div style={{ fontSize: "16px" }}>{v}</div></div>
-            ))}
-          </div>
-          {a.notes && (
-            <div style={{ marginTop: "20px", padding: "16px", background: "var(--parch)", borderLeft: "3px solid var(--red)" }}>
-              <div style={labelStyle}>NOTES</div>
-              <p style={{ fontStyle: "italic", fontSize: "15px", lineHeight: 1.6 }}>{a.notes}</p>
+      <div style={{ padding: "28px 24px", maxWidth: "800px", margin: "0 auto" }} className="hl-fade-in">
+        <button onClick={() => setViewing(null)} style={{ background: "none", border: "none", color: "var(--green)", fontWeight: 600, fontSize: "14px", cursor: "pointer", marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
+          ← Back to Animals
+        </button>
+        <Card style={{ padding: "0", overflow: "hidden" }}>
+          <div style={{ background: "var(--green)", padding: "28px 32px", display: "flex", alignItems: "center", gap: "20px" }}>
+            <div style={{ fontSize: "52px" }}>{SPECIES[a.species]?.emoji}</div>
+            <div>
+              <div style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{a.name}</div>
+              <div style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {a.sex}</div>
             </div>
-          )}
-          <div style={{ marginTop: "20px", padding: "12px", background: "var(--parch3)", borderLeft: "3px solid var(--brown2)" }}>
-            <div style={labelStyle}>GESTATION PERIOD</div>
-            <div style={{ fontSize: "16px" }}>{SPECIES[a.species]?.days ?? "—"} days</div>
+            {a.tag && <Badge color="var(--brass2)" style={{ marginLeft: "auto" }}>#{a.tag}</Badge>}
           </div>
-        </div>
+          <div style={{ padding: "28px 32px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "24px", marginBottom: "24px" }}>
+              {[["Species", a.species], ["Breed", a.breed || "—"], ["Sex", a.sex], ["Date of Birth", fmt(a.dob)], ["Tag / ID", a.tag || "—"], ["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]].map(([k, v]) => (
+                <div key={k}>
+                  <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>{k}</div>
+                  <div style={{ fontSize: "15px", fontWeight: 500 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+            {a.notes && (
+              <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "16px", borderLeft: "3px solid var(--brass)" }}>
+                <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "6px" }}>Notes</div>
+                <p style={{ fontSize: "14px", lineHeight: 1.7, color: "var(--ink2)" }}>{a.notes}</p>
+              </div>
+            )}
+            <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end" }}>
+              <Btn variant="danger" size="sm" onClick={() => remove(a.id)}>Remove Animal</Btn>
+            </div>
+          </div>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div style={{ padding: "24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <div style={{ fontFamily: "'IM Fell English'", fontSize: "24px" }}>Animal Register</div>
-        <button onClick={() => setShowAdd(true)} style={{ background: "var(--red2)", color: "var(--parch)", border: "none", padding: "8px 18px", fontFamily: "'IM Fell English'", fontSize: "14px", letterSpacing: "1px" }}>+ Register Animal</button>
+    <div style={{ padding: "28px 24px", maxWidth: "1100px", margin: "0 auto" }} className="hl-fade-in">
+      <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ Register Animal</Btn>}>
+        Animal Register
+      </SectionTitle>
+
+      {/* Search */}
+      <div style={{ marginBottom: "20px" }}>
+        <Input placeholder="Search by name, species, or tag..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
       {showAdd && (
-        <div style={{ background: "var(--parch2)", border: "2px solid var(--brown)", padding: "24px", marginBottom: "24px" }}>
-          <div style={{ fontFamily: "'IM Fell English'", fontSize: "18px", marginBottom: "16px", color: "var(--red)" }}>New Animal</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            {[["Name", "name", "text"], ["Tag / ID", "tag", "text"], ["Color / Markings", "color", "text"], ["Date of Birth", "dob", "date"]].map(([label, key, type]) => (
-              <div key={key}>
-                <label style={labelStyle}>{label.toUpperCase()}</label>
-                <input type={type} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} style={inputStyle} />
-              </div>
-            ))}
-            <div>
-              <label style={labelStyle}>SPECIES</label>
-              <select value={form.species} onChange={e => setForm(p => ({ ...p, species: e.target.value }))} style={inputStyle}>
-                {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>SEX</label>
-              <select value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))} style={inputStyle}>
-                <option>Female</option><option>Male</option><option>Wether/Steer</option>
-              </select>
-            </div>
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>New Animal</div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+            <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
+            <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
+            <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
+            <Select label="Species" value={form.species} onChange={e => setForm(p => ({ ...p, species: e.target.value }))}>
+              {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
+            </Select>
+            <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
+              <option>Female</option><option>Male</option><option>Wether/Steer</option>
+            </Select>
+            <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
           </div>
-          <div style={{ marginTop: "12px" }}>
-            <label style={labelStyle}>NOTES</label>
-            <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
-          </div>
+          <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
           <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <button onClick={add} style={{ background: "var(--ink2)", color: "var(--parch)", border: "none", padding: "10px 24px", fontFamily: "'IM Fell English'", fontSize: "14px" }}>Register</button>
-            <button onClick={() => setShowAdd(false)} style={{ background: "none", border: "1px solid var(--brown2)", color: "var(--ink2)", padding: "10px 24px", fontFamily: "'IM Fell English'", fontSize: "14px" }}>Cancel</button>
+            <Btn onClick={add}>Register</Btn>
+            <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
           </div>
-        </div>
+        </Card>
       )}
 
-      {!animals.length && !showAdd && (
-        <div style={{ textAlign: "center", padding: "60px", color: "var(--faded)", fontStyle: "italic", fontSize: "18px" }}>No animals in the register yet.</div>
+      {!filtered.length && (
+        <Card style={{ padding: "60px", textAlign: "center" }}>
+          <div style={{ fontSize: "40px", marginBottom: "10px" }}>🐄</div>
+          <div style={{ color: "var(--muted)", fontSize: "15px" }}>{search ? "No animals match your search." : "No animals registered yet."}</div>
+        </Card>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "12px" }}>
-        {animals.map(a => (
-          <div key={a.id} onClick={() => setViewing(a)} style={{ background: "var(--parch2)", border: "1px solid var(--brown2)", padding: "16px", cursor: "pointer", boxShadow: "2px 2px 0 var(--parch3)" }}
-            onMouseEnter={e => e.currentTarget.style.boxShadow = "3px 3px 0 var(--brown2)"}
-            onMouseLeave={e => e.currentTarget.style.boxShadow = "2px 2px 0 var(--parch3)"}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontFamily: "'IM Fell English'", fontSize: "20px", color: "var(--ink)" }}>{a.name}</div>
-                <div style={{ fontSize: "13px", color: "var(--faded)", letterSpacing: "1px" }}>{a.species} · {a.sex}</div>
-              </div>
-              <div style={{ color: "var(--red)", fontSize: "18px" }}>{SPECIES[a.species]?.sign}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
+        {filtered.map(a => (
+          <Card key={a.id} style={{ padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s" }}
+            onClick={() => setViewing(a)}
+            onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow2)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = "var(--shadow)"; e.currentTarget.style.transform = ""; }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
+              <span style={{ fontSize: "28px" }}>{SPECIES[a.species]?.emoji}</span>
+              {a.tag && <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>#{a.tag}</span>}
             </div>
-            {a.tag && <div style={{ fontSize: "12px", color: "var(--faded)", marginTop: "8px" }}>Tag: {a.tag}</div>}
-            {a.dob && <div style={{ fontSize: "12px", color: "var(--faded)" }}>Born: {fmt(a.dob)}</div>}
-            <div style={{ marginTop: "10px", display: "flex", justifyContent: "flex-end" }}>
-              <button onClick={e => { e.stopPropagation(); remove(a.id); }} style={{ background: "none", border: "none", color: "var(--faded)", fontSize: "12px", fontFamily: "'IM Fell English'" }}>Remove</button>
-            </div>
-          </div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{a.name}</div>
+            <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {a.sex}</div>
+            {a.dob && <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>Born {fmt(a.dob)}</div>}
+          </Card>
         ))}
       </div>
     </div>
@@ -391,99 +602,117 @@ function Gestation({ animals, gestations, setGestations }) {
 
   const active = gestations.filter(g => g.status !== "Delivered");
   const delivered = gestations.filter(g => g.status === "Delivered");
-  const inputStyle = { width: "100%", padding: "8px 10px", background: "var(--parch)", border: "1px solid var(--brown2)", color: "var(--ink)", fontSize: "15px", outline: "none" };
-  const labelStyle = { fontFamily: "'IM Fell English'", fontSize: "12px", letterSpacing: "2px", color: "var(--faded)", display: "block", marginBottom: "4px" };
 
   return (
-    <div style={{ padding: "24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <div style={{ fontFamily: "'IM Fell English'", fontSize: "24px" }}>Gestation Ledger</div>
-        <button onClick={() => setShowAdd(true)} style={{ background: "var(--red2)", color: "var(--parch)", border: "none", padding: "8px 18px", fontFamily: "'IM Fell English'", fontSize: "14px", letterSpacing: "1px" }}>+ Log Breeding</button>
-      </div>
+    <div style={{ padding: "28px 24px", maxWidth: "900px", margin: "0 auto" }} className="hl-fade-in">
+      <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ Log Breeding</Btn>}>
+        Gestation Ledger
+      </SectionTitle>
 
       {showAdd && (
-        <div style={{ background: "var(--parch2)", border: "2px solid var(--brown)", padding: "24px", marginBottom: "24px" }}>
-          <div style={{ fontFamily: "'IM Fell English'", fontSize: "18px", marginBottom: "16px", color: "var(--red)" }}>Log Breeding Date</div>
-          {!females.length && <p style={{ color: "var(--faded)", fontStyle: "italic" }}>No female animals registered. Add animals first.</p>}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            <div>
-              <label style={labelStyle}>ANIMAL (DAM)</label>
-              <select value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))} style={inputStyle}>
-                <option value="">— Select Animal —</option>
-                {females.map(a => <option key={a.id} value={a.id}>{a.name} ({a.species})</option>)}
-              </select>
-            </div>
-            <div>
-              <label style={labelStyle}>BREEDING DATE</label>
-              <input type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} style={inputStyle} />
-            </div>
-            <div>
-              <label style={labelStyle}>SIRE (OPTIONAL)</label>
-              <input type="text" value={form.sire} onChange={e => setForm(p => ({ ...p, sire: e.target.value }))} style={inputStyle} placeholder="Sire name or ID" />
-            </div>
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Log Breeding Date</div>
+          {!females.length && <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "12px" }}>No female animals registered. Add animals first.</p>}
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+            <Select label="Animal (Dam) *" value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}>
+              <option value="">— Select —</option>
+              {females.map(a => <option key={a.id} value={a.id}>{a.name} ({a.species})</option>)}
+            </Select>
+            <Input label="Breeding Date *" type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} />
+            <Input label="Sire (optional)" value={form.sire} onChange={e => setForm(p => ({ ...p, sire: e.target.value }))} placeholder="Sire name or tag" />
           </div>
-          <div style={{ marginTop: "12px" }}>
-            <label style={labelStyle}>NOTES</label>
-            <textarea value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-          </div>
+          <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
           {form.animalId && form.breedingDate && (() => {
             const a = animals.find(x => x.id === form.animalId);
             const days = SPECIES[a?.species]?.days;
             const due = days ? fmt(dueDate(form.breedingDate, days)) : "—";
-            return <div style={{ marginTop: "12px", padding: "10px 14px", background: "var(--parch3)", fontSize: "14px", color: "var(--ink2)" }}>Estimated due date: <strong>{due}</strong> · Gestation: <strong>{days} days</strong></div>;
+            return (
+              <div style={{ marginTop: "12px", padding: "10px 14px", background: "var(--cream)", borderRadius: "var(--radius)", fontSize: "13px", color: "var(--ink2)" }}>
+                📅 Estimated due: <strong>{due}</strong> · Gestation: <strong>{days} days</strong>
+              </div>
+            );
           })()}
           <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <button onClick={add} style={{ background: "var(--ink2)", color: "var(--parch)", border: "none", padding: "10px 24px", fontFamily: "'IM Fell English'", fontSize: "14px" }}>Record</button>
-            <button onClick={() => setShowAdd(false)} style={{ background: "none", border: "1px solid var(--brown2)", color: "var(--ink2)", padding: "10px 24px", fontFamily: "'IM Fell English'", fontSize: "14px" }}>Cancel</button>
+            <Btn onClick={add}>Record</Btn>
+            <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
           </div>
-        </div>
+        </Card>
       )}
 
-      {!active.length && !showAdd && <div style={{ textAlign: "center", padding: "40px", color: "var(--faded)", fontStyle: "italic", fontSize: "18px" }}>No active breeding records.</div>}
+      {!active.length && !showAdd && (
+        <Card style={{ padding: "60px", textAlign: "center" }}>
+          <div style={{ fontSize: "40px", marginBottom: "10px" }}>📅</div>
+          <div style={{ color: "var(--muted)", fontSize: "15px" }}>No active breeding records.</div>
+        </Card>
+      )}
 
-      {active.map(g => {
-        const animal = animals.find(a => a.id === g.animalId);
-        const due = daysUntil(g.dueDate);
-        const pct = progress(g.breedingDate, g.gestationDays);
-        const overdue = due < 0;
-        return (
-          <div key={g.id} style={{ background: overdue ? "#3a0a0a" : "var(--parch2)", border: `2px solid ${overdue ? "#8b1a1a" : "var(--brown2)"}`, padding: "18px 20px", marginBottom: "12px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
-              <div>
-                <span style={{ fontFamily: "'IM Fell English'", fontSize: "20px", color: overdue ? "#ffcccc" : "var(--ink)" }}>{animal?.name || "Unknown"}</span>
-                <span style={{ fontSize: "13px", color: overdue ? "#cc8888" : "var(--faded)", marginLeft: "10px" }}>{animal?.species} {g.sire ? `× ${g.sire}` : ""}</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
+        {active.map(g => {
+          const animal = animals.find(a => a.id === g.animalId);
+          const due = daysUntil(g.dueDate);
+          const pct = progress(g.breedingDate, g.gestationDays);
+          const isOverdue = due < 0;
+          const isUrgent = due >= 0 && due <= 7;
+          return (
+            <Card key={g.id} style={{ padding: "20px 24px", borderLeft: `4px solid ${isOverdue ? "var(--danger2)" : isUrgent ? "var(--brass)" : "var(--green3)"}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <span style={{ fontSize: "28px" }}>{SPECIES[animal?.species]?.emoji}</span>
+                  <div>
+                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{animal?.name || "Unknown"}</div>
+                    <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+                      {animal?.species}{g.sire ? ` × ${g.sire}` : ""} · Bred {fmt(g.breedingDate)}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <Badge color={isOverdue ? "var(--danger2)" : isUrgent ? "var(--brass2)" : "var(--green3)"}>
+                    {isOverdue ? `${Math.abs(due)}d overdue` : due === 0 ? "Due today" : `${due} days`}
+                  </Badge>
+                  <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>Due {fmt(g.dueDate)}</div>
+                </div>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ fontFamily: "'IM Fell English'", color: overdue ? "#ff8888" : "var(--red)", fontSize: "18px" }}>{overdue ? `${Math.abs(due)}d Overdue` : due === 0 ? "Due Today!" : `${due} days`}</div>
-                <div style={{ fontSize: "12px", color: overdue ? "#cc8888" : "var(--faded)" }}>Due {fmt(g.dueDate)}</div>
+              <div style={{ marginBottom: "6px" }}>
+                <ProgressBar value={pct} color={isOverdue ? "var(--danger2)" : "var(--green3)"} height={8} />
               </div>
-            </div>
-            <ProgressBar value={pct} color={overdue ? "#8b1a1a" : "var(--red)"} />
-            <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px", fontSize: "12px", color: overdue ? "#cc8888" : "var(--faded)" }}>
-              <span>Bred {fmt(g.breedingDate)}</span><span>{Math.round(pct)}% of {g.gestationDays}d</span>
-            </div>
-            {g.notes && <div style={{ marginTop: "8px", fontStyle: "italic", fontSize: "14px", color: overdue ? "#cc8888" : "var(--ink2)" }}>{g.notes}</div>}
-            <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-              <button onClick={() => markDelivered(g.id)} style={{ background: "var(--brown)", color: "var(--parch)", border: "none", padding: "6px 14px", fontFamily: "'IM Fell English'", fontSize: "13px" }}>✓ Mark Delivered</button>
-              <button onClick={() => remove(g.id)} style={{ background: "none", border: "none", color: "var(--faded)", fontFamily: "'IM Fell English'", fontSize: "13px" }}>Remove</button>
-            </div>
-          </div>
-        );
-      })}
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
+                <span>{Math.round(pct)}% complete</span>
+                <span>{g.gestationDays} day gestation</span>
+              </div>
+              {g.notes && <p style={{ fontSize: "13px", color: "var(--ink2)", fontStyle: "italic", marginBottom: "12px" }}>{g.notes}</p>}
+              <div style={{ display: "flex", gap: "8px" }}>
+                <Btn size="sm" onClick={() => markDelivered(g.id)}>✓ Mark Delivered</Btn>
+                <Btn size="sm" variant="ghost" onClick={() => remove(g.id)}>Remove</Btn>
+              </div>
+            </Card>
+          );
+        })}
+      </div>
 
       {delivered.length > 0 && (
         <>
-          <SectionHeader>Delivered Records</SectionHeader>
-          {delivered.map(g => {
-            const animal = animals.find(a => a.id === g.animalId);
-            return (
-              <div key={g.id} style={{ background: "var(--parch)", border: "1px solid var(--parch3)", padding: "12px 16px", marginBottom: "8px", opacity: 0.7, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div><span style={{ fontFamily: "'IM Fell English'", fontSize: "16px" }}>{animal?.name || "Unknown"}</span><span style={{ fontSize: "13px", color: "var(--faded)", marginLeft: "8px" }}>{animal?.species}</span></div>
-                <div style={{ fontSize: "13px", color: "var(--faded)" }}>Delivered · Due {fmt(g.dueDate)}</div>
-                <button onClick={() => remove(g.id)} style={{ background: "none", border: "none", color: "var(--faded)", fontFamily: "'IM Fell English'", fontSize: "12px" }}>×</button>
-              </div>
-            );
-          })}
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, color: "var(--muted)", marginBottom: "12px" }}>Delivered Records</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {delivered.map(g => {
+              const animal = animals.find(a => a.id === g.animalId);
+              return (
+                <Card key={g.id} style={{ padding: "14px 20px", opacity: 0.65, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                    <span>{SPECIES[animal?.species]?.emoji}</span>
+                    <div>
+                      <span style={{ fontWeight: 600, fontSize: "14px" }}>{animal?.name || "Unknown"}</span>
+                      <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{animal?.species}</span>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <Badge color="var(--green)">Delivered</Badge>
+                    <span style={{ fontSize: "13px", color: "var(--muted)" }}>Due {fmt(g.dueDate)}</span>
+                    <Btn size="sm" variant="ghost" onClick={() => remove(g.id)}>×</Btn>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
         </>
       )}
     </div>
@@ -496,16 +725,17 @@ function Weather() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem("lsa-apikey") || "");
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("hl-apikey") || "");
   const [showKeyInput, setShowKeyInput] = useState(false);
+  const [keyVal, setKeyVal] = useState("");
 
-  function saveKey(k) {
-    localStorage.setItem("lsa-apikey", k);
-    setApiKey(k);
+  function saveKey() {
+    localStorage.setItem("hl-apikey", keyVal);
+    setApiKey(keyVal);
     setShowKeyInput(false);
   }
 
-  async function fetch_weather() {
+  async function fetchWeather() {
     if (!location.trim()) return;
     if (!apiKey) { setShowKeyInput(true); return; }
     setLoading(true); setError(""); setData(null);
@@ -517,8 +747,8 @@ function Weather() {
           model: "claude-sonnet-4-20250514",
           max_tokens: 1000,
           tools: [{ type: "web_search_20250305", name: "web_search" }],
-          system: `You are a 19th-century almanac weather correspondent. Search for current weather and 5-day forecast for the given location. Return ONLY valid JSON (no markdown, no backticks) with this structure: {"current":{"temp":"72°F","condition":"Partly Cloudy","humidity":"65%","wind":"SW 12 mph","feels":"70°F","almanacDesc":"A fair autumnal morning..."},"forecast":[{"day":"Mon","high":"74","low":"55","condition":"Fair","farmNote":"Good plowing weather"},{"day":"Tue","high":"68","low":"50","condition":"Rain","farmNote":"Keep livestock sheltered"},{"day":"Wed","high":"62","low":"45","condition":"Clearing","farmNote":"Inspect fences after rain"},{"day":"Thu","high":"65","low":"48","condition":"Fair","farmNote":"Good hay drying conditions"},{"day":"Fri","high":"70","low":"52","condition":"Partly Cloudy","farmNote":"Favorable for outdoor work"}],"farmingAdvice":"Brief farming advice.","bestDaysToWork":"Which days are best."}`,
-          messages: [{ role: "user", content: `Current weather and 5-day forecast for: ${location}` }]
+          system: `You are a farm weather advisor. Search for current weather and 5-day forecast. Return ONLY valid JSON: {"current":{"temp":"72°F","condition":"Partly Cloudy","humidity":"65%","wind":"SW 12 mph","feels":"70°F","desc":"Brief plain-language description of current conditions for farmers."},"forecast":[{"day":"Mon","high":"74","low":"55","condition":"Fair","farmNote":"Good day for field work"},{"day":"Tue","high":"68","low":"50","condition":"Rain","farmNote":"Keep livestock sheltered"},{"day":"Wed","high":"62","low":"45","condition":"Clearing","farmNote":"Check fences post-storm"},{"day":"Thu","high":"65","low":"48","condition":"Fair","farmNote":"Good hay drying"},{"day":"Fri","high":"70","low":"52","condition":"Partly Cloudy","farmNote":"Favorable for outdoor work"}],"advice":"Two sentence farming advice for this week.","bestDays":"Which specific days are best for outdoor work."}`,
+          messages: [{ role: "user", content: `Weather for: ${location}` }]
         })
       });
       const json = await resp.json();
@@ -526,88 +756,92 @@ function Weather() {
       const text = json.content.filter(c => c.type === "text").map(c => c.text).join("");
       setData(JSON.parse(text.trim()));
     } catch(e) {
-      setError("Could not retrieve weather. Check your API key or location and try again.");
+      setError("Could not retrieve weather. Check your API key or location.");
     }
     setLoading(false);
   }
 
-  const inputStyle = { flex: 1, padding: "10px 14px", background: "var(--parch)", border: "2px solid var(--brown2)", color: "var(--ink)", fontSize: "16px", outline: "none", fontFamily: "'Cardo', serif" };
-
   return (
-    <div style={{ padding: "24px" }}>
-      <SectionHeader>Weather Observatory</SectionHeader>
+    <div style={{ padding: "28px 24px", maxWidth: "900px", margin: "0 auto" }} className="hl-fade-in">
+      <SectionTitle>Weather Observatory</SectionTitle>
 
       {showKeyInput && (
-        <div style={{ background: "var(--parch2)", border: "2px solid var(--brown)", padding: "20px", marginBottom: "20px" }}>
-          <div style={{ fontFamily: "'IM Fell English'", fontSize: "14px", color: "var(--red)", marginBottom: "8px" }}>Enter your Anthropic API Key to enable weather</div>
-          <p style={{ fontSize: "13px", color: "var(--faded)", marginBottom: "12px" }}>Get one free at console.anthropic.com — stored only in your browser.</p>
-          <ApiKeyEntry onSave={saveKey} onCancel={() => setShowKeyInput(false)} />
-        </div>
+        <Card style={{ padding: "20px", marginBottom: "20px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontWeight: 600, marginBottom: "4px" }}>Anthropic API Key Required</div>
+          <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "12px" }}>Get a free key at console.anthropic.com — stored only in your browser.</div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input type="password" value={keyVal} onChange={e => setKeyVal(e.target.value)} placeholder="sk-ant-..." style={{ flex: 1, padding: "9px 12px", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", fontSize: "14px", outline: "none" }} />
+            <Btn onClick={saveKey}>Save Key</Btn>
+            <Btn variant="secondary" onClick={() => setShowKeyInput(false)}>Cancel</Btn>
+          </div>
+        </Card>
       )}
 
-      <div style={{ display: "flex", gap: "8px", marginBottom: "12px" }}>
-        <input type="text" value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === "Enter" && fetch_weather()} placeholder="Enter town, county, or ZIP..." style={inputStyle} />
-        <button onClick={fetch_weather} disabled={loading} style={{ background: "var(--red2)", color: "var(--parch)", border: "none", padding: "10px 24px", fontFamily: "'IM Fell English'", fontSize: "15px", letterSpacing: "1px", opacity: loading ? 0.7 : 1 }}>
-          {loading ? "Consulting..." : "Consult"}
-        </button>
+      <div style={{ display: "flex", gap: "10px", marginBottom: "8px" }}>
+        <Input placeholder="Enter town, county, or ZIP code..." value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchWeather()} style={{ flex: 1 }} />
+        <Btn onClick={fetchWeather} disabled={loading}>{loading ? "Loading..." : "Get Weather"}</Btn>
       </div>
 
-      {apiKey && <div style={{ fontSize: "12px", color: "var(--faded)", marginBottom: "16px" }}>API key saved · <button onClick={() => setShowKeyInput(true)} style={{ background: "none", border: "none", color: "var(--faded)", fontSize: "12px", textDecoration: "underline", cursor: "pointer" }}>change</button></div>}
-      {!apiKey && !showKeyInput && <div style={{ fontSize: "13px", color: "var(--faded)", marginBottom: "16px", fontStyle: "italic" }}>No API key set — <button onClick={() => setShowKeyInput(true)} style={{ background: "none", border: "none", color: "var(--red)", fontSize: "13px", textDecoration: "underline", cursor: "pointer" }}>add one to enable weather</button></div>}
+      <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "24px" }}>
+        {apiKey ? <>API key saved · <button onClick={() => setShowKeyInput(true)} style={{ background: "none", border: "none", color: "var(--green)", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}>change</button></> : <button onClick={() => setShowKeyInput(true)} style={{ background: "none", border: "none", color: "var(--brass2)", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}>Add API key to enable weather</button>}
+      </div>
 
-      {loading && <div style={{ textAlign: "center", padding: "48px", fontStyle: "italic", color: "var(--faded)", fontSize: "18px" }}>Consulting the celestial instruments...</div>}
-      {error && <div style={{ padding: "16px", background: "#3a0a0a", color: "#ffcccc", fontStyle: "italic" }}>{error}</div>}
+      {loading && (
+        <Card style={{ padding: "60px", textAlign: "center" }}>
+          <div style={{ fontSize: "32px", marginBottom: "10px" }}>🌤</div>
+          <div style={{ color: "var(--muted)" }}>Fetching current conditions...</div>
+        </Card>
+      )}
+
+      {error && <Card style={{ padding: "16px 20px", borderLeft: "4px solid var(--danger2)" }}><span style={{ color: "var(--danger2)" }}>{error}</span></Card>}
 
       {data && (
-        <>
-          <div style={{ border: "2px solid var(--brown)", background: "var(--parch2)", padding: "24px", marginBottom: "16px" }}>
-            <div style={{ fontFamily: "'IM Fell English'", fontSize: "11px", letterSpacing: "4px", color: "var(--faded)", marginBottom: "8px" }}>CURRENT CONDITIONS · {location.toUpperCase()}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "24px", alignItems: "start" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "16px" }} className="hl-fade-in">
+          <Card style={{ padding: "24px" }}>
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "14px" }}>Current Conditions · {location}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "28px", alignItems: "center" }}>
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontFamily: "'IM Fell English'", fontSize: "56px", color: "var(--ink)", lineHeight: 1 }}>{data.current.temp}</div>
-                <div style={{ fontFamily: "'IM Fell English'", color: "var(--red)", fontSize: "16px" }}>{data.current.condition}</div>
+                <div style={{ fontFamily: "'Playfair Display'", fontSize: "64px", fontWeight: 700, color: "var(--green)", lineHeight: 1 }}>{data.current.temp}</div>
+                <div style={{ fontSize: "15px", color: "var(--ink2)", fontWeight: 500, marginTop: "4px" }}>{data.current.condition}</div>
               </div>
               <div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "12px", marginBottom: "12px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "14px" }}>
                   {[["Humidity", data.current.humidity], ["Wind", data.current.wind], ["Feels Like", data.current.feels]].map(([k, v]) => (
-                    <div key={k}><div style={{ fontFamily: "'IM Fell English'", fontSize: "10px", letterSpacing: "2px", color: "var(--faded)" }}>{k}</div><div style={{ fontSize: "15px" }}>{v}</div></div>
+                    <div key={k}>
+                      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{k}</div>
+                      <div style={{ fontSize: "15px", fontWeight: 500, marginTop: "2px" }}>{v}</div>
+                    </div>
                   ))}
                 </div>
-                <p style={{ fontStyle: "italic", fontSize: "15px", color: "var(--ink2)", lineHeight: 1.6, borderLeft: "3px solid var(--red)", paddingLeft: "12px" }}>{data.current.almanacDesc}</p>
+                <p style={{ fontSize: "14px", color: "var(--ink2)", lineHeight: 1.6, borderLeft: "3px solid var(--brass)", paddingLeft: "12px", fontStyle: "italic" }}>{data.current.desc}</p>
               </div>
             </div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "6px", marginBottom: "16px" }}>
-            {data.forecast.map((f, i) => (
-              <div key={i} style={{ background: "var(--parch2)", border: "1px solid var(--brown2)", padding: "12px 8px", textAlign: "center" }}>
-                <div style={{ fontFamily: "'IM Fell English'", fontSize: "13px", color: "var(--faded)", marginBottom: "6px" }}>{f.day}</div>
-                <div style={{ fontFamily: "'IM Fell English'", fontSize: "15px", color: "var(--ink)" }}>{f.condition}</div>
-                <div style={{ marginTop: "6px", fontSize: "13px" }}><span style={{ color: "var(--red2)", fontWeight: "bold" }}>{f.high}°</span><span style={{ color: "var(--faded)", marginLeft: "4px" }}>{f.low}°</span></div>
-                <div style={{ marginTop: "8px", fontSize: "11px", color: "var(--ink2)", fontStyle: "italic", lineHeight: 1.4 }}>{f.farmNote}</div>
-              </div>
-            ))}
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
-            {[["Farming Advice", data.farmingAdvice], ["Best Days to Work", data.bestDaysToWork]].map(([title, text]) => (
-              <div key={title} style={{ background: "var(--parch2)", border: "1px solid var(--brown2)", padding: "16px" }}>
-                <div style={{ fontFamily: "'IM Fell English'", fontSize: "11px", letterSpacing: "3px", color: "var(--red)", marginBottom: "8px" }}>{title.toUpperCase()}</div>
-                <p style={{ fontSize: "14px", lineHeight: 1.7, fontStyle: "italic" }}>{text}</p>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
+          </Card>
 
-function ApiKeyEntry({ onSave, onCancel }) {
-  const [val, setVal] = useState("");
-  return (
-    <div style={{ display: "flex", gap: "8px" }}>
-      <input type="password" value={val} onChange={e => setVal(e.target.value)} placeholder="sk-ant-..." style={{ flex: 1, padding: "8px 10px", background: "var(--parch)", border: "1px solid var(--brown2)", color: "var(--ink)", fontSize: "14px", outline: "none" }} />
-      <button onClick={() => onSave(val)} style={{ background: "var(--ink2)", color: "var(--parch)", border: "none", padding: "8px 16px", fontFamily: "'IM Fell English'", fontSize: "13px" }}>Save</button>
-      <button onClick={onCancel} style={{ background: "none", border: "1px solid var(--brown2)", color: "var(--ink2)", padding: "8px 16px", fontFamily: "'IM Fell English'", fontSize: "13px" }}>Cancel</button>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "10px" }}>
+            {data.forecast.map((f, i) => (
+              <Card key={i} style={{ padding: "14px 12px", textAlign: "center" }}>
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>{f.day}</div>
+                <div style={{ fontSize: "14px", fontWeight: 500, marginBottom: "6px" }}>{f.condition}</div>
+                <div style={{ marginBottom: "8px" }}>
+                  <span style={{ fontWeight: 700, color: "var(--green)" }}>{f.high}°</span>
+                  <span style={{ color: "var(--muted)", marginLeft: "4px" }}>{f.low}°</span>
+                </div>
+                <div style={{ fontSize: "11px", color: "var(--ink2)", fontStyle: "italic", lineHeight: 1.4 }}>{f.farmNote}</div>
+              </Card>
+            ))}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+            {[["🌾 Farming Advice", data.advice], ["📅 Best Days This Week", data.bestDays]].map(([title, text]) => (
+              <Card key={title} style={{ padding: "18px 20px" }}>
+                <div style={{ fontWeight: 600, marginBottom: "8px" }}>{title}</div>
+                <p style={{ fontSize: "14px", color: "var(--ink2)", lineHeight: 1.7 }}>{text}</p>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -624,65 +858,72 @@ function Notes({ notes, setNotes }) {
     setNewTitle(""); setNewBody(""); setShowAdd(false);
   }
 
-  const inputStyle = { width: "100%", padding: "8px 10px", background: "var(--parch)", border: "1px solid var(--brown2)", color: "var(--ink)", fontSize: "15px", outline: "none", fontFamily: "'Cardo', serif" };
-
   return (
-    <div style={{ padding: "24px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-        <div style={{ fontFamily: "'IM Fell English'", fontSize: "24px" }}>Farm Journal</div>
-        <button onClick={() => setShowAdd(true)} style={{ background: "var(--red2)", color: "var(--parch)", border: "none", padding: "8px 18px", fontFamily: "'IM Fell English'", fontSize: "14px", letterSpacing: "1px" }}>+ New Entry</button>
-      </div>
+    <div style={{ padding: "28px 24px", maxWidth: "800px", margin: "0 auto" }} className="hl-fade-in">
+      <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ New Entry</Btn>}>
+        Farm Journal
+      </SectionTitle>
+
       {showAdd && (
-        <div style={{ background: "var(--parch2)", border: "2px solid var(--brown)", padding: "24px", marginBottom: "24px" }}>
-          <input type="text" placeholder="Entry title (optional)..." value={newTitle} onChange={e => setNewTitle(e.target.value)} style={{ ...inputStyle, marginBottom: "12px", fontSize: "18px" }} />
-          <textarea value={newBody} onChange={e => setNewBody(e.target.value)} rows={6} placeholder="Record your observations, treatments, purchases..." style={{ ...inputStyle, resize: "vertical", lineHeight: "1.7" }} />
-          <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
-            <button onClick={add} style={{ background: "var(--ink2)", color: "var(--parch)", border: "none", padding: "10px 24px", fontFamily: "'IM Fell English'", fontSize: "14px" }}>Record Entry</button>
-            <button onClick={() => setShowAdd(false)} style={{ background: "none", border: "1px solid var(--brown2)", color: "var(--ink2)", padding: "10px 24px", fontFamily: "'IM Fell English'", fontSize: "14px" }}>Cancel</button>
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+          <Input label="Title (optional)" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="e.g. Moved herd to south pasture" style={{ marginBottom: "12px", fontSize: "16px" }} />
+          <Textarea label="Entry" value={newBody} onChange={e => setNewBody(e.target.value)} rows={6} placeholder="Record observations, treatments, purchases, or anything worth noting..." />
+          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            <Btn onClick={add}>Save Entry</Btn>
+            <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
           </div>
-        </div>
+        </Card>
       )}
-      {!notes.length && !showAdd && <div style={{ textAlign: "center", padding: "60px", color: "var(--faded)", fontStyle: "italic", fontSize: "18px" }}>The journal awaits your first entry.</div>}
-      {notes.map(n => (
-        <div key={n.id} style={{ background: "var(--parch2)", border: "1px solid var(--brown2)", padding: "20px", marginBottom: "12px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
-            <div style={{ fontFamily: "'IM Fell English'", fontSize: "19px", color: "var(--ink2)" }}>{n.title}</div>
-            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-              <div style={{ fontSize: "12px", color: "var(--faded)" }}>{fmt(n.date.split("T")[0])}</div>
-              <button onClick={() => setNotes(p => p.filter(x => x.id !== n.id))} style={{ background: "none", border: "none", color: "var(--faded)", fontFamily: "'IM Fell English'", fontSize: "13px" }}>×</button>
+
+      {!notes.length && !showAdd && (
+        <Card style={{ padding: "60px", textAlign: "center" }}>
+          <div style={{ fontSize: "40px", marginBottom: "10px" }}>📖</div>
+          <div style={{ color: "var(--muted)", fontSize: "15px" }}>The journal awaits your first entry.</div>
+        </Card>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {notes.map(n => (
+          <Card key={n.id} style={{ padding: "20px 24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+              <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{n.title}</div>
+              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>{fmt(n.date.split("T")[0])}</span>
+                <Btn size="sm" variant="ghost" onClick={() => setNotes(p => p.filter(x => x.id !== n.id))}>×</Btn>
+              </div>
             </div>
-          </div>
-          <div className="ornament" style={{ margin: "0 0 10px" }}>—</div>
-          <p style={{ fontSize: "15px", lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{n.body}</p>
-        </div>
-      ))}
+            <div style={{ height: "1px", background: "var(--cream2)", marginBottom: "12px" }} />
+            <p style={{ fontSize: "14px", lineHeight: 1.8, color: "var(--ink2)", whiteSpace: "pre-wrap" }}>{n.body}</p>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
 
-// ── Main App ──────────────────────────────────────────────────────────────────
+// ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState("dashboard");
-  const [animals, setAnimals] = useState(() => loadData("lsa-animals", []));
-  const [gestations, setGestations] = useState(() => loadData("lsa-gestations", []));
-  const [notes, setNotes] = useState(() => loadData("lsa-notes", []));
+  const [animals, setAnimals]       = useState(() => loadData("hl-animals", []));
+  const [gestations, setGestations] = useState(() => loadData("hl-gestations", []));
+  const [notes, setNotes]           = useState(() => loadData("hl-notes", []));
 
-  const moon = getMoonPhase();
+  const moon   = getMoonPhase();
   const season = getSeason();
 
   useEffect(() => {
-    const style = document.createElement("style");
-    style.textContent = FONTS;
-    document.head.appendChild(style);
-    return () => document.head.removeChild(style);
+    const el = document.createElement("style");
+    el.textContent = GLOBAL_CSS;
+    document.head.appendChild(el);
+    return () => document.head.removeChild(el);
   }, []);
 
-  useEffect(() => saveData("lsa-animals", animals), [animals]);
-  useEffect(() => saveData("lsa-gestations", gestations), [gestations]);
-  useEffect(() => saveData("lsa-notes", notes), [notes]);
+  useEffect(() => saveData("hl-animals",    animals),    [animals]);
+  useEffect(() => saveData("hl-gestations", gestations), [gestations]);
+  useEffect(() => saveData("hl-notes",      notes),      [notes]);
 
   return (
-    <div className="paper-texture" style={{ minHeight: "100vh", fontFamily: "'Cardo', Georgia, serif" }}>
+    <div style={{ minHeight: "100vh", background: "var(--cream)" }}>
       <Nav tab={tab} setTab={setTab} />
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} moon={moon} season={season} />}
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} />}

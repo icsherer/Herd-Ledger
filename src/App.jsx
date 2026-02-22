@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import "./App.css";
 
 // ── Species Data ──────────────────────────────────────────────────────────────
 const SPECIES = {
@@ -119,9 +120,9 @@ const GLOBAL_CSS = `
 `;
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
-function Card({ children, style = {} }) {
+function Card({ children, style = {}, className = "" }) {
   return (
-    <div style={{
+    <div className={className} style={{
       background: "#fff",
       borderRadius: var2("radius2"),
       boxShadow: "var(--shadow)",
@@ -156,7 +157,7 @@ function ProgressBar({ value, color = "var(--green3)", height = 6 }) {
 
 function SectionTitle({ children, action }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+    <div className="hl-section-title">
       <h2 style={{ fontFamily: "'Playfair Display'", fontSize: "24px", fontWeight: 700, color: "var(--ink)" }}>{children}</h2>
       {action}
     </div>
@@ -259,19 +260,19 @@ function Nav({ tab, setTab }) {
   ];
   return (
     <header style={{ background: "var(--green)", borderBottom: "3px solid var(--brass)" }}>
-      <div style={{ padding: "0 24px", display: "flex", alignItems: "center", gap: "0" }}>
+      <div className="hl-nav-inner" style={{ padding: "0 24px", display: "flex", alignItems: "center", gap: "0" }}>
         {/* Logo */}
         <div style={{ padding: "14px 0", marginRight: "32px", flexShrink: 0 }}>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "#fff", letterSpacing: "0.5px", lineHeight: 1 }}>
+          <div className="hl-nav-logo-title" style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "#fff", letterSpacing: "0.5px", lineHeight: 1 }}>
             Herd Ledger
           </div>
-          <div style={{ fontSize: "10px", color: "var(--brass3)", letterSpacing: "2px", textTransform: "uppercase", marginTop: "2px" }}>
+          <div className="hl-nav-logo-sub" style={{ fontSize: "10px", color: "var(--brass3)", letterSpacing: "2px", textTransform: "uppercase", marginTop: "2px" }}>
             Livestock Management
           </div>
         </div>
 
         {/* Tabs */}
-        <nav style={{ display: "flex", gap: "2px", overflowX: "auto" }}>
+        <nav className="hl-nav-tabs" style={{ display: "flex", gap: "2px" }}>
           {tabs.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} style={{
               display: "flex", alignItems: "center", gap: "6px",
@@ -317,10 +318,10 @@ function Dashboard({ animals, gestations, moon, season }) {
     .filter(g => g.due < 0);
 
   return (
-    <div style={{ padding: "28px 24px", maxWidth: "1100px", margin: "0 auto" }} className="hl-fade-in">
+    <div className="hl-page hl-fade-in">
 
       {/* Top stats row */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "14px", marginBottom: "24px" }}>
+      <div className="hl-dash-stats">
         {[
           { label: "Total Animals", value: animals.length, sub: `${Object.keys(speciesCounts).length} species`, icon: "🐄" },
           { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅" },
@@ -335,7 +336,7 @@ function Dashboard({ animals, gestations, moon, season }) {
         ))}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 320px", gap: "20px", alignItems: "start" }}>
+      <div className="hl-dash-columns">
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 
           {/* Overdue alerts */}
@@ -475,21 +476,21 @@ function Animals({ animals, setAnimals }) {
   if (viewing) {
     const a = viewing;
     return (
-      <div style={{ padding: "28px 24px", maxWidth: "800px", margin: "0 auto" }} className="hl-fade-in">
+      <div className="hl-page hl-page-narrow hl-fade-in">
         <button onClick={() => setViewing(null)} style={{ background: "none", border: "none", color: "var(--green)", fontWeight: 600, fontSize: "14px", cursor: "pointer", marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
           ← Back to Animals
         </button>
         <Card style={{ padding: "0", overflow: "hidden" }}>
-          <div style={{ background: "var(--green)", padding: "28px 32px", display: "flex", alignItems: "center", gap: "20px" }}>
+          <div className="hl-detail-header" style={{ background: "var(--green)", padding: "28px 32px", display: "flex", alignItems: "center", gap: "20px" }}>
             <div style={{ fontSize: "52px" }}>{SPECIES[a.species]?.emoji}</div>
             <div>
-              <div style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{a.name}</div>
+              <div className="hl-detail-name" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{a.name}</div>
               <div style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {a.sex}</div>
             </div>
             {a.tag && <Badge color="var(--brass2)" style={{ marginLeft: "auto" }}>#{a.tag}</Badge>}
           </div>
           <div style={{ padding: "28px 32px" }}>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "24px", marginBottom: "24px" }}>
+            <div className="hl-detail-grid" style={{ marginBottom: "24px" }}>
               {[["Species", a.species], ["Breed", a.breed || "—"], ["Sex", a.sex], ["Date of Birth", fmt(a.dob)], ["Tag / ID", a.tag || "—"], ["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]].map(([k, v]) => (
                 <div key={k}>
                   <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>{k}</div>
@@ -513,7 +514,7 @@ function Animals({ animals, setAnimals }) {
   }
 
   return (
-    <div style={{ padding: "28px 24px", maxWidth: "1100px", margin: "0 auto" }} className="hl-fade-in">
+    <div className="hl-page hl-fade-in">
       <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ Register Animal</Btn>}>
         Animal Register
       </SectionTitle>
@@ -526,7 +527,7 @@ function Animals({ animals, setAnimals }) {
       {showAdd && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>New Animal</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
             <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
             <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
@@ -604,7 +605,7 @@ function Gestation({ animals, gestations, setGestations }) {
   const delivered = gestations.filter(g => g.status === "Delivered");
 
   return (
-    <div style={{ padding: "28px 24px", maxWidth: "900px", margin: "0 auto" }} className="hl-fade-in">
+    <div className="hl-page hl-page-gestation hl-fade-in">
       <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ Log Breeding</Btn>}>
         Gestation Ledger
       </SectionTitle>
@@ -613,7 +614,7 @@ function Gestation({ animals, gestations, setGestations }) {
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Log Breeding Date</div>
           {!females.length && <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "12px" }}>No female animals registered. Add animals first.</p>}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "14px", marginBottom: "14px" }}>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Select label="Animal (Dam) *" value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}>
               <option value="">— Select —</option>
               {females.map(a => <option key={a.id} value={a.id}>{a.name} ({a.species})</option>)}
@@ -654,8 +655,8 @@ function Gestation({ animals, gestations, setGestations }) {
           const isOverdue = due < 0;
           const isUrgent = due >= 0 && due <= 7;
           return (
-            <Card key={g.id} style={{ padding: "20px 24px", borderLeft: `4px solid ${isOverdue ? "var(--danger2)" : isUrgent ? "var(--brass)" : "var(--green3)"}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+            <Card key={g.id} className="hl-gestation-card" style={{ padding: "20px 24px", borderLeft: `4px solid ${isOverdue ? "var(--danger2)" : isUrgent ? "var(--brass)" : "var(--green3)"}` }}>
+              <div className="hl-gestation-card-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <span style={{ fontSize: "28px" }}>{SPECIES[animal?.species]?.emoji}</span>
                   <div>
@@ -696,7 +697,7 @@ function Gestation({ animals, gestations, setGestations }) {
             {delivered.map(g => {
               const animal = animals.find(a => a.id === g.animalId);
               return (
-                <Card key={g.id} style={{ padding: "14px 20px", opacity: 0.65, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <Card key={g.id} className="hl-delivered-row" style={{ padding: "14px 20px", opacity: 0.65, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <span>{SPECIES[animal?.species]?.emoji}</span>
                     <div>
@@ -762,14 +763,14 @@ function Weather() {
   }
 
   return (
-    <div style={{ padding: "28px 24px", maxWidth: "900px", margin: "0 auto" }} className="hl-fade-in">
+    <div className="hl-page hl-page-gestation hl-fade-in">
       <SectionTitle>Weather Observatory</SectionTitle>
 
       {showKeyInput && (
         <Card style={{ padding: "20px", marginBottom: "20px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontWeight: 600, marginBottom: "4px" }}>Anthropic API Key Required</div>
           <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "12px" }}>Get a free key at console.anthropic.com — stored only in your browser.</div>
-          <div style={{ display: "flex", gap: "8px" }}>
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <input type="password" value={keyVal} onChange={e => setKeyVal(e.target.value)} placeholder="sk-ant-..." style={{ flex: 1, padding: "9px 12px", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", fontSize: "14px", outline: "none" }} />
             <Btn onClick={saveKey}>Save Key</Btn>
             <Btn variant="secondary" onClick={() => setShowKeyInput(false)}>Cancel</Btn>
@@ -777,7 +778,7 @@ function Weather() {
         </Card>
       )}
 
-      <div style={{ display: "flex", gap: "10px", marginBottom: "8px" }}>
+      <div className="hl-weather-search">
         <Input placeholder="Enter town, county, or ZIP code..." value={location} onChange={e => setLocation(e.target.value)} onKeyDown={e => e.key === "Enter" && fetchWeather()} style={{ flex: 1 }} />
         <Btn onClick={fetchWeather} disabled={loading}>{loading ? "Loading..." : "Get Weather"}</Btn>
       </div>
@@ -799,13 +800,13 @@ function Weather() {
         <div style={{ display: "flex", flexDirection: "column", gap: "16px" }} className="hl-fade-in">
           <Card style={{ padding: "24px" }}>
             <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "14px" }}>Current Conditions · {location}</div>
-            <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "28px", alignItems: "center" }}>
+            <div className="hl-weather-current">
               <div style={{ textAlign: "center" }}>
                 <div style={{ fontFamily: "'Playfair Display'", fontSize: "64px", fontWeight: 700, color: "var(--green)", lineHeight: 1 }}>{data.current.temp}</div>
                 <div style={{ fontSize: "15px", color: "var(--ink2)", fontWeight: 500, marginTop: "4px" }}>{data.current.condition}</div>
               </div>
               <div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px", marginBottom: "14px" }}>
+                <div className="hl-weather-stats">
                   {[["Humidity", data.current.humidity], ["Wind", data.current.wind], ["Feels Like", data.current.feels]].map(([k, v]) => (
                     <div key={k}>
                       <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{k}</div>
@@ -818,7 +819,7 @@ function Weather() {
             </div>
           </Card>
 
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: "10px" }}>
+          <div className="hl-weather-forecast">
             {data.forecast.map((f, i) => (
               <Card key={i} style={{ padding: "14px 12px", textAlign: "center" }}>
                 <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>{f.day}</div>
@@ -832,7 +833,7 @@ function Weather() {
             ))}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
+          <div className="hl-weather-advice">
             {[["🌾 Farming Advice", data.advice], ["📅 Best Days This Week", data.bestDays]].map(([title, text]) => (
               <Card key={title} style={{ padding: "18px 20px" }}>
                 <div style={{ fontWeight: 600, marginBottom: "8px" }}>{title}</div>
@@ -859,7 +860,7 @@ function Notes({ notes, setNotes }) {
   }
 
   return (
-    <div style={{ padding: "28px 24px", maxWidth: "800px", margin: "0 auto" }} className="hl-fade-in">
+    <div className="hl-page hl-page-narrow hl-fade-in">
       <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ New Entry</Btn>}>
         Farm Journal
       </SectionTitle>

@@ -1,0 +1,301 @@
+/* ── Mobile responsive (test at 390px) ───────────────────────────────────── */
+
+/* Base: readable text without zooming on small screens (test at 390px) */
+@media (max-width: 480px) {
+  html {
+    font-size: 16px;
+  }
+
+  body {
+    font-size: 16px;
+  }
+
+  /* Touch-friendly tap targets for nav and buttons */
+  button {
+    min-height: 44px;
+  }
+}
+
+/* Nav: stack logo + scrollable tabs on small screens */
+.hl-nav-inner {
+  flex-wrap: wrap;
+  gap: 0;
+}
+
+.hl-nav-tabs {
+  flex: 1 1 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  padding-bottom: 4px;
+}
+
+.hl-nav-tabs::-webkit-scrollbar {
+  height: 4px;
+}
+
+@media (min-width: 601px) {
+  .hl-nav-inner {
+    flex-wrap: nowrap;
+  }
+
+  .hl-nav-tabs {
+    flex: 1 1 auto;
+  }
+}
+
+/* Shrink logo and reduce header padding on very small screens */
+@media (max-width: 480px) {
+  .hl-nav-logo-title {
+    font-size: 18px !important;
+  }
+
+  .hl-nav-logo-sub {
+    font-size: 9px !important;
+    letter-spacing: 1px !important;
+  }
+
+  .hl-nav-inner {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+}
+
+/* Dashboard: stat cards 2x2 on mobile */
+.hl-dash-stats {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 480px) {
+  .hl-dash-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 481px) {
+  .hl-dash-stats {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+}
+
+/* Dashboard: two-column layout stacks on mobile */
+.hl-dash-columns {
+  display: grid;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 640px) {
+  .hl-dash-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 641px) {
+  .hl-dash-columns {
+    grid-template-columns: 1fr 320px;
+  }
+}
+
+/* Form grids: single column on mobile */
+.hl-form-grid,
+.hl-form-grid-3,
+.hl-detail-grid {
+  display: grid;
+  gap: 14px;
+}
+
+@media (max-width: 480px) {
+  .hl-form-grid,
+  .hl-form-grid-3,
+  .hl-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 481px) {
+  .hl-form-grid-3,
+  .hl-detail-grid {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .hl-form-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Weather: current conditions stack on mobile */
+.hl-weather-current {
+  display: grid;
+  gap: 28px;
+  align-items: center;
+}
+
+@media (max-width: 480px) {
+  .hl-weather-current {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+}
+
+@media (min-width: 481px) {
+  .hl-weather-current {
+    grid-template-columns: auto 1fr;
+  }
+}
+
+/* Weather: current stats (humidity, wind, feels) single column on mobile */
+.hl-weather-stats {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+@media (max-width: 480px) {
+  .hl-weather-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 481px) {
+  .hl-weather-stats {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+/* Weather: forecast row scrolls horizontally on mobile */
+.hl-weather-forecast {
+  display: grid;
+  gap: 10px;
+}
+
+@media (max-width: 480px) {
+  .hl-weather-forecast {
+    grid-template-columns: repeat(5, minmax(120px, 1fr));
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 8px;
+  }
+}
+
+@media (min-width: 481px) {
+  .hl-weather-forecast {
+    grid-template-columns: repeat(5, 1fr);
+  }
+}
+
+/* Weather: advice cards stack on mobile */
+.hl-weather-advice {
+  display: grid;
+  gap: 14px;
+}
+
+@media (max-width: 480px) {
+  .hl-weather-advice {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 481px) {
+  .hl-weather-advice {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* Weather: search row stacks on mobile */
+.hl-weather-search {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 480px) {
+  .hl-weather-search {
+    flex-direction: column;
+  }
+
+  .hl-weather-search input {
+    min-width: 0;
+  }
+}
+
+/* Section title: stack action button on mobile */
+.hl-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+@media (max-width: 480px) {
+  .hl-section-title {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hl-section-title h2 {
+    font-size: 20px !important;
+  }
+}
+
+/* Page padding: reduce on mobile */
+.hl-page {
+  padding: 28px 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+@media (max-width: 480px) {
+  .hl-page {
+    padding: 16px 14px;
+  }
+}
+
+.hl-page-narrow {
+  max-width: 800px;
+}
+
+.hl-page-gestation {
+  max-width: 900px;
+}
+
+/* Animal detail header: stack on mobile */
+.hl-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+@media (max-width: 480px) {
+  .hl-detail-header {
+    flex-wrap: wrap;
+    padding: 20px 18px !important;
+  }
+
+  .hl-detail-header .hl-detail-name {
+    font-size: 22px !important;
+  }
+}
+
+/* Gestation card: stack badge and meta on mobile */
+@media (max-width: 480px) {
+  .hl-gestation-card-head {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 8px;
+  }
+}
+
+/* Delivered records row: stack on mobile */
+@media (max-width: 480px) {
+  .hl-delivered-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+}

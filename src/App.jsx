@@ -319,12 +319,30 @@ function Nav({ tab, setTab }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ animals, gestations, moon, season }) {
+function Dashboard({ animals, gestations, offspring, moon, season }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
 
   const speciesCounts = animals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
   const activeGestations = gestations.filter(g => g.status !== "Delivered");
+
+  // Next weaning across all offspring
+  let nextWeaning = null;
+  if (offspring) {
+    Object.values(offspring).forEach(list => {
+      (list || []).forEach(c => {
+        if (!c.weaningDate) return;
+        const d = daysUntil(c.weaningDate);
+        if (d < 0) return; // already past
+        if (!nextWeaning || d < nextWeaning.days) {
+          nextWeaning = {
+            days: d,
+            name: c.name || "Unnamed",
+          };
+        }
+      });
+    });
+  }
 
   const upcoming = activeGestations
     .map(g => {
@@ -354,7 +372,12 @@ function Dashboard({ animals, gestations, moon, season }) {
           { label: "Total Animals", value: animals.length, sub: `${Object.keys(speciesCounts).length} species`, icon: "🐄" },
           { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅" },
           { label: "Due This Month",value: upcoming.length, sub: overdue.length > 0 ? `${overdue.length} overdue` : "none overdue", icon: "⚠️", alert: overdue.length > 0 },
-          { label: "Moon Phase",    value: moon.icon, sub: moon.name, icon: null, large: true },
+          {
+            label: "Next Weaning",
+            value: nextWeaning ? nextWeaning.days : "—",
+            sub: nextWeaning ? nextWeaning.name : "none scheduled",
+            icon: "🥛",
+          },
         ].map((s, i) => (
           <Card key={i} style={{ padding: "18px 20px", borderLeft: s.alert ? "4px solid var(--danger2)" : "4px solid var(--brass)" }}>
             <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "6px" }}>{s.label}</div>
@@ -1132,7 +1155,7 @@ export default function App() {
   return (
     <div style={{ minHeight: "100vh", background: "var(--cream)" }}>
       <Nav tab={tab} setTab={setTab} />
-      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} moon={moon} season={season} />}
+      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} />}
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} />}
       {tab === "gestation" && <Gestation animals={animals} gestations={gestations} setGestations={setGestations} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} />}

@@ -1,5 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import "./App.css";
+import { supabase } from "./supabase";
+import Auth from "./Auth";
 
 // ── Species Data ──────────────────────────────────────────────────────────────
 const SPECIES = {
@@ -41,14 +43,6 @@ const TIPS = {
   Summer: ["When cows lie down before noon, rain comes soon.","Morning dew means a dry afternoon.","Shear before the Dog Days — shorn sheep fare better in heat.","Watch the swallows; low flight means rain before nightfall."],
   Autumn: ["Mark your breeding dates carefully — spring arrives quickly.","Stock the hayloft full; winter feeds the heaviest animals hardest.","Thicker woolly bears predict harsher winters.","Harvest when the moon wanes for longest storage."],
 };
-
-// ── Storage ───────────────────────────────────────────────────────────────────
-function loadData(key, fallback) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
-}
-function saveData(key, value) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
-}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function daysUntil(dateStr) {
@@ -284,7 +278,7 @@ function Textarea({ label, ...props }) {
 function var2(name) { return `var(--${name})`; }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-function Nav({ tab, setTab }) {
+function Nav({ tab, setTab, user, onLogout }) {
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: "⊞" },
     { id: "animals",   label: "Animals",   icon: "🐄" },
@@ -328,13 +322,18 @@ function Nav({ tab, setTab }) {
             </button>
           ))}
         </nav>
+        {user && (
+          <button onClick={onLogout} style={{ marginLeft: "auto", padding: "8px 14px", background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "var(--radius)", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+            Log out
+          </button>
+        )}
       </div>
     </header>
   );
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ animals, gestations, offspring, moon, season }) {
+function Dashboard({ animals, gestations, offspring, moon, season, user }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
 
@@ -514,7 +513,7 @@ function Dashboard({ animals, gestations, offspring, moon, season }) {
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
   const [viewing, setViewing] = useState(null);
@@ -968,7 +967,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring }) {
 }
 
 // ── Gestation ─────────────────────────────────────────────────────────────────
-function Gestation({ animals, gestations, setGestations }) {
+function Gestation({ animals, gestations, setGestations, user }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ animalId: "", breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
   const [showCalfForm, setShowCalfForm] = useState(false);
@@ -1236,7 +1235,7 @@ function Gestation({ animals, gestations, setGestations }) {
 }
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
-function Notes({ notes, setNotes }) {
+function Notes({ notes, setNotes, user }) {
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [showAdd, setShowAdd] = useState(false);
@@ -1291,14 +1290,18 @@ function Notes({ notes, setNotes }) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
-export default function App() {
-  const [tab, setTab] = useState("dashboard");
-  const [animals, setAnimals]       = useState(() => loadData("hl-animals", []));
-  const [gestations, setGestations] = useState(() => loadData("hl-gestations", []));
-  const [notes, setNotes]           = useState(() => loadData("hl-notes", []));
-  const [offspring, setOffspring]   = useState(() => loadData("hl-offspring", {}));
+const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring"];
 
-  const moon   = getMoonPhase();
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [tab, setTab] = useState("dashboard");
+  const [animals, setAnimals] = useState([]);
+  const [gestations, setGestations] = useState([]);
+  const [notes, setNotes] = useState([]);
+  const [offspring, setOffspring] = useState({});
+  const initialLoadDone = useRef(false);
+
+  const moon = getMoonPhase();
   const season = getSeason();
 
   useEffect(() => {
@@ -1308,18 +1311,70 @@ export default function App() {
     return () => document.head.removeChild(el);
   }, []);
 
-  useEffect(() => saveData("hl-animals",    animals),    [animals]);
-  useEffect(() => saveData("hl-gestations", gestations), [gestations]);
-  useEffect(() => saveData("hl-notes",      notes),      [notes]);
-  useEffect(() => saveData("hl-offspring",  offspring),  [offspring]);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setAnimals([]);
+      setGestations([]);
+      setNotes([]);
+      setOffspring({});
+      initialLoadDone.current = false;
+      return;
+    }
+    initialLoadDone.current = false;
+    supabase
+      .from("user_data")
+      .select("key, data")
+      .eq("user_id", user.id)
+      .in("key", USER_DATA_KEYS)
+      .then(({ data: rows, error }) => {
+        if (error) return;
+        const byKey = (rows || []).reduce((acc, r) => { acc[r.key] = r.data; return acc; }, {});
+        setAnimals(Array.isArray(byKey.animals) ? byKey.animals : []);
+        setGestations(Array.isArray(byKey.gestations) ? byKey.gestations : []);
+        setNotes(Array.isArray(byKey.notes) ? byKey.notes : []);
+        setOffspring(byKey.offspring && typeof byKey.offspring === "object" ? byKey.offspring : {});
+        initialLoadDone.current = true;
+      });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    supabase.from("user_data").upsert({ user_id: user.id, key: "animals", data: animals }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, animals]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    supabase.from("user_data").upsert({ user_id: user.id, key: "gestations", data: gestations }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, gestations]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    supabase.from("user_data").upsert({ user_id: user.id, key: "notes", data: notes }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, notes]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    supabase.from("user_data").upsert({ user_id: user.id, key: "offspring", data: offspring }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, offspring]);
+
+  if (user === null) {
+    return <Auth onLogin={() => {}} />;
+  }
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--cream)" }}>
-      <Nav tab={tab} setTab={setTab} />
-      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} />}
-      {tab === "gestation" && <Gestation animals={animals} gestations={gestations} setGestations={setGestations} />}
-      {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} />}
+      <Nav tab={tab} setTab={setTab} user={user} onLogout={() => supabase.auth.signOut()} />
+      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} user={user} />}
+      {tab === "gestation" && <Gestation animals={animals} gestations={gestations} setGestations={setGestations} user={user} />}
+      {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
     </div>
   );
 }

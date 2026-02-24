@@ -13,6 +13,7 @@ const SPECIES = {
   Llama:   { days: 350, emoji: "🦙" },
   Alpaca:  { days: 345, emoji: "🦙" },
   Donkey:  { days: 365, emoji: "🫏" },
+  Mule:    { days: 360, emoji: "🐴" },
   Rabbit:  { days: 31,  emoji: "🐇" },
   Dog:     { days: 63,  emoji: "🐕" },
   Cat:     { days: 65,  emoji: "🐈" },
@@ -96,6 +97,23 @@ function ageFromDobMonths(months) {
   if (months >= 12) return "1 year";
   if (months >= 1) return `${months} month${months === 1 ? "" : "s"}`;
   return "Under 1 month";
+}
+
+const CASTRATED_TERM_BY_SPECIES = {
+  Cattle: "Steer",
+  Pig: "Barrow",
+  Sheep: "Wether",
+  Goat: "Wether",
+  Horse: "Gelding",
+  Donkey: "Gelding",
+  Mule: "Gelding",
+};
+
+function displaySex(animal) {
+  if (animal?.castration && (animal.sex === "Male" || !animal.sex)) {
+    return CASTRATED_TERM_BY_SPECIES[animal.species] ?? "Castrated";
+  }
+  return animal?.sex || "—";
 }
 
 // ── Global Styles ─────────────────────────────────────────────────────────────
@@ -532,8 +550,15 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
   const [castrationForm, setCastrationForm] = useState({
     date: "",
     method: "Banding",
-    age: "",
     performer: "Owner",
+    notes: "",
+  });
+  const [showVaccinationForm, setShowVaccinationForm] = useState(false);
+  const [vaccinationForm, setVaccinationForm] = useState({
+    vaccineName: "",
+    dateGiven: "",
+    nextDueDate: "",
+    administeredBy: "Owner",
     notes: "",
   });
 
@@ -596,7 +621,6 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
       const rec = {
         date: castrationForm.date || undefined,
         method: castrationForm.method || undefined,
-        age: castrationForm.age || undefined,
         performer: castrationForm.performer || undefined,
         notes: castrationForm.notes || undefined,
         recordedAt: new Date().toISOString(),
@@ -611,11 +635,42 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
       setCastrationForm({
         date: "",
         method: "Banding",
-        age: "",
         performer: "Owner",
         notes: "",
       });
     }
+
+    function saveVaccination() {
+      const rec = {
+        id: Date.now().toString(),
+        vaccineName: vaccinationForm.vaccineName || undefined,
+        dateGiven: vaccinationForm.dateGiven || undefined,
+        nextDueDate: vaccinationForm.nextDueDate || undefined,
+        administeredBy: vaccinationForm.administeredBy || undefined,
+        notes: vaccinationForm.notes || undefined,
+      };
+      const nextList = [...(a.vaccinations || []), rec];
+      setAnimals(prev =>
+        prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an))
+      );
+      setViewing(prev =>
+        prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev
+      );
+      setShowVaccinationForm(false);
+      setVaccinationForm({
+        vaccineName: "",
+        dateGiven: "",
+        nextDueDate: "",
+        administeredBy: "Owner",
+        notes: "",
+      });
+    }
+
+    const vaccinationsSorted = [...(a.vaccinations || [])].sort((x, y) => {
+      const d1 = x.dateGiven || "";
+      const d2 = y.dateGiven || "";
+      return d2.localeCompare(d1);
+    });
 
     return (
       <div className="hl-page hl-page-narrow hl-fade-in">
@@ -627,13 +682,20 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
             <div style={{ fontSize: "52px" }}>{SPECIES[a.species]?.emoji}</div>
             <div>
               <div className="hl-detail-name" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{a.name}</div>
-              <div style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {a.sex}</div>
+              <div style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a)}</div>
             </div>
             {a.tag && <Badge color="var(--brass2)" style={{ marginLeft: "auto" }}>#{a.tag}</Badge>}
           </div>
           <div style={{ padding: "28px 32px" }}>
             <div className="hl-detail-grid" style={{ marginBottom: "24px" }}>
-              {[["Species", a.species], ["Breed", a.breed || "—"], ["Sex", a.sex], ["Date of Birth", fmt(a.dob)], ["Tag / ID", a.tag || "—"], ["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]].map(([k, v]) => (
+              {[
+                ["Species", a.species],
+                ["Breed", a.breed || "—"],
+                ["Sex", displaySex(a)],
+                ["Date of Birth", fmt(a.dob)],
+                ["Tag / ID", a.tag || "—"],
+                ...(a.species !== "Mule" ? [["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]] : []),
+              ].map(([k, v]) => (
                 <div key={k}>
                   <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>{k}</div>
                   <div style={{ fontSize: "15px", fontWeight: 500 }}>{v}</div>
@@ -661,7 +723,6 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                       setCastrationForm({
                         date: existing.date || "",
                         method: existing.method || "Banding",
-                        age: existing.age || "",
                         performer: existing.performer || "Owner",
                         notes: existing.notes || "",
                       });
@@ -682,7 +743,6 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                     </div>
                     <div style={{ fontSize: "13px", color: "var(--ink2)" }}>
                       {a.castration.method && <div><strong>Method:</strong> {a.castration.method}</div>}
-                      {a.castration.age && <div><strong>Age at castration:</strong> {a.castration.age}</div>}
                       {a.castration.performer && <div><strong>Performed by:</strong> {a.castration.performer}</div>}
                       {a.castration.notes && (
                         <div style={{ marginTop: "4px" }}>
@@ -714,12 +774,6 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                         <option>Surgical</option>
                         <option>Burdizzo</option>
                       </Select>
-                      <Input
-                        label="Age at castration"
-                        value={castrationForm.age}
-                        onChange={e => setCastrationForm(p => ({ ...p, age: e.target.value }))}
-                        placeholder="e.g. 6 months"
-                      />
                       <Select
                         label="Performed by"
                         value={castrationForm.performer}
@@ -745,7 +799,6 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                           setCastrationForm({
                             date: "",
                             method: "Banding",
-                            age: "",
                             performer: "Owner",
                             notes: "",
                           });
@@ -760,6 +813,30 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
             )}
             {isFemale && (
               <div style={{ marginTop: "24px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
+                  <div>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>Total Offspring</div>
+                    <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--green)" }}>{offspringForMother.length}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>Success Rate (%)</div>
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      step={0.1}
+                      value={a.successRate != null ? a.successRate : ""}
+                      onChange={e => {
+                        const v = e.target.value;
+                        const num = v === "" ? undefined : parseFloat(v);
+                        setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, successRate: num } : an)));
+                        setViewing(prev => (prev && prev.id === a.id ? { ...prev, successRate: num } : prev));
+                      }}
+                      placeholder="e.g. 85"
+                      style={{ width: "100%", padding: "8px 12px", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", fontSize: "14px", color: "var(--ink)", background: "#fff", outline: "none" }}
+                    />
+                  </div>
+                </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
                     Offspring Records
@@ -895,6 +972,113 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                 )}
               </div>
             )}
+
+            {/* Vaccination Records — all animals */}
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+                  Vaccination Records
+                </div>
+                <Btn
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => {
+                    setShowVaccinationForm(true);
+                    setVaccinationForm({
+                      vaccineName: "",
+                      dateGiven: "",
+                      nextDueDate: "",
+                      administeredBy: "Owner",
+                      notes: "",
+                    });
+                  }}
+                >
+                  Add Vaccination
+                </Btn>
+              </div>
+
+              {vaccinationsSorted.length === 0 && !showVaccinationForm && (
+                <p style={{ fontSize: "13px", color: "var(--muted)" }}>No vaccinations recorded for this animal.</p>
+              )}
+
+              {vaccinationsSorted.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
+                  {vaccinationsSorted.map(v => (
+                    <div key={v.id} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--green3)" }}>
+                      <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "4px" }}>{v.vaccineName || "Unnamed vaccine"}</div>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                        {v.dateGiven && <span>Given {fmt(v.dateGiven)}</span>}
+                        {v.nextDueDate && <span>{v.dateGiven ? " · " : ""}Next due {fmt(v.nextDueDate)}</span>}
+                        {v.administeredBy && <span>{v.dateGiven || v.nextDueDate ? " · " : ""}{v.administeredBy}</span>}
+                      </div>
+                      {v.notes && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "6px" }}>{v.notes}</div>}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showVaccinationForm && (
+                <Card style={{ padding: "18px 20px", marginTop: "14px", borderLeft: "3px solid var(--green3)" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
+                    Add Vaccination
+                  </div>
+                  <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                    <Input
+                      label="Vaccine name"
+                      value={vaccinationForm.vaccineName}
+                      onChange={e => setVaccinationForm(p => ({ ...p, vaccineName: e.target.value }))}
+                      placeholder="e.g. Clostridial 7-way"
+                    />
+                    <Input
+                      label="Date given"
+                      type="date"
+                      value={vaccinationForm.dateGiven}
+                      onChange={e => setVaccinationForm(p => ({ ...p, dateGiven: e.target.value }))}
+                    />
+                    <Input
+                      label="Next due date"
+                      type="date"
+                      value={vaccinationForm.nextDueDate}
+                      onChange={e => setVaccinationForm(p => ({ ...p, nextDueDate: e.target.value }))}
+                    />
+                    <Select
+                      label="Administered by"
+                      value={vaccinationForm.administeredBy}
+                      onChange={e => setVaccinationForm(p => ({ ...p, administeredBy: e.target.value }))}
+                    >
+                      <option>Owner</option>
+                      <option>Vet</option>
+                    </Select>
+                  </div>
+                  <Textarea
+                    label="Notes"
+                    value={vaccinationForm.notes}
+                    onChange={e => setVaccinationForm(p => ({ ...p, notes: e.target.value }))}
+                    rows={2}
+                  />
+                  <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                    <Btn size="sm" onClick={saveVaccination}>Save Vaccination</Btn>
+                    <Btn
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setShowVaccinationForm(false);
+                        setVaccinationForm({
+                          vaccineName: "",
+                          dateGiven: "",
+                          nextDueDate: "",
+                          administeredBy: "Owner",
+                          notes: "",
+                        });
+                      }}
+                    >
+                      Cancel
+                    </Btn>
+                  </div>
+                </Card>
+              )}
+            </div>
+
             <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end" }}>
               <Btn variant="danger" size="sm" onClick={() => remove(a.id)}>Remove Animal</Btn>
             </div>
@@ -957,7 +1141,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
               {a.tag && <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>#{a.tag}</span>}
             </div>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{a.name}</div>
-            <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {a.sex}</div>
+            <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {displaySex(a)}</div>
             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>{ageFromDob(a.dob)}</div>
           </Card>
         ))}
@@ -1061,7 +1245,7 @@ function Gestation({ animals, gestations, setGestations, user }) {
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Select label="Animal (Dam) *" value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}>
               <option value="">— Select —</option>
-              {females.map(a => <option key={a.id} value={a.id}>{a.name} ({a.species})</option>)}
+              {females.filter(a => a.species !== "Mule").map(a => <option key={a.id} value={a.id}>{a.name} ({a.species})</option>)}
             </Select>
             {!form.runningWithBull ? (
               <Input label="Breeding Date *" type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} />

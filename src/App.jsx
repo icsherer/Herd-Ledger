@@ -116,6 +116,11 @@ function displaySex(animal) {
   return animal?.sex || "—";
 }
 
+function getAnimalName(animal) {
+  if (!animal) return "Unnamed";
+  return animal.name || (animal.tag ? `#${animal.tag}` : "Unnamed");
+}
+
 // ── Global Styles ─────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&family=Source+Sans+3:wght@300;400;500;600&display=swap');
@@ -350,7 +355,9 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
 
-  const speciesCounts = animals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
+  const activeAnimals = animals.filter(a => !a.deceased);
+  const deceasedCount = animals.filter(a => a.deceased).length;
+  const speciesCounts = activeAnimals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
   const activeGestations = gestations.filter(g => g.status !== "Delivered");
 
   // Next weaning across all offspring
@@ -373,7 +380,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
 
   const upcoming = activeGestations
     .map(g => {
-      const a = animals.find(x => x.id === g.animalId);
+      const a = activeAnimals.find(x => x.id === g.animalId);
       const d = daysUntilDue(g);
       const due = d.isRange ? d.start : d.start;
       const dueEnd = d.isRange ? d.end : d.start;
@@ -386,7 +393,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
     .map(g => {
       const d = daysUntilDue(g);
       const due = d.isRange ? d.end : d.start;
-      return { ...g, due, dueD: d, animal: animals.find(x => x.id === g.animalId) };
+      return { ...g, due, dueD: d, animal: activeAnimals.find(x => x.id === g.animalId) };
     })
     .filter(g => g.due < 0);
 
@@ -396,7 +403,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
       {/* Top stats row */}
       <div className="hl-dash-stats">
         {[
-          { label: "Total Animals", value: animals.length, sub: `${Object.keys(speciesCounts).length} species`, icon: "🐄" },
+          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}`, icon: "🐄" },
           { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅" },
           { label: "Due This Month",value: upcoming.length, sub: overdue.length > 0 ? `${overdue.length} overdue` : "none overdue", icon: "⚠️", alert: overdue.length > 0 },
           {
@@ -427,7 +434,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
               {overdue.map(g => (
                 <div key={g.id} style={{ padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--cream2)" }}>
                   <div>
-                    <span style={{ fontWeight: 600 }}>{g.animal?.name || "Unknown"}</span>
+                    <span style={{ fontWeight: 600 }}>{getAnimalName(g.animal)}</span>
                     <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{g.animal?.species}</span>
                   </div>
                   <Badge color="var(--danger2)">{g.dueD?.isRange ? "Overdue" : `${Math.abs(g.due)}d overdue`}</Badge>
@@ -449,7 +456,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                       <span style={{ fontSize: "20px" }}>{SPECIES[g.animal?.species]?.emoji}</span>
                       <div>
-                        <div style={{ fontWeight: 600 }}>{g.animal?.name || "Unknown"}</div>
+                        <div style={{ fontWeight: 600 }}>{getAnimalName(g.animal)}</div>
                         <div style={{ fontSize: "12px", color: "var(--muted)" }}>{g.animal?.species} · Due {fmtDueRange(g)}</div>
                       </div>
                     </div>
@@ -464,7 +471,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
           )}
 
           {/* Herd breakdown */}
-          {animals.length > 0 && (
+          {activeAnimals.length > 0 && (
             <Card style={{ padding: "20px" }}>
               <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Herd Breakdown</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
@@ -476,14 +483,14 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
                       </span>
                       <span style={{ fontWeight: 600, color: "var(--green)" }}>{n}</span>
                     </div>
-                    <ProgressBar value={(n / animals.length) * 100} height={4} />
+                    <ProgressBar value={(n / activeAnimals.length) * 100} height={4} />
                   </div>
                 ))}
               </div>
             </Card>
           )}
 
-          {!animals.length && !activeGestations.length && (
+          {!activeAnimals.length && !activeGestations.length && (
             <Card style={{ padding: "48px", textAlign: "center" }}>
               <div style={{ fontSize: "48px", marginBottom: "12px" }}>🐄</div>
               <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600, marginBottom: "8px" }}>Welcome to Herd Ledger</div>
@@ -546,8 +553,9 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user }) {
   const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
   const [viewing, setViewing] = useState(null);
   const [search, setSearch] = useState("");
@@ -569,6 +577,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
     notes: "",
   });
   const [showVaccinationForm, setShowVaccinationForm] = useState(false);
+  const [editingVaccinationId, setEditingVaccinationId] = useState(null);
   const [vaccinationForm, setVaccinationForm] = useState({
     vaccineName: "",
     dateGiven: "",
@@ -576,12 +585,30 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
     administeredBy: "Owner",
     notes: "",
   });
+  const [showDeceasedForm, setShowDeceasedForm] = useState(false);
+  const [deceasedForm, setDeceasedForm] = useState({ date: "", cause: "Unknown", notes: "" });
+  const [showDeceasedAnimals, setShowDeceasedAnimals] = useState(false);
+  const [showBreedingForm, setShowBreedingForm] = useState(false);
+  const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
+
+  const DECEASED_CAUSES = ["Natural Causes", "Illness", "Injury", "Predator", "Culled", "Unknown"];
+
+  const emptyForm = () => ({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
 
   function add() {
     if (!form.name) return;
     setAnimals(p => [...p, { ...form, id: Date.now().toString() }]);
-    setForm({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
+    setForm(emptyForm());
     setShowAdd(false);
+  }
+
+  function saveEdit() {
+    if (!editingId) return;
+    const updated = { ...viewing, name: form.name || undefined, species: form.species, sex: form.sex, dob: form.dob || undefined, breed: form.breed || undefined, tag: form.tag || undefined, notes: form.notes || undefined };
+    setAnimals(p => p.map(x => x.id === editingId ? updated : x));
+    setViewing(updated);
+    setEditingId(null);
+    setForm(emptyForm());
   }
 
   function remove(id) {
@@ -590,11 +617,11 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
     setViewing(null);
   }
 
-  const filtered = animals.filter(a =>
-    a.name.toLowerCase().includes(search.toLowerCase()) ||
-    a.species.toLowerCase().includes(search.toLowerCase()) ||
-    (a.tag || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = animals.filter(a => {
+    const matchesSearch = getAnimalName(a).toLowerCase().includes(search.toLowerCase()) || a.species.toLowerCase().includes(search.toLowerCase());
+    const showByDeceased = showDeceasedAnimals ? true : !a.deceased;
+    return matchesSearch && showByDeceased;
+  });
 
   if (viewing) {
     const a = viewing;
@@ -620,6 +647,18 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
         const list = base[a.id] || [];
         return { ...base, [a.id]: [...list, rec] };
       });
+      const newAnimal = {
+        id: rec.id,
+        name: offspringForm.name || undefined,
+        tag: offspringForm.tag || undefined,
+        sex: offspringForm.sex || undefined,
+        species: offspringForm.species || a.species,
+        dob: offspringForm.dob || undefined,
+        breed: a.breed || undefined,
+        notes: undefined,
+        motherId: a.id,
+      };
+      setAnimals(prev => [...prev, newAnimal]);
       setShowOffspringForm(false);
       setOffspringForm({
         name: "",
@@ -655,16 +694,39 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
       });
     }
 
+    function deleteCastration() {
+      if (!confirm("Remove this castration record? The animal's sex will display as Male again.")) return;
+      setAnimals(prev =>
+        prev.map(an => (an.id === a.id ? { ...an, castration: undefined } : an))
+      );
+      setViewing(prev =>
+        prev && prev.id === a.id ? { ...prev, castration: undefined } : prev
+      );
+      setShowCastrationForm(false);
+      setCastrationForm({ date: "", method: "Banding", performer: "Owner", notes: "" });
+    }
+
     function saveVaccination() {
-      const rec = {
-        id: Date.now().toString(),
-        vaccineName: vaccinationForm.vaccineName || undefined,
-        dateGiven: vaccinationForm.dateGiven || undefined,
-        nextDueDate: vaccinationForm.nextDueDate || undefined,
-        administeredBy: vaccinationForm.administeredBy || undefined,
-        notes: vaccinationForm.notes || undefined,
-      };
-      const nextList = [...(a.vaccinations || []), rec];
+      const rec = editingVaccinationId
+        ? {
+            id: editingVaccinationId,
+            vaccineName: vaccinationForm.vaccineName || undefined,
+            dateGiven: vaccinationForm.dateGiven || undefined,
+            nextDueDate: vaccinationForm.nextDueDate || undefined,
+            administeredBy: vaccinationForm.administeredBy || undefined,
+            notes: vaccinationForm.notes || undefined,
+          }
+        : {
+            id: Date.now().toString(),
+            vaccineName: vaccinationForm.vaccineName || undefined,
+            dateGiven: vaccinationForm.dateGiven || undefined,
+            nextDueDate: vaccinationForm.nextDueDate || undefined,
+            administeredBy: vaccinationForm.administeredBy || undefined,
+            notes: vaccinationForm.notes || undefined,
+          };
+      const nextList = editingVaccinationId
+        ? (a.vaccinations || []).map(v => (v.id === editingVaccinationId ? rec : v))
+        : [...(a.vaccinations || []), rec];
       setAnimals(prev =>
         prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an))
       );
@@ -672,6 +734,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
         prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev
       );
       setShowVaccinationForm(false);
+      setEditingVaccinationId(null);
       setVaccinationForm({
         vaccineName: "",
         dateGiven: "",
@@ -679,6 +742,58 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
         administeredBy: "Owner",
         notes: "",
       });
+    }
+
+    function deleteVaccination(vaccinationId) {
+      if (!confirm("Remove this vaccination record?")) return;
+      const nextList = (a.vaccinations || []).filter(v => v.id !== vaccinationId);
+      setAnimals(prev =>
+        prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an))
+      );
+      setViewing(prev =>
+        prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev
+      );
+    }
+
+    function saveDeceased() {
+      const deceased = {
+        date: deceasedForm.date || undefined,
+        cause: deceasedForm.cause || "Unknown",
+        notes: deceasedForm.notes || undefined,
+      };
+      setAnimals(prev =>
+        prev.map(an => (an.id === a.id ? { ...an, deceased } : an))
+      );
+      setViewing(prev =>
+        prev && prev.id === a.id ? { ...prev, deceased } : prev
+      );
+      setShowDeceasedForm(false);
+      setDeceasedForm({ date: "", cause: "Unknown", notes: "" });
+    }
+
+    function addBreedingFromProfile() {
+      const start = breedingForm.breedingDate;
+      const end = breedingForm.runningWithBull ? breedingForm.breedingDateEnd : breedingForm.breedingDate;
+      if (!start || (breedingForm.runningWithBull && !end)) return;
+      const totalDays = SPECIES[a.species]?.days || 150;
+      const dueStart = dueDate(start, totalDays);
+      const dueEnd = breedingForm.runningWithBull ? dueDate(end, totalDays) : dueStart;
+      const record = {
+        animalId: a.id,
+        breedingDate: start,
+        ...(breedingForm.runningWithBull && { breedingDateEnd: end, runningWithBull: true }),
+        dueDate: dueStart,
+        ...(breedingForm.runningWithBull && { dueDateStart: dueStart, dueDateEnd: dueEnd }),
+        sire: breedingForm.sire,
+        notes: breedingForm.notes,
+        id: Date.now().toString(),
+        gestationDays: totalDays,
+        status: "Active",
+        createdAt: new Date().toISOString(),
+      };
+      setGestations(p => [...p, record]);
+      setShowBreedingForm(false);
+      setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
     }
 
     const vaccinationsSorted = [...(a.vaccinations || [])].sort((x, y) => {
@@ -689,17 +804,49 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
 
     return (
       <div className="hl-page hl-page-narrow hl-fade-in">
-        <button onClick={() => setViewing(null)} style={{ background: "none", border: "none", color: "var(--green)", fontWeight: 600, fontSize: "14px", cursor: "pointer", marginBottom: "20px", display: "flex", alignItems: "center", gap: "4px" }}>
-          ← Back to Animals
-        </button>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
+          <button onClick={() => { setViewing(null); setEditingId(null); }} style={{ background: "none", border: "none", color: "var(--green)", fontWeight: 600, fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
+            ← Back to Animals
+          </button>
+          {editingId !== a.id && (
+            <Btn onClick={() => { setEditingId(a.id); setForm({ name: a.name || "", species: a.species || "Cattle", sex: a.sex || "Female", dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "" }); }}>Edit</Btn>
+          )}
+        </div>
+
+        {editingId === a.id && (
+          <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Edit Animal</div>
+            <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+              <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
+              <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
+              <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
+              <Select label="Species" value={form.species} onChange={e => setForm(p => ({ ...p, species: e.target.value }))}>
+                {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
+              </Select>
+              <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
+                <option>Female</option><option>Male</option><option>Wether/Steer</option>
+              </Select>
+              <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+            </div>
+            <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
+            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+              <Btn onClick={saveEdit}>Save Changes</Btn>
+              <Btn variant="secondary" onClick={() => { setEditingId(null); setForm(emptyForm()); }}>Cancel</Btn>
+            </div>
+          </Card>
+        )}
+
         <Card style={{ padding: "0", overflow: "hidden" }}>
           <div className="hl-detail-header" style={{ background: "var(--green)", padding: "28px 32px", display: "flex", alignItems: "center", gap: "20px" }}>
             <div style={{ fontSize: "52px" }}>{SPECIES[a.species]?.emoji}</div>
             <div>
-              <div className="hl-detail-name" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{a.name}</div>
+              <div className="hl-detail-name" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{getAnimalName(a)}</div>
               <div style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a)}</div>
             </div>
-            {a.tag && <Badge color="var(--brass2)" style={{ marginLeft: "auto" }}>#{a.tag}</Badge>}
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+              {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
+              {a.tag && a.name && !a.deceased && <Badge color="var(--brass2)">#{a.tag}</Badge>}
+            </div>
           </div>
           <div style={{ padding: "28px 32px" }}>
             <div className="hl-detail-grid" style={{ marginBottom: "24px" }}>
@@ -723,6 +870,41 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                 <p style={{ fontSize: "14px", lineHeight: 1.7, color: "var(--ink2)" }}>{a.notes}</p>
               </div>
             )}
+
+            {/* Deceased */}
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>
+                Status
+              </div>
+              {a.deceased ? (
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "#f5f5f5", borderLeft: "3px solid #888" }}>
+                  <div style={{ fontWeight: 600, color: "#555", marginBottom: "4px" }}>Deceased</div>
+                  <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+                    {a.deceased.date && <span>Date: {fmt(a.deceased.date)}</span>}
+                    {a.deceased.cause && <span>{a.deceased.date ? " · " : ""}Cause: {a.deceased.cause}</span>}
+                  </div>
+                  {a.deceased.notes && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "6px" }}>{a.deceased.notes}</div>}
+                </div>
+              ) : showDeceasedForm ? (
+                <Card style={{ padding: "18px 20px", borderLeft: "3px solid #888" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Mark as Deceased</div>
+                  <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                    <Input label="Date of death" type="date" value={deceasedForm.date} onChange={e => setDeceasedForm(p => ({ ...p, date: e.target.value }))} />
+                    <Select label="Cause of death" value={deceasedForm.cause} onChange={e => setDeceasedForm(p => ({ ...p, cause: e.target.value }))}>
+                      {DECEASED_CAUSES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </Select>
+                  </div>
+                  <Textarea label="Notes" value={deceasedForm.notes} onChange={e => setDeceasedForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes..." />
+                  <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                    <Btn size="sm" onClick={saveDeceased}>Confirm</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowDeceasedForm(false); setDeceasedForm({ date: "", cause: "Unknown", notes: "" }); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              ) : (
+                <Btn size="sm" variant="secondary" onClick={() => setShowDeceasedForm(true)}>Mark as Deceased</Btn>
+              )}
+            </div>
+
             {isMale && (
               <div style={{ marginTop: "24px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
@@ -753,8 +935,14 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
 
                 {a.castration && (
                   <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)", marginBottom: "10px" }}>
-                    <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>
-                      {a.castration.date ? <>Performed {fmt(a.castration.date)}</> : "Date not recorded"}
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "6px" }}>
+                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                        {a.castration.date ? <>Performed {fmt(a.castration.date)}</> : "Date not recorded"}
+                      </div>
+                      <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                        <Btn size="sm" variant="ghost" onClick={() => { setCastrationForm({ date: a.castration.date || "", method: a.castration.method || "Banding", performer: a.castration.performer || "Owner", notes: a.castration.notes || "" }); setShowCastrationForm(true); }}>Edit</Btn>
+                        <Btn size="sm" variant="ghost" onClick={deleteCastration}>Delete</Btn>
+                      </div>
                     </div>
                     <div style={{ fontSize: "13px", color: "var(--ink2)" }}>
                       {a.castration.method && <div><strong>Method:</strong> {a.castration.method}</div>}
@@ -771,7 +959,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                 {showCastrationForm && (
                   <Card style={{ padding: "18px 20px", borderLeft: "3px solid var(--brass)" }}>
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
-                      Log Castration
+                      {a.castration ? "Edit Castration" : "Log Castration"}
                     </div>
                     <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                       <Input
@@ -828,6 +1016,54 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
             )}
             {isFemale && (
               <div style={{ marginTop: "24px" }}>
+                {a.species !== "Mule" && (
+                  <div style={{ marginBottom: "24px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>
+                      Breeding
+                    </div>
+                    {!showBreedingForm ? (
+                      <Btn size="sm" variant="secondary" onClick={() => setShowBreedingForm(true)}>Log Breeding</Btn>
+                    ) : (
+                      <Card style={{ padding: "24px", borderLeft: "4px solid var(--brass)" }}>
+                        <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Log Breeding Date</div>
+                        <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>Dam: <strong>{getAnimalName(a)}</strong> ({a.species})</div>
+                        <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+                          {!breedingForm.runningWithBull ? (
+                            <Input label="Breeding Date *" type="date" value={breedingForm.breedingDate} onChange={e => setBreedingForm(p => ({ ...p, breedingDate: e.target.value }))} />
+                          ) : (
+                            <>
+                              <Input label="Exposure start *" type="date" value={breedingForm.breedingDate} onChange={e => setBreedingForm(p => ({ ...p, breedingDate: e.target.value }))} />
+                              <Input label="Exposure end *" type="date" value={breedingForm.breedingDateEnd} onChange={e => setBreedingForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
+                            </>
+                          )}
+                          <Input label="Sire (optional)" value={breedingForm.sire} onChange={e => setBreedingForm(p => ({ ...p, sire: e.target.value }))} placeholder="Sire name or tag" />
+                        </div>
+                        <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
+                          <input type="checkbox" checked={breedingForm.runningWithBull} onChange={e => setBreedingForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDate : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                          <span>Running with Bull (date range for bull exposure)</span>
+                        </label>
+                        <Textarea label="Notes" value={breedingForm.notes} onChange={e => setBreedingForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+                        {breedingForm.breedingDate && (breedingForm.runningWithBull ? breedingForm.breedingDateEnd : true) && (() => {
+                          const days = SPECIES[a.species]?.days;
+                          if (!days) return null;
+                          const start = dueDate(breedingForm.breedingDate, days);
+                          const end = breedingForm.runningWithBull && breedingForm.breedingDateEnd ? dueDate(breedingForm.breedingDateEnd, days) : start;
+                          const dueStr = breedingForm.runningWithBull && breedingForm.breedingDateEnd ? `${fmt(start)} – ${fmt(end)}` : fmt(start);
+                          return (
+                            <div style={{ marginTop: "12px", padding: "10px 14px", background: "var(--cream)", borderRadius: "var(--radius)", fontSize: "13px", color: "var(--ink2)" }}>
+                              📅 Estimated due: <strong>{dueStr}</strong> · Gestation: <strong>{days} days</strong>
+                            </div>
+                          );
+                        })()}
+                        <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                          <Btn onClick={addBreedingFromProfile}>Record</Btn>
+                          <Btn variant="secondary" onClick={() => { setShowBreedingForm(false); setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>Cancel</Btn>
+                        </div>
+                      </Card>
+                    )}
+                  </div>
+                )}
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
                   <div>
                     <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>Total Offspring</div>
@@ -998,6 +1234,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                   size="sm"
                   variant="secondary"
                   onClick={() => {
+                    setEditingVaccinationId(null);
                     setShowVaccinationForm(true);
                     setVaccinationForm({
                       vaccineName: "",
@@ -1020,7 +1257,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
                   {vaccinationsSorted.map(v => (
                     <div key={v.id} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--green3)" }}>
-                      <div style={{ fontWeight: 600, fontSize: "14px", marginBottom: "4px" }}>{v.vaccineName || "Unnamed vaccine"}</div>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
+                        <div style={{ fontWeight: 600, fontSize: "14px" }}>{v.vaccineName || "Unnamed vaccine"}</div>
+                        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                          <Btn size="sm" variant="ghost" onClick={() => { setEditingVaccinationId(v.id); setVaccinationForm({ vaccineName: v.vaccineName || "", dateGiven: v.dateGiven || "", nextDueDate: v.nextDueDate || "", administeredBy: v.administeredBy || "Owner", notes: v.notes || "" }); setShowVaccinationForm(true); }}>Edit</Btn>
+                          <Btn size="sm" variant="ghost" onClick={() => deleteVaccination(v.id)}>Delete</Btn>
+                        </div>
+                      </div>
                       <div style={{ fontSize: "12px", color: "var(--muted)" }}>
                         {v.dateGiven && <span>Given {fmt(v.dateGiven)}</span>}
                         {v.nextDueDate && <span>{v.dateGiven ? " · " : ""}Next due {fmt(v.nextDueDate)}</span>}
@@ -1035,7 +1278,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
               {showVaccinationForm && (
                 <Card style={{ padding: "18px 20px", marginTop: "14px", borderLeft: "3px solid var(--green3)" }}>
                   <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
-                    Add Vaccination
+                    {editingVaccinationId ? "Edit Vaccination" : "Add Vaccination"}
                   </div>
                   <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                     <Input
@@ -1072,12 +1315,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
                     rows={2}
                   />
                   <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                    <Btn size="sm" onClick={saveVaccination}>Save Vaccination</Btn>
+                    <Btn size="sm" onClick={saveVaccination}>{editingVaccinationId ? "Save Changes" : "Save Vaccination"}</Btn>
                     <Btn
                       size="sm"
                       variant="ghost"
                       onClick={() => {
                         setShowVaccinationForm(false);
+                        setEditingVaccinationId(null);
                         setVaccinationForm({
                           vaccineName: "",
                           dateGiven: "",
@@ -1103,15 +1347,25 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
     );
   }
 
+  const deceasedCount = animals.filter(a => a.deceased).length;
+
   return (
     <div className="hl-page hl-fade-in">
-      <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ Register Animal</Btn>}>
+      <SectionTitle action={<Btn onClick={() => { setEditingId(null); setShowAdd(true); }}>+ Register Animal</Btn>}>
         Animal Register
       </SectionTitle>
 
-      {/* Search */}
-      <div style={{ marginBottom: "20px" }}>
-        <Input placeholder="Search by name, species, or tag..." value={search} onChange={e => setSearch(e.target.value)} />
+      {/* Show/hide deceased + Search */}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+        {deceasedCount > 0 && (
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--muted)", cursor: "pointer" }}>
+            <input type="checkbox" checked={showDeceasedAnimals} onChange={e => setShowDeceasedAnimals(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+            Show deceased animals ({deceasedCount})
+          </label>
+        )}
+        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+          <Input placeholder="Search by name, species, or tag..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
       </div>
 
       {showAdd && (
@@ -1146,16 +1400,24 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
         {filtered.map(a => (
-          <Card key={a.id} style={{ padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s" }}
-            onClick={() => { console.log("clicked", a.name); setViewing(a); }}
+          <Card key={a.id} style={{ padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s", position: "relative", overflow: "hidden" }}
+            onClick={() => setViewing(a)}
             onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow2)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = "var(--shadow)"; e.currentTarget.style.transform = ""; }}
           >
+            {a.deceased && (
+              <>
+                <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", pointerEvents: "none" }} />
+                <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none" }}>
+                  <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>
+                </div>
+              </>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
               <span style={{ fontSize: "28px" }}>{SPECIES[a.species]?.emoji}</span>
-              {a.tag && <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>#{a.tag}</span>}
+              {a.name && a.tag && !a.deceased && <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>#{a.tag}</span>}
             </div>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{a.name}</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{getAnimalName(a)}</div>
             <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {displaySex(a)}</div>
             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>{ageFromDob(a.dob)}</div>
           </Card>
@@ -1166,7 +1428,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, user }) {
 }
 
 // ── Gestation ─────────────────────────────────────────────────────────────────
-function Gestation({ animals, gestations, setGestations, user }) {
+function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ animalId: "", breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
   const [showCalfForm, setShowCalfForm] = useState(false);
@@ -1216,8 +1478,24 @@ function Gestation({ animals, gestations, setGestations, user }) {
       weaningDate: calfForm.weaningDate || undefined,
       recordedAt: new Date().toISOString(),
     };
-    setGestations(p => p.map(g => 
-      g.id === gestationId 
+    const g = gestations.find(x => x.id === gestationId);
+    const mother = g ? animals.find(m => m.id === g.animalId) : null;
+    if (mother) {
+      const newAnimal = {
+        id: Date.now().toString(),
+        name: calfForm.name || undefined,
+        tag: calfForm.tag || undefined,
+        sex: calfForm.sex || undefined,
+        species: mother.species,
+        dob: undefined,
+        breed: mother.breed || undefined,
+        notes: undefined,
+        motherId: mother.id,
+      };
+      setAnimals(prev => [...prev, newAnimal]);
+    }
+    setGestations(p => p.map(g =>
+      g.id === gestationId
         ? { ...g, status: "Delivered", deliveredAt: g.deliveredAt || new Date().toISOString(), calf: calfData }
         : g
     ));
@@ -1260,7 +1538,7 @@ function Gestation({ animals, gestations, setGestations, user }) {
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Select label="Animal (Dam) *" value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}>
               <option value="">— Select —</option>
-              {females.filter(a => a.species !== "Mule").map(a => <option key={a.id} value={a.id}>{a.name} ({a.species})</option>)}
+              {females.filter(a => a.species !== "Mule").map(a => <option key={a.id} value={a.id}>{getAnimalName(a)} ({a.species})</option>)}
             </Select>
             {!form.runningWithBull ? (
               <Input label="Breeding Date *" type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} />
@@ -1306,7 +1584,7 @@ function Gestation({ animals, gestations, setGestations, user }) {
               Add Calf Record (Optional)
             </div>
             <div style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "18px" }}>
-              Record details for the calf born to <strong>{animal?.name || "Unknown"}</strong>
+              Record details for the calf born to <strong>{getAnimalName(animal)}</strong>
             </div>
             <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
               <Input label="Calf Name" value={calfForm.name} onChange={e => setCalfForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie Jr" />
@@ -1353,7 +1631,7 @@ function Gestation({ animals, gestations, setGestations, user }) {
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <span style={{ fontSize: "28px" }}>{SPECIES[animal?.species]?.emoji}</span>
                   <div>
-                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{animal?.name || "Unknown"}</div>
+                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{getAnimalName(animal)}</div>
                     <div style={{ fontSize: "13px", color: "var(--muted)" }}>
                       {animal?.species}{g.sire ? ` × ${g.sire}` : ""} · {g.runningWithBull ? `Exposure ${fmt(g.breedingDate)} – ${fmt(g.breedingDateEnd)}` : `Bred ${fmt(g.breedingDate)}`}
                     </div>
@@ -1396,7 +1674,7 @@ function Gestation({ animals, gestations, setGestations, user }) {
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                       <span>{SPECIES[animal?.species]?.emoji}</span>
                       <div>
-                        <span style={{ fontWeight: 600, fontSize: "14px" }}>{animal?.name || "Unknown"}</span>
+                        <span style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(animal)}</span>
                         <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{animal?.species}</span>
                       </div>
                     </div>
@@ -1574,8 +1852,8 @@ export default function App() {
     <div style={{ minHeight: "100vh", background: "var(--cream)" }}>
       <Nav tab={tab} setTab={setTab} />
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={() => supabase.auth.signOut()} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} user={user} />}
-      {tab === "gestation" && <Gestation animals={animals} gestations={gestations} setGestations={setGestations} user={user} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} />}
+      {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
     </div>
   );

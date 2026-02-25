@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 import { supabase } from "./supabase";
-import Auth from "./Auth";
+import Auth, { ResetPasswordPage } from "./Auth";
 
 // ── Species Data ──────────────────────────────────────────────────────────────
 const SPECIES = {
@@ -296,7 +296,7 @@ function Textarea({ label, ...props }) {
 function var2(name) { return `var(--${name})`; }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-function Nav({ tab, setTab, user, onLogout }) {
+function Nav({ tab, setTab }) {
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: "⊞" },
     { id: "animals",   label: "Animals",   icon: "🐄" },
@@ -340,11 +340,6 @@ function Nav({ tab, setTab, user, onLogout }) {
             </button>
           ))}
         </nav>
-        {user && (
-          <button onClick={onLogout} style={{ marginLeft: "auto", padding: "8px 14px", background: "rgba(255,255,255,0.15)", color: "#fff", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "var(--radius)", fontSize: "13px", fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-            Log out
-          </button>
-        )}
       </div>
     </header>
   );
@@ -1549,16 +1544,26 @@ export default function App() {
   }, [user, offspring]);
 
   if (user === null) {
+    if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
+      return <ResetPasswordPage />;
+    }
     return <Auth onLogin={() => {}} />;
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--cream)" }}>
-      <Nav tab={tab} setTab={setTab} user={user} onLogout={() => supabase.auth.signOut()} />
+    <div style={{ minHeight: "100vh", background: "var(--cream)", paddingBottom: user ? "64px" : 0 }}>
+      <Nav tab={tab} setTab={setTab} />
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} />}
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} user={user} />}
       {tab === "gestation" && <Gestation animals={animals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
+      {user && (
+        <footer style={{ position: "fixed", bottom: 0, left: 0, right: 0, width: "100%", background: "var(--green)", color: "#fff", textAlign: "center", padding: "16px", zIndex: 100 }}>
+          <button type="button" onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "#fff", fontSize: "15px", fontWeight: 600, cursor: "pointer", padding: "8px 24px", minHeight: "44px" }}>
+            Log Out
+          </button>
+        </footer>
+      )}
     </div>
   );
 }

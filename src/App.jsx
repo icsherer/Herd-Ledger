@@ -346,7 +346,7 @@ function Nav({ tab, setTab }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ animals, gestations, offspring, moon, season, user }) {
+function Dashboard({ animals, gestations, offspring, moon, season, user, onLogout }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
 
@@ -518,6 +518,26 @@ function Dashboard({ animals, gestations, offspring, moon, season, user }) {
             <p style={{ fontFamily: "'Playfair Display'", fontStyle: "italic", fontSize: "15px", color: "var(--ink2)", lineHeight: 1.7 }}>
               "{tip}"
             </p>
+          </Card>
+
+          {/* Log Out */}
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={onLogout}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onLogout(); } }}
+            style={{
+              padding: "16px 20px",
+              textAlign: "center",
+              background: "#f8f0f0",
+              border: "1px solid #e8d8d8",
+              color: "#8b6b6b",
+              fontSize: "14px",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Log Out
           </Card>
         </div>
       </div>
@@ -1551,19 +1571,12 @@ export default function App() {
   }
 
   return (
-    <div style={{ minHeight: "100vh", background: "var(--cream)", paddingBottom: user ? "64px" : 0 }}>
+    <div style={{ minHeight: "100vh", background: "var(--cream)" }}>
       <Nav tab={tab} setTab={setTab} />
-      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} />}
+      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={() => supabase.auth.signOut()} />}
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} user={user} />}
       {tab === "gestation" && <Gestation animals={animals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
-      {user && (
-        <footer style={{ position: "fixed", bottom: 0, left: 0, right: 0, width: "100%", background: "var(--green)", color: "#fff", textAlign: "center", padding: "16px", zIndex: 100 }}>
-          <button type="button" onClick={() => supabase.auth.signOut()} style={{ background: "none", border: "none", color: "#fff", fontSize: "15px", fontWeight: 600, cursor: "pointer", padding: "8px 24px", minHeight: "44px" }}>
-            Log Out
-          </button>
-        </footer>
-      )}
     </div>
   );
 }

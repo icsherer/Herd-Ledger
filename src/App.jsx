@@ -109,11 +109,33 @@ const CASTRATED_TERM_BY_SPECIES = {
   Mule: "Gelding",
 };
 
-function displaySex(animal) {
-  if (animal?.castration && (animal.sex === "Male" || !animal.sex)) {
+const FEMALE_MAIDEN_BY_SPECIES = {
+  Cattle: "Heifer",
+  Pig: "Gilt",
+  Sheep: "Ewe Lamb",
+  Goat: "Doeling",
+};
+
+const FEMALE_BRED_BY_SPECIES = {
+  Cattle: "Cow",
+  Pig: "Sow",
+  Sheep: "Ewe",
+  Goat: "Doe",
+};
+
+function displaySex(animal, gestations) {
+  if (!animal) return "—";
+  if (animal.castration && (animal.sex === "Male" || !animal.sex)) {
     return CASTRATED_TERM_BY_SPECIES[animal.species] ?? "Castrated";
   }
-  return animal?.sex || "—";
+  if (animal.sex === "Female") {
+    const hasBreedingRecord = gestations?.some(g => g.animalId === animal.id);
+    if (hasBreedingRecord) {
+      return FEMALE_BRED_BY_SPECIES[animal.species] ?? "Female";
+    }
+    return FEMALE_MAIDEN_BY_SPECIES[animal.species] ?? "Female";
+  }
+  return animal.sex || "—";
 }
 
 function getAnimalName(animal) {
@@ -301,11 +323,11 @@ function Textarea({ label, ...props }) {
 function var2(name) { return `var(--${name})`; }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-function Nav({ tab, setTab }) {
+function Nav({ tab, setTab, hideGestationTab }) {
   const tabs = [
     { id: "dashboard", label: "Dashboard", icon: "⊞" },
     { id: "animals",   label: "Animals",   icon: "🐄" },
-    { id: "gestation", label: "Gestation", icon: "📅" },
+    ...(hideGestationTab ? [] : [{ id: "gestation", label: "Gestation", icon: "📅" }]),
     { id: "notes",     label: "Journal",   icon: "📖" },
   ];
   return (
@@ -553,13 +575,15 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
-  const [viewing, setViewing] = useState(null);
+  const viewing = viewingAnimal;
+  const setViewing = setViewingAnimal;
   const [search, setSearch] = useState("");
   const [showOffspringForm, setShowOffspringForm] = useState(false);
+  const [editingOffspringId, setEditingOffspringId] = useState(null);
   const [offspringForm, setOffspringForm] = useState({
     name: "",
     tag: "",
@@ -629,9 +653,20 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     const isFemale = a.sex === "Female";
     const isMale = a.sex === "Male";
 
+    function deleteOffspring(offspringId) {
+      if (!confirm("Remove this offspring record? The linked animal card will also be removed from the Animals list.")) return;
+      setOffspring(prev => {
+        const base = prev || {};
+        const list = (base[a.id] || []).filter(c => c.id !== offspringId);
+        return { ...base, [a.id]: list };
+      });
+      setAnimals(prev => prev.filter(an => an.id !== offspringId));
+    }
+
     function saveOffspring() {
+      const isEdit = !!editingOffspringId;
       const rec = {
-        id: Date.now().toString(),
+        id: isEdit ? editingOffspringId : Date.now().toString(),
         motherId: a.id,
         name: offspringForm.name || undefined,
         tag: offspringForm.tag || undefined,
@@ -640,14 +675,17 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
         dob: offspringForm.dob || undefined,
         weaningDate: offspringForm.weaningDate || undefined,
-        createdAt: new Date().toISOString(),
+        createdAt: isEdit ? (offspringForMother.find(c => c.id === editingOffspringId)?.createdAt) : new Date().toISOString(),
       };
       setOffspring(prev => {
         const base = prev || {};
         const list = base[a.id] || [];
+        if (isEdit) {
+          return { ...base, [a.id]: list.map(c => c.id === editingOffspringId ? rec : c) };
+        }
         return { ...base, [a.id]: [...list, rec] };
       });
-      const newAnimal = {
+      const updatedAnimal = {
         id: rec.id,
         name: offspringForm.name || undefined,
         tag: offspringForm.tag || undefined,
@@ -658,8 +696,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         notes: undefined,
         motherId: a.id,
       };
-      setAnimals(prev => [...prev, newAnimal]);
+      if (isEdit) {
+        setAnimals(prev => prev.map(an => an.id === editingOffspringId ? { ...an, ...updatedAnimal } : an));
+      } else {
+        setAnimals(prev => [...prev, updatedAnimal]);
+      }
       setShowOffspringForm(false);
+      setEditingOffspringId(null);
       setOffspringForm({
         name: "",
         tag: "",
@@ -841,7 +884,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             <div style={{ fontSize: "52px" }}>{SPECIES[a.species]?.emoji}</div>
             <div>
               <div className="hl-detail-name" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{getAnimalName(a)}</div>
-              <div style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a)}</div>
+              <div style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a, gestations)}</div>
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
@@ -853,10 +896,10 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               {[
                 ["Species", a.species],
                 ["Breed", a.breed || "—"],
-                ["Sex", displaySex(a)],
+                ["Sex", displaySex(a, gestations)],
                 ["Date of Birth", fmt(a.dob)],
                 ["Tag / ID", a.tag || "—"],
-                ...(a.species !== "Mule" ? [["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]] : []),
+                ...(a.species !== "Mule" && a.sex === "Female" ? [["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]] : []),
               ].map(([k, v]) => (
                 <div key={k}>
                   <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>{k}</div>
@@ -1096,6 +1139,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     size="sm"
                     variant="secondary"
                     onClick={() => {
+                      setEditingOffspringId(null);
                       setShowOffspringForm(true);
                       setOffspringForm({
                         name: "",
@@ -1120,10 +1164,16 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "10px", marginTop: "8px" }}>
                     {offspringForMother.map(c => (
                       <div key={c.id} style={{ padding: "10px 12px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                          <span>{SPECIES[c.species || a.species]?.emoji}</span>
-                          <div style={{ fontWeight: 600, fontSize: "14px" }}>
-                            {c.name || "Unnamed"}{c.tag ? ` (#${c.tag})` : ""}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span>{SPECIES[c.species || a.species]?.emoji}</span>
+                            <div style={{ fontWeight: 600, fontSize: "14px" }}>
+                              {c.name || "Unnamed"}{c.tag ? ` (#${c.tag})` : ""}
+                            </div>
+                          </div>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingOffspringId(c.id); setOffspringForm({ name: c.name || "", tag: c.tag || "", sex: c.sex || "", species: c.species || a.species || "", birthWeight: c.birthWeight != null ? String(c.birthWeight) : "", dob: c.dob || "", weaningDate: c.weaningDate || "" }); setShowOffspringForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => deleteOffspring(c.id)}>Delete</Btn>
                           </div>
                         </div>
                         <div style={{ fontSize: "12px", color: "var(--muted)" }}>
@@ -1144,7 +1194,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 {showOffspringForm && (
                   <Card style={{ padding: "18px 20px", marginTop: "14px", borderLeft: "3px solid var(--brass)" }}>
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
-                      Add Offspring
+                      {editingOffspringId ? "Edit Offspring" : "Add Offspring"}
                     </div>
                     <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                       <Input
@@ -1199,12 +1249,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                       />
                     </div>
                     <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
-                      <Btn size="sm" onClick={saveOffspring}>Save Offspring</Btn>
+                      <Btn size="sm" onClick={saveOffspring}>{editingOffspringId ? "Save Changes" : "Save Offspring"}</Btn>
                       <Btn
                         size="sm"
                         variant="ghost"
                         onClick={() => {
                           setShowOffspringForm(false);
+                          setEditingOffspringId(null);
                           setOffspringForm({
                             name: "",
                             tag: "",
@@ -1418,7 +1469,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               {a.name && a.tag && !a.deceased && <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>#{a.tag}</span>}
             </div>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{getAnimalName(a)}</div>
-            <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {displaySex(a)}</div>
+            <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {displaySex(a, gestations)}</div>
             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>{ageFromDob(a.dob)}</div>
           </Card>
         ))}
@@ -1433,9 +1484,10 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
   const [form, setForm] = useState({ animalId: "", breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
   const [showCalfForm, setShowCalfForm] = useState(false);
   const [deliveringId, setDeliveringId] = useState(null);
+  const [editingCalfGestationId, setEditingCalfGestationId] = useState(null);
   const [calfForm, setCalfForm] = useState({ name: "", tag: "", sex: "", birthWeight: "", weaningDate: "" });
 
-  const females = animals.filter(a => a.sex === "Female" || !a.sex);
+  const females = animals.filter(a => a.sex === "Female");
 
   function add() {
     const start = form.breedingDate;
@@ -1464,25 +1516,21 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
   }
 
   function markDelivered(id) {
+    setEditingCalfGestationId(null);
     setDeliveringId(id);
     setShowCalfForm(true);
     setCalfForm({ name: "", tag: "", sex: "", birthWeight: "", weaningDate: "" });
   }
 
   function saveCalfRecord(gestationId) {
-    const calfData = {
-      name: calfForm.name || undefined,
-      tag: calfForm.tag || undefined,
-      sex: calfForm.sex || undefined,
-      birthWeight: calfForm.birthWeight ? parseFloat(calfForm.birthWeight) : undefined,
-      weaningDate: calfForm.weaningDate || undefined,
-      recordedAt: new Date().toISOString(),
-    };
+    const isEdit = editingCalfGestationId === gestationId;
     const g = gestations.find(x => x.id === gestationId);
     const mother = g ? animals.find(m => m.id === g.animalId) : null;
-    if (mother) {
+    let newAnimalId;
+    if (!isEdit && mother) {
+      newAnimalId = Date.now().toString();
       const newAnimal = {
-        id: Date.now().toString(),
+        id: newAnimalId,
         name: calfForm.name || undefined,
         tag: calfForm.tag || undefined,
         sex: calfForm.sex || undefined,
@@ -1494,27 +1542,51 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
       };
       setAnimals(prev => [...prev, newAnimal]);
     }
-    setGestations(p => p.map(g =>
-      g.id === gestationId
-        ? { ...g, status: "Delivered", deliveredAt: g.deliveredAt || new Date().toISOString(), calf: calfData }
-        : g
+    const calfData = {
+      name: calfForm.name || undefined,
+      tag: calfForm.tag || undefined,
+      sex: calfForm.sex || undefined,
+      birthWeight: calfForm.birthWeight ? parseFloat(calfForm.birthWeight) : undefined,
+      weaningDate: calfForm.weaningDate || undefined,
+      recordedAt: new Date().toISOString(),
+      ...(newAnimalId && { animalId: newAnimalId }),
+      ...(isEdit && g?.calf?.animalId && { animalId: g.calf.animalId }),
+    };
+    setGestations(p => p.map(gr =>
+      gr.id === gestationId
+        ? { ...gr, status: "Delivered", deliveredAt: gr.deliveredAt || new Date().toISOString(), calf: calfData }
+        : gr
     ));
     setShowCalfForm(false);
     setDeliveringId(null);
+    setEditingCalfGestationId(null);
     setCalfForm({ name: "", tag: "", sex: "", birthWeight: "", weaningDate: "" });
   }
 
   function skipCalfRecord() {
-    if (deliveringId) {
-      setGestations(p => p.map(g => 
-        g.id === deliveringId 
+    if (deliveringId && !editingCalfGestationId) {
+      setGestations(p => p.map(g =>
+        g.id === deliveringId
           ? { ...g, status: "Delivered", deliveredAt: g.deliveredAt || new Date().toISOString() }
           : g
       ));
     }
     setShowCalfForm(false);
     setDeliveringId(null);
+    setEditingCalfGestationId(null);
     setCalfForm({ name: "", tag: "", sex: "", birthWeight: "", weaningDate: "" });
+  }
+
+  function deleteCalfRecord(gestationId) {
+    const g = gestations.find(x => x.id === gestationId);
+    if (!g?.calf) return;
+    if (!confirm("Remove this calf record? The linked animal card will also be removed from the Animals list.")) return;
+    if (g.calf.animalId) {
+      setAnimals(prev => prev.filter(an => an.id !== g.calf.animalId));
+    }
+    setGestations(p => p.map(gr =>
+      gr.id === gestationId ? { ...gr, calf: undefined } : gr
+    ));
   }
 
   function remove(id) {
@@ -1578,10 +1650,11 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
       {showCalfForm && deliveringId && (() => {
         const g = gestations.find(x => x.id === deliveringId);
         const animal = animals.find(a => a.id === g?.animalId);
+        const isEditCalf = !!editingCalfGestationId;
         return (
           <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>
-              Add Calf Record (Optional)
+              {isEditCalf ? "Edit Calf Record" : "Add Calf Record (Optional)"}
             </div>
             <div style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "18px" }}>
               Record details for the calf born to <strong>{getAnimalName(animal)}</strong>
@@ -1599,8 +1672,8 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
               <Input label="Target Weaning Date" type="date" value={calfForm.weaningDate} onChange={e => setCalfForm(p => ({ ...p, weaningDate: e.target.value }))} />
             </div>
             <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <Btn onClick={() => saveCalfRecord(deliveringId)}>Save Calf Record</Btn>
-              <Btn variant="secondary" onClick={skipCalfRecord}>Skip</Btn>
+              <Btn onClick={() => saveCalfRecord(deliveringId)}>{isEditCalf ? "Save Changes" : "Save Calf Record"}</Btn>
+              <Btn variant="secondary" onClick={skipCalfRecord}>{isEditCalf ? "Cancel" : "Skip"}</Btn>
             </div>
           </Card>
         );
@@ -1691,7 +1764,13 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
                   </div>
                   {hasCalf && (
                     <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--cream2)" }}>
-                    <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>Calf Record</div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Calf Record</div>
+                      <div style={{ display: "flex", gap: "6px" }}>
+                        <Btn size="sm" variant="ghost" onClick={() => { setEditingCalfGestationId(g.id); setDeliveringId(g.id); setCalfForm({ name: g.calf.name || "", tag: g.calf.tag || "", sex: g.calf.sex || "", birthWeight: g.calf.birthWeight != null ? String(g.calf.birthWeight) : "", weaningDate: g.calf.weaningDate || "" }); setShowCalfForm(true); }}>Edit</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => deleteCalfRecord(g.id)}>Delete</Btn>
+                      </div>
+                    </div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px", fontSize: "13px" }}>
                       {g.calf.name && <div><span style={{ color: "var(--muted)" }}>Name:</span> <strong>{g.calf.name}</strong></div>}
                       {g.calf.tag && <div><span style={{ color: "var(--muted)" }}>Tag:</span> <strong>#{g.calf.tag}</strong></div>}
@@ -1774,6 +1853,7 @@ const GUEST_USER = { id: "guest", isGuest: true };
 export default function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("dashboard");
+  const [viewingAnimal, setViewingAnimal] = useState(null);
   const [animals, setAnimals] = useState([]);
   const [gestations, setGestations] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -1906,9 +1986,9 @@ export default function App() {
           <span>to sync across devices.</span>
         </div>
       )}
-      <Nav tab={tab} setTab={setTab} />
+      <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && viewingAnimal.sex !== "Female"} />
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
     </div>

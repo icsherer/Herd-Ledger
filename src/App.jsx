@@ -419,7 +419,7 @@ function Nav({ tab, setTab, hideGestationTab }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ animals, gestations, offspring, moon, season, user, onLogout }) {
+function Dashboard({ animals, gestations, offspring, moon, season, user, onLogout, setTab, setAnimalsSearch }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
 
@@ -471,9 +471,9 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
       {/* Top stats row */}
       <div className="hl-dash-stats">
         {[
-          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}`, icon: "🐄" },
-          { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅" },
-          { label: "Due This Month",value: upcoming.length, sub: overdue.length > 0 ? `${overdue.length} overdue` : "none overdue", icon: "⚠️", alert: overdue.length > 0 },
+          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}`, icon: "🐄", onClick: () => { setAnimalsSearch?.(""); setTab?.("animals"); } },
+          { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅", onClick: () => setTab?.("gestation") },
+          { label: "Due This Month",value: upcoming.length, sub: overdue.length > 0 ? `${overdue.length} overdue` : "none overdue", icon: "⚠️", alert: overdue.length > 0, onClick: () => setTab?.("gestation") },
           {
             label: "Next Weaning",
             value: nextWeaning ? nextWeaning.days : "—",
@@ -481,7 +481,23 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
             icon: "🥛",
           },
         ].map((s, i) => (
-          <Card key={i} style={{ padding: "18px 20px", borderLeft: s.alert ? "4px solid var(--danger2)" : "4px solid var(--brass)" }}>
+          <Card
+            key={i}
+            onClick={s.onClick}
+            role={s.onClick ? "button" : undefined}
+            tabIndex={s.onClick ? 0 : undefined}
+            onKeyDown={s.onClick ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); s.onClick(); } } : undefined}
+            style={{
+              padding: "18px 20px",
+              borderLeft: s.alert ? "4px solid var(--danger2)" : "4px solid var(--brass)",
+              cursor: s.onClick ? "pointer" : undefined,
+              textAlign: "left",
+              width: "100%",
+              transition: "box-shadow 0.2s ease, transform 0.2s ease",
+            }}
+            onMouseEnter={e => { if (s.onClick) { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+            onMouseLeave={e => { if (s.onClick) { e.currentTarget.style.boxShadow = ""; e.currentTarget.style.transform = ""; } }}
+          >
             <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "6px" }}>{s.label}</div>
             <div style={{ fontFamily: s.large ? "inherit" : "'Playfair Display'", fontSize: s.large ? "32px" : "30px", fontWeight: 700, color: s.alert ? "var(--danger2)" : "var(--green)", lineHeight: 1, marginBottom: "4px" }}>{s.value}</div>
             <div style={{ fontSize: "12px", color: s.alert ? "var(--danger2)" : "var(--muted)" }}>{s.sub}</div>
@@ -544,7 +560,22 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
               <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Herd Breakdown</div>
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {Object.entries(speciesCounts).map(([sp, n]) => (
-                  <div key={sp}>
+                  <div
+                    key={sp}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => { setAnimalsSearch?.(sp); setTab?.("animals"); }}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAnimalsSearch?.(sp); setTab?.("animals"); } }}
+                    style={{
+                      cursor: "pointer",
+                      padding: "6px 8px",
+                      margin: "-6px -8px",
+                      borderRadius: "var(--radius1)",
+                      transition: "background 0.15s ease",
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = "var(--cream2)"; }}
+                    onMouseLeave={e => { e.currentTarget.style.background = ""; }}
+                  >
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
                       <span style={{ fontSize: "14px", display: "flex", alignItems: "center", gap: "6px" }}>
                         <span>{SPECIES[sp]?.emoji}</span> {sp}
@@ -648,13 +679,15 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(() => ({ name: "", species: "Cattle", sex: getSexOptions("Cattle").find(o => SEX_TERM_GENDER[o] === "Female") || "Cow", dob: "", breed: "", tag: "", notes: "" }));
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
-  const [search, setSearch] = useState("");
+  const [searchLocal, setSearchLocal] = useState("");
+  const search = searchProp !== undefined ? searchProp : searchLocal;
+  const setSearch = setSearchProp !== undefined ? setSearchProp : setSearchLocal;
   const [showOffspringForm, setShowOffspringForm] = useState(false);
   const [editingOffspringId, setEditingOffspringId] = useState(null);
   const [offspringForm, setOffspringForm] = useState({
@@ -1998,6 +2031,7 @@ const GUEST_USER = { id: "guest", isGuest: true };
 export default function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("dashboard");
+  const [animalsSearch, setAnimalsSearch] = useState("");
   const [viewingAnimal, setViewingAnimal] = useState(null);
   const [animals, setAnimals] = useState([]);
   const [gestations, setGestations] = useState([]);
@@ -2132,8 +2166,8 @@ export default function App() {
         </div>
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} />
-      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} />}
+      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} setTab={setTab} setAnimalsSearch={setAnimalsSearch} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
     </div>

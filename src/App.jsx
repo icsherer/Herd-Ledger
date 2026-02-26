@@ -126,6 +126,24 @@ function isOverdue(g) {
   const d = daysUntilDue(g);
   return d.isRange ? d.end < 0 : d.start < 0;
 }
+function birthDateWithinGestationWindow(calfDobStr, g) {
+  if (!calfDobStr || !g) return false;
+  const calf = new Date(calfDobStr + "T12:00:00").getTime();
+  const day = 86400000;
+  const margin = 30 * day;
+  if (g.dueDateStart && g.dueDateEnd) {
+    const start = new Date(g.dueDateStart + "T12:00:00").getTime() - margin;
+    const end = new Date(g.dueDateEnd + "T12:00:00").getTime() + margin;
+    return calf >= start && calf <= end;
+  }
+  const due = new Date((g.dueDate || "").split("T")[0] + "T12:00:00").getTime();
+  return Math.abs(calf - due) <= margin;
+}
+function breedingDateFromDelivery(deliveryDateStr, gestationDays) {
+  const d = new Date(deliveryDateStr + "T12:00:00");
+  d.setDate(d.getDate() - (gestationDays || 283));
+  return d.toISOString().split("T")[0];
+}
 function ageFromDob(dobStr) {
   if (!dobStr) return "Unknown";
   const birth = new Date(dobStr + "T12:00:00");
@@ -247,6 +265,15 @@ const GLOBAL_CSS = `
   ::-webkit-scrollbar { width: 6px; }
   ::-webkit-scrollbar-track { background: var(--cream2); }
   ::-webkit-scrollbar-thumb { background: var(--cream3); border-radius: 3px; }
+
+  /* Print: hide nav and interactive UI, show only print-only content */
+  .print-only { display: none !important; }
+  @media print {
+    .no-print { display: none !important; }
+    .print-only { display: block !important; }
+    body { background: #fff; }
+    .hl-print-root { background: #fff; color: #141A14; padding: 0; max-width: none; }
+  }
 `;
 
 // ── Shared UI ─────────────────────────────────────────────────────────────────
@@ -404,7 +431,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
   return (
-    <header style={{ background: "var(--green)", borderBottom: "3px solid var(--brass)" }}>
+    <header className="no-print" style={{ background: "var(--green)", borderBottom: "3px solid var(--brass)" }}>
       <div className="hl-nav-inner" style={{ padding: "0 24px", display: "flex", alignItems: "center", gap: "0" }}>
         {/* Logo */}
         <div style={{ padding: "14px 0", marginRight: "32px", flexShrink: 0 }}>
@@ -842,6 +869,42 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           setAnimals(prev => [...prev, updatedAnimal]);
         }
       }
+      if (rec.dob) {
+        const calfData = {
+          name: offspringForm.name || undefined,
+          tag: offspringForm.tag || undefined,
+          sex: offspringForm.sex || undefined,
+          birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
+          weaningDate: offspringForm.weaningDate || undefined,
+          stillborn,
+          recordedAt: new Date().toISOString(),
+          ...(!stillborn && { animalId: rec.id }),
+        };
+        const activeForMother = gestations.filter(g => g.animalId === a.id && g.status !== "Delivered");
+        const matching = activeForMother.find(g => birthDateWithinGestationWindow(rec.dob, g));
+        if (matching) {
+          setGestations(prev => prev.map(gr =>
+            gr.id === matching.id
+              ? { ...gr, status: "Delivered", deliveredAt: rec.dob, calf: calfData }
+              : gr
+          ));
+        } else {
+          const gestationDays = SPECIES[a.species]?.days ?? 283;
+          const breedingDate = breedingDateFromDelivery(rec.dob, gestationDays);
+          const newGestation = {
+            id: Date.now().toString(),
+            animalId: a.id,
+            breedingDate,
+            dueDate: rec.dob,
+            gestationDays,
+            status: "Delivered",
+            deliveredAt: rec.dob,
+            calf: calfData,
+            createdAt: new Date().toISOString(),
+          };
+          setGestations(prev => [...prev, newGestation]);
+        }
+      }
       setShowOffspringForm(false);
       setEditingOffspringId(null);
       setOffspringForm({
@@ -986,7 +1049,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     });
 
     return (
-      <div className="hl-page hl-page-narrow hl-fade-in">
+      <>
+      <div className="no-print hl-page hl-page-narrow hl-fade-in">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "10px" }}>
           <button onClick={() => { setViewing(null); setEditingId(null); }} style={{ background: "none", border: "none", color: "var(--green)", fontWeight: 600, fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px" }}>
             ← Back to Animals
@@ -1057,6 +1121,35 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 </div>
               ))}
             </div>
+            {a.motherId && (() => {
+              const mother = animals.find(m => m.id === a.motherId);
+              const sire = a.sireId ? animals.find(s => s.id === a.sireId) : null;
+              const sireName = sire ? getAnimalName(sire) : (a.sireName || null);
+              return (
+                <div style={{ marginTop: "24px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Parentage</div>
+                  <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "16px", borderLeft: "3px solid var(--brass)" }}>
+                    <div style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--ink2)" }}>
+                      <div>
+                        <span style={{ color: "var(--muted)", marginRight: "6px" }}>Dam:</span>
+                        {mother ? (
+                          <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}</button>
+                        ) : (
+                          <span>—</span>
+                        )}
+                        {mother?.breed && <span style={{ color: "var(--muted)", marginLeft: "6px" }}>({mother.breed})</span>}
+                      </div>
+                      {sireName && (
+                        <div style={{ marginTop: "6px" }}>
+                          <span style={{ color: "var(--muted)", marginRight: "6px" }}>Sire:</span>
+                          <span style={{ fontWeight: 500 }}>{sireName}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {a.notes && (
               <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "16px", borderLeft: "3px solid var(--brass)" }}>
                 <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "6px" }}>Notes</div>
@@ -1572,12 +1665,141 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               )}
             </div>
 
-            <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+              <Btn variant="secondary" size="sm" onClick={() => window.print()}>Print / Export PDF</Btn>
+              <Btn variant="secondary" size="sm" onClick={() => {
+                const species = a.species || "Cattle";
+                const opts = getSexOptions(species);
+                const sex = opts.includes(a.sex) ? a.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]);
+                setForm({ name: "", species, sex, breed: a.breed || "", tag: a.tag || "", dob: "", notes: a.notes || "" });
+                setShowAdd(true);
+                setViewing(null);
+              }}>Duplicate Animal</Btn>
               <Btn variant="danger" size="sm" onClick={() => remove(a.id)}>Remove Animal</Btn>
             </div>
           </div>
         </Card>
       </div>
+
+      {/* Print-only view: visible only when printing */}
+      <div className="print-only hl-print-root" style={{ display: "none", padding: "24px", maxWidth: "800px", margin: "0 auto" }}>
+        <div style={{ background: "#1B3A2B", color: "#fff", padding: "20px 24px", marginBottom: "24px", borderBottom: "3px solid #C9952A" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "22px", fontWeight: 700, letterSpacing: "0.5px" }}>Herd Ledger</div>
+          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.7)", letterSpacing: "2px", textTransform: "uppercase", marginTop: "4px" }}>Livestock Management</div>
+        </div>
+        <h1 style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#141A14", marginBottom: "8px" }}>{getAnimalName(a)}</h1>
+        <p style={{ color: "#7A8C7A", fontSize: "14px", marginBottom: "24px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{a.tag ? ` · #${a.tag}` : ""}</p>
+
+        <section style={{ marginBottom: "20px" }}>
+          <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Basic Information</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px 24px", fontSize: "14px" }}>
+            <div><strong>Species</strong> {a.species}</div>
+            <div><strong>Breed</strong> {a.breed || "—"}</div>
+            <div><strong>Sex</strong> {displaySex(a, gestations)}</div>
+            <div><strong>Tag / ID</strong> {a.tag || "—"}</div>
+            <div><strong>Date of Birth</strong> {fmt(a.dob)}</div>
+            <div><strong>Age</strong> {ageFromDob(a.dob)}</div>
+          </div>
+        </section>
+
+        {a.motherId && (() => {
+          const mother = animals.find(m => m.id === a.motherId);
+          const sire = a.sireId ? animals.find(s => s.id === a.sireId) : null;
+          const sireName = sire ? getAnimalName(sire) : (a.sireName || null);
+          return (
+            <section style={{ marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Parentage</h2>
+              <div style={{ fontSize: "14px" }}>
+                <div><strong>Dam:</strong> {mother ? getAnimalName(mother) + (mother.breed ? ` (${mother.breed})` : "") : "—"}</div>
+                {sireName && <div style={{ marginTop: "4px" }}><strong>Sire:</strong> {sireName}</div>}
+              </div>
+            </section>
+          );
+        })()}
+
+        {(a.vaccinations?.length ?? 0) > 0 && (
+          <section style={{ marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Vaccinations</h2>
+            <div style={{ fontSize: "14px" }}>
+              {[...(a.vaccinations || [])].sort((x, y) => (y.dateGiven || "").localeCompare(x.dateGiven || "")).map((v, i) => (
+                <div key={i} style={{ padding: "8px 0", borderBottom: i < a.vaccinations.length - 1 ? "1px solid #EDE6D6" : "none" }}>
+                  <strong>{v.vaccineName || "Vaccine"}</strong> — Given {fmt(v.dateGiven)}{v.nextDueDate ? ` · Next due ${fmt(v.nextDueDate)}` : ""}{v.administeredBy ? ` · ${v.administeredBy}` : ""}
+                  {v.notes && <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "4px" }}>{v.notes}</div>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {a.castration && (
+          <section style={{ marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Castration Record</h2>
+            <div style={{ fontSize: "14px" }}>
+              {a.castration.date ? `Performed ${fmt(a.castration.date)}` : "Date not recorded"}
+              {a.castration.method && ` · Method: ${a.castration.method}`}
+              {a.castration.performer && ` · Performed by: ${a.castration.performer}`}
+              {a.castration.notes && <div style={{ marginTop: "6px" }}>{a.castration.notes}</div>}
+            </div>
+          </section>
+        )}
+
+        {isFemale(a) && (offspringForMother?.length ?? 0) > 0 && (
+          <section style={{ marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Offspring Records</h2>
+            <div style={{ fontSize: "14px" }}>
+              {offspringForMother.map(c => (
+                <div key={c.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
+                  {c.stillborn ? "Stillborn" : (c.name || "Unnamed")}{!c.stillborn && c.tag ? ` #${c.tag}` : ""}
+                  {c.sex && ` · ${c.sex}`}
+                  {c.dob && ` · Born ${fmt(c.dob)}`}
+                  {c.weaningDate && ` · Wean ${fmt(c.weaningDate)}`}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {(() => {
+          const gestationsForAnimal = gestations.filter(g => g.animalId === a.id);
+          if (gestationsForAnimal.length === 0) return null;
+          return (
+            <section style={{ marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Gestation History</h2>
+              <div style={{ fontSize: "14px" }}>
+                {gestationsForAnimal.map(g => (
+                  <div key={g.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
+                    {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${fmt(g.dueDate)}`}
+                    {g.sire && ` · Sire: ${g.sire}`}
+                    {g.calf && (g.calf.stillborn ? " · Stillborn" : (g.calf.name ? ` · Calf: ${g.calf.name}` : ""))}
+                  </div>
+                ))}
+              </div>
+            </section>
+          );
+        })()}
+
+        {(a.movements?.length ?? 0) > 0 && (
+          <section style={{ marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Pasture Movement History</h2>
+            <div style={{ fontSize: "14px" }}>
+              {a.movements.map((m, i) => (
+                <div key={i} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
+                  <strong>{m.pastureName || "—"}</strong> — Moved in {m.dateMovedIn ? fmt(m.dateMovedIn) : "—"}
+                  {m.notes && <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>{m.notes}</div>}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {a.notes && (
+          <section style={{ marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Notes</h2>
+            <p style={{ fontSize: "14px", lineHeight: 1.7, color: "#2C3A2C", whiteSpace: "pre-wrap" }}>{a.notes}</p>
+          </section>
+        )}
+      </div>
+    </>
     );
   }
 
@@ -1727,6 +1949,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
         breed: mother.breed || undefined,
         notes: undefined,
         motherId: mother.id,
+        ...(g.sire && { sireName: g.sire }),
       };
       setAnimals(prev => [...prev, newAnimal]);
     }

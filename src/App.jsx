@@ -394,12 +394,14 @@ function Textarea({ label, ...props }) {
 function var2(name) { return `var(--${name})`; }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-function Nav({ tab, setTab, hideGestationTab }) {
+function Nav({ tab, setTab, hideGestationTab, settings }) {
+  const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const tabs = [
-    { id: "dashboard", label: "Dashboard", icon: "⊞" },
-    { id: "animals",   label: "Animals",   icon: "🐄" },
-    ...(hideGestationTab ? [] : [{ id: "gestation", label: "Gestation", icon: "📅" }]),
-    { id: "notes",     label: "Journal",   icon: "📖" },
+    ...(visibility.dashboard !== false ? [{ id: "dashboard", label: "Dashboard", icon: "⊞" }] : []),
+    ...(visibility.animals !== false ? [{ id: "animals", label: "Animals", icon: "🐄" }] : []),
+    ...(visibility.gestation !== false && !hideGestationTab ? [{ id: "gestation", label: "Gestation", icon: "📅" }] : []),
+    ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
+    { id: "settings", label: "Settings", icon: "⚙" },
   ];
   return (
     <header style={{ background: "var(--green)", borderBottom: "3px solid var(--brass)" }}>
@@ -444,7 +446,7 @@ function Nav({ tab, setTab, hideGestationTab }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ animals, gestations, offspring, moon, season, user, onLogout, setTab, setAnimalsSearch }) {
+function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
 
@@ -678,25 +680,6 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
             </p>
           </Card>
 
-          {/* Log Out */}
-          <Card
-            role="button"
-            tabIndex={0}
-            onClick={onLogout}
-            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onLogout(); } }}
-            style={{
-              padding: "16px 20px",
-              textAlign: "center",
-              background: "#f8f0f0",
-              border: "1px solid #e8d8d8",
-              color: "#8b6b6b",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            Log Out
-          </Card>
         </div>
       </div>
     </div>
@@ -704,10 +687,13 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle" }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(() => ({ name: "", species: "Cattle", sex: getSexOptions("Cattle").find(o => SEX_TERM_GENDER[o] === "Female") || "Cow", dob: "", breed: "", tag: "", notes: "" }));
+  const [form, setForm] = useState(() => {
+    const sp = defaultSpecies || "Cattle";
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "" };
+  });
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
   const [searchLocal, setSearchLocal] = useState("");
@@ -747,7 +733,10 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [showMoveForm, setShowMoveForm] = useState(false);
   const [moveForm, setMoveForm] = useState({ pastureName: "", dateMovedIn: "", notes: "" });
 
-  const emptyForm = () => ({ name: "", species: "Cattle", sex: getSexOptions("Cattle").find(o => SEX_TERM_GENDER[o] === "Female") || "Cow", dob: "", breed: "", tag: "", notes: "" });
+  const emptyForm = () => {
+    const sp = defaultSpecies || "Cattle";
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "" };
+  };
 
   function add() {
     if (!form.name) return;
@@ -2054,10 +2043,111 @@ function Notes({ notes, setNotes, user }) {
   );
 }
 
+// ── Settings ──────────────────────────────────────────────────────────────────
+const TAB_OPTIONS = [
+  { id: "dashboard", label: "Dashboard", icon: "⊞" },
+  { id: "animals", label: "Animals", icon: "🐄" },
+  { id: "gestation", label: "Gestation", icon: "📅" },
+  { id: "notes", label: "Journal", icon: "📖" },
+];
+
+function Settings({ settings, setSettings, onLogout }) {
+  const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
+  const setVisibility = (id, value) => {
+    setSettings(prev => ({
+      ...prev,
+      tabVisibility: { ...(prev?.tabVisibility ?? DEFAULT_TAB_VISIBILITY), [id]: value },
+    }));
+  };
+  return (
+    <div className="hl-page hl-fade-in">
+      <div style={{ maxWidth: "560px", margin: "0 auto" }}>
+        <div style={{ fontFamily: "'Playfair Display'", fontSize: "24px", fontWeight: 700, color: "var(--ink)", marginBottom: "24px" }}>Settings</div>
+
+        <Card style={{ padding: "24px", marginBottom: "20px" }}>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Farm Profile</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+            <Input
+              label="Farm name"
+              value={settings?.farmName ?? ""}
+              onChange={e => setSettings(prev => ({ ...prev, farmName: e.target.value }))}
+              placeholder="e.g. Green Valley Ranch"
+            />
+            <Input
+              label="Owner name"
+              value={settings?.ownerName ?? ""}
+              onChange={e => setSettings(prev => ({ ...prev, ownerName: e.target.value }))}
+              placeholder="e.g. Jane Smith"
+            />
+          </div>
+        </Card>
+
+        <Card style={{ padding: "24px", marginBottom: "20px" }}>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Default Species</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "12px" }}>Pre-select this species when adding a new animal.</p>
+          <Select
+            value={settings?.defaultSpecies ?? "Cattle"}
+            onChange={e => setSettings(prev => ({ ...prev, defaultSpecies: e.target.value }))}
+          >
+            {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
+          </Select>
+        </Card>
+
+        <Card style={{ padding: "24px", marginBottom: "20px" }}>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Tab Visibility</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>Show or hide tabs in the navigation. Settings is always visible.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {TAB_OPTIONS.map(t => (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px" }}><span>{t.icon}</span> {t.label}</span>
+                <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={visibility[t.id] !== false}
+                    onChange={e => setVisibility(t.id, e.target.checked)}
+                    style={{ width: "18px", height: "18px", accentColor: "var(--green)" }}
+                  />
+                </label>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={onLogout}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onLogout(); } }}
+          style={{
+            padding: "16px 20px",
+            textAlign: "center",
+            background: "#f8f0f0",
+            border: "1px solid #e8d8d8",
+            color: "#8b6b6b",
+            fontSize: "14px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          Log Out
+        </Card>
+      </div>
+    </div>
+  );
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
-const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring"];
+const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings"];
 const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 const GUEST_USER = { id: "guest", isGuest: true };
+
+const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true };
+const DEFAULT_SETTINGS = {
+  farmName: "",
+  ownerName: "",
+  defaultSpecies: "Cattle",
+  tabVisibility: { ...DEFAULT_TAB_VISIBILITY },
+};
 
 function cleanupOrphanedRecords(animals, gestations, offspring) {
   const animalIds = new Set((animals || []).map(a => a.id));
@@ -2086,6 +2176,7 @@ export default function App() {
   const [gestations, setGestations] = useState([]);
   const [notes, setNotes] = useState([]);
   const [offspring, setOffspring] = useState({});
+  const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS }));
   const initialLoadDone = useRef(false);
 
   const isGuest = user?.isGuest === true;
@@ -2119,6 +2210,7 @@ export default function App() {
       setGestations([]);
       setNotes([]);
       setOffspring({});
+      setSettings({ ...DEFAULT_SETTINGS });
       initialLoadDone.current = false;
       return;
     }
@@ -2130,16 +2222,19 @@ export default function App() {
         const animalsData = Array.isArray(data.animals) ? data.animals : [];
         const gestationsData = Array.isArray(data.gestations) ? data.gestations : [];
         const offspringData = data.offspring && typeof data.offspring === "object" ? data.offspring : {};
+        const settingsData = data.settings && typeof data.settings === "object" ? { ...DEFAULT_SETTINGS, ...data.settings } : { ...DEFAULT_SETTINGS };
         const { gestations: cleanedGestations, offspring: cleanedOffspring } = cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
         setAnimals(animalsData);
         setGestations(cleanedGestations);
         setNotes(Array.isArray(data.notes) ? data.notes : []);
         setOffspring(cleanedOffspring);
+        setSettings(settingsData);
       } catch (_) {
         setAnimals([]);
         setGestations([]);
         setNotes([]);
         setOffspring({});
+        setSettings({ ...DEFAULT_SETTINGS });
       }
       initialLoadDone.current = true;
       return;
@@ -2156,11 +2251,13 @@ export default function App() {
         const animalsData = Array.isArray(byKey.animals) ? byKey.animals : [];
         const gestationsData = Array.isArray(byKey.gestations) ? byKey.gestations : [];
         const offspringData = byKey.offspring && typeof byKey.offspring === "object" ? byKey.offspring : {};
+        const settingsData = byKey.settings && typeof byKey.settings === "object" ? { ...DEFAULT_SETTINGS, ...byKey.settings } : { ...DEFAULT_SETTINGS };
         const { gestations: cleanedGestations, offspring: cleanedOffspring } = cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
         setAnimals(animalsData);
         setGestations(cleanedGestations);
         setNotes(Array.isArray(byKey.notes) ? byKey.notes : []);
         setOffspring(cleanedOffspring);
+        setSettings(settingsData);
         initialLoadDone.current = true;
       });
   }, [user]);
@@ -2169,7 +2266,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
       } catch (_) {}
       return;
     }
@@ -2179,7 +2276,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
       } catch (_) {}
       return;
     }
@@ -2189,7 +2286,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
       } catch (_) {}
       return;
     }
@@ -2199,12 +2296,34 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
       } catch (_) {}
       return;
     }
     supabase.from("user_data").upsert({ user_id: user.id, key: "offspring", data: offspring }, { onConflict: "user_id,key" }).then(() => {});
   }, [user, offspring]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
+      } catch (_) {}
+      return;
+    }
+    supabase.from("user_data").upsert({ user_id: user.id, key: "settings", data: settings }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, settings]);
+
+  const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
+  const visibleTabIds = new Set([
+    ...(visibility.dashboard !== false ? ["dashboard"] : []),
+    ...(visibility.animals !== false ? ["animals"] : []),
+    ...(visibility.gestation !== false ? ["gestation"] : []),
+    ...(visibility.notes !== false ? ["notes"] : []),
+    "settings",
+  ]);
+  useEffect(() => {
+    if (!visibleTabIds.has(tab)) setTab(visibility.dashboard !== false ? "dashboard" : "settings");
+  }, [tab, visibility.dashboard, visibility.animals, visibility.gestation, visibility.notes]);
 
   if (user === null) {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
@@ -2222,11 +2341,12 @@ export default function App() {
           <span>to sync across devices.</span>
         </div>
       )}
-      <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} />
-      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} setTab={setTab} setAnimalsSearch={setAnimalsSearch} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} />}
+      <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
+      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
+      {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} />}
     </div>
   );
 }

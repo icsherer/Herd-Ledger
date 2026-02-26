@@ -229,6 +229,17 @@ const GLOBAL_CSS = `
   button { cursor: pointer; font-family: 'Source Sans 3', sans-serif; }
   input, select, textarea { font-family: 'Source Sans 3', sans-serif; }
 
+  /* Date/time inputs: single-tap to open picker on mobile, no double-tap */
+  input[type="date"],
+  input[type="datetime-local"],
+  input[type="time"] {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+    min-height: 44px;
+  }
+
   .hl-fade-in { animation: fadeIn 0.3s ease; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 
@@ -310,21 +321,35 @@ function Btn({ children, onClick, variant = "primary", disabled, size = "md" }) 
   );
 }
 
-function Input({ label, ...props }) {
+function Input({ label, type, style = {}, ...props }) {
+  const isDateOrTime = type === "date" || type === "datetime-local" || type === "time";
   return (
     <div>
       {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
-      <input {...props} style={{
-        width: "100%", padding: "9px 12px",
-        border: "1.5px solid var(--cream3)",
-        borderRadius: "var(--radius)",
-        fontSize: "14px", color: "var(--ink)",
-        background: "#fff", outline: "none",
-        transition: "border-color 0.15s",
-        ...props.style,
-      }}
-      onFocus={e => e.target.style.borderColor = "var(--green3)"}
-      onBlur={e => e.target.style.borderColor = "var(--cream3)"}
+      <input
+        type={type ?? "text"}
+        {...props}
+        style={{
+          width: "100%",
+          padding: "9px 12px",
+          border: "1.5px solid var(--cream3)",
+          borderRadius: "var(--radius)",
+          fontSize: "14px",
+          color: "var(--ink)",
+          background: "#fff",
+          outline: "none",
+          transition: "border-color 0.15s",
+          ...(isDateOrTime && {
+            touchAction: "manipulation",
+            WebkitUserSelect: "none",
+            userSelect: "none",
+            WebkitTapHighlightColor: "transparent",
+            minHeight: "44px",
+          }),
+          ...style,
+        }}
+        onFocus={e => e.target.style.borderColor = "var(--green3)"}
+        onBlur={e => e.target.style.borderColor = "var(--cream3)"}
       />
     </div>
   );
@@ -744,6 +769,20 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     if (!confirm("Remove this animal from the register?")) return;
     setAnimals(p => p.filter(a => a.id !== id));
     setViewing(null);
+    setGestations(p =>
+      p
+        .filter(g => g.animalId !== id)
+        .map(g => (g.calf?.animalId === id ? { ...g, calf: undefined } : g))
+    );
+    setOffspring(prev => {
+      const next = { ...prev };
+      delete next[id];
+      return Object.fromEntries(
+        Object.entries(next)
+          .map(([motherId, list]) => [motherId, (list || []).filter(c => c.id !== id)])
+          .filter(([, list]) => list.length > 0)
+      );
+    });
   }
 
   const filtered = animals.filter(a => {
@@ -2020,6 +2059,24 @@ const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring"];
 const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 const GUEST_USER = { id: "guest", isGuest: true };
 
+function cleanupOrphanedRecords(animals, gestations, offspring) {
+  const animalIds = new Set((animals || []).map(a => a.id));
+  const cleanedGestations = (gestations || [])
+    .filter(g => animalIds.has(g.animalId))
+    .map(g => (g.calf?.animalId && !animalIds.has(g.calf.animalId) ? { ...g, calf: undefined } : g));
+  const rawOffspring = offspring && typeof offspring === "object" ? offspring : {};
+  const cleanedOffspring = Object.fromEntries(
+    Object.entries(rawOffspring)
+      .filter(([motherId]) => animalIds.has(motherId))
+      .map(([motherId, list]) => [
+        motherId,
+        (list || []).filter(c => c.stillborn || animalIds.has(c.id)),
+      ])
+      .filter(([, list]) => list.length > 0)
+  );
+  return { gestations: cleanedGestations, offspring: cleanedOffspring };
+}
+
 export default function App() {
   const [user, setUser] = useState(null);
   const [tab, setTab] = useState("dashboard");
@@ -2070,10 +2127,14 @@ export default function App() {
       try {
         const raw = localStorage.getItem(GUEST_STORAGE_KEY);
         const data = raw ? JSON.parse(raw) : {};
-        setAnimals(Array.isArray(data.animals) ? data.animals : []);
-        setGestations(Array.isArray(data.gestations) ? data.gestations : []);
+        const animalsData = Array.isArray(data.animals) ? data.animals : [];
+        const gestationsData = Array.isArray(data.gestations) ? data.gestations : [];
+        const offspringData = data.offspring && typeof data.offspring === "object" ? data.offspring : {};
+        const { gestations: cleanedGestations, offspring: cleanedOffspring } = cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
+        setAnimals(animalsData);
+        setGestations(cleanedGestations);
         setNotes(Array.isArray(data.notes) ? data.notes : []);
-        setOffspring(data.offspring && typeof data.offspring === "object" ? data.offspring : {});
+        setOffspring(cleanedOffspring);
       } catch (_) {
         setAnimals([]);
         setGestations([]);
@@ -2092,10 +2153,14 @@ export default function App() {
       .then(({ data: rows, error }) => {
         if (error) return;
         const byKey = (rows || []).reduce((acc, r) => { acc[r.key] = r.data; return acc; }, {});
-        setAnimals(Array.isArray(byKey.animals) ? byKey.animals : []);
-        setGestations(Array.isArray(byKey.gestations) ? byKey.gestations : []);
+        const animalsData = Array.isArray(byKey.animals) ? byKey.animals : [];
+        const gestationsData = Array.isArray(byKey.gestations) ? byKey.gestations : [];
+        const offspringData = byKey.offspring && typeof byKey.offspring === "object" ? byKey.offspring : {};
+        const { gestations: cleanedGestations, offspring: cleanedOffspring } = cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
+        setAnimals(animalsData);
+        setGestations(cleanedGestations);
         setNotes(Array.isArray(byKey.notes) ? byKey.notes : []);
-        setOffspring(byKey.offspring && typeof byKey.offspring === "object" ? byKey.offspring : {});
+        setOffspring(cleanedOffspring);
         initialLoadDone.current = true;
       });
   }, [user]);

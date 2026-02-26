@@ -8,7 +8,7 @@ const AUTH_STYLES = {
   btn: { padding: "12px", background: "#1B3A2B", color: "#fff", border: "none", borderRadius: "6px", fontSize: "15px", fontWeight: 600, cursor: "pointer", marginTop: "4px" },
 };
 
-export default function Auth({ onLogin }) {
+export default function Auth({ onLogin, onContinueAsGuest }) {
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -82,6 +82,11 @@ export default function Auth({ onLogin }) {
               {mode === "login" && (
                 <button type="button" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }} style={{ background: "none", border: "none", color: "#7A8C7A", fontSize: "13px", cursor: "pointer", textDecoration: "underline", padding: "4px 0" }}>
                   Forgot your password?
+                </button>
+              )}
+              {onContinueAsGuest && (
+                <button type="button" onClick={onContinueAsGuest} style={{ marginTop: "16px", padding: "12px", background: "transparent", color: "#1B3A2B", border: "1.5px solid #1B3A2B", borderRadius: "6px", fontSize: "14px", fontWeight: 600, cursor: "pointer", width: "100%" }}>
+                  Continue as Guest
                 </button>
               )}
             </div>

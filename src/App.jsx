@@ -1768,6 +1768,8 @@ function Notes({ notes, setNotes, user }) {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring"];
+const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
+const GUEST_USER = { id: "guest", isGuest: true };
 
 export default function App() {
   const [user, setUser] = useState(null);
@@ -1778,6 +1780,7 @@ export default function App() {
   const [offspring, setOffspring] = useState({});
   const initialLoadDone = useRef(false);
 
+  const isGuest = user?.isGuest === true;
   const moon = getMoonPhase();
   const season = getSeason();
 
@@ -1793,7 +1796,11 @@ export default function App() {
       setUser(session?.user ?? null);
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      setUser(prev => {
+        if (session?.user) return session.user;
+        if (prev?.isGuest) return prev;
+        return null;
+      });
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -1805,6 +1812,24 @@ export default function App() {
       setNotes([]);
       setOffspring({});
       initialLoadDone.current = false;
+      return;
+    }
+    if (user.isGuest) {
+      initialLoadDone.current = false;
+      try {
+        const raw = localStorage.getItem(GUEST_STORAGE_KEY);
+        const data = raw ? JSON.parse(raw) : {};
+        setAnimals(Array.isArray(data.animals) ? data.animals : []);
+        setGestations(Array.isArray(data.gestations) ? data.gestations : []);
+        setNotes(Array.isArray(data.notes) ? data.notes : []);
+        setOffspring(data.offspring && typeof data.offspring === "object" ? data.offspring : {});
+      } catch (_) {
+        setAnimals([]);
+        setGestations([]);
+        setNotes([]);
+        setOffspring({});
+      }
+      initialLoadDone.current = true;
       return;
     }
     initialLoadDone.current = false;
@@ -1826,18 +1851,42 @@ export default function App() {
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring }));
+      } catch (_) {}
+      return;
+    }
     supabase.from("user_data").upsert({ user_id: user.id, key: "animals", data: animals }, { onConflict: "user_id,key" }).then(() => {});
   }, [user, animals]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring }));
+      } catch (_) {}
+      return;
+    }
     supabase.from("user_data").upsert({ user_id: user.id, key: "gestations", data: gestations }, { onConflict: "user_id,key" }).then(() => {});
   }, [user, gestations]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring }));
+      } catch (_) {}
+      return;
+    }
     supabase.from("user_data").upsert({ user_id: user.id, key: "notes", data: notes }, { onConflict: "user_id,key" }).then(() => {});
   }, [user, notes]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring }));
+      } catch (_) {}
+      return;
+    }
     supabase.from("user_data").upsert({ user_id: user.id, key: "offspring", data: offspring }, { onConflict: "user_id,key" }).then(() => {});
   }, [user, offspring]);
 
@@ -1845,13 +1894,20 @@ export default function App() {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
       return <ResetPasswordPage />;
     }
-    return <Auth onLogin={() => {}} />;
+    return <Auth onLogin={() => {}} onContinueAsGuest={() => setUser(GUEST_USER)} />;
   }
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--cream)" }}>
+      {isGuest && (
+        <div style={{ background: "#1B3A2B", color: "rgba(255,255,255,0.9)", fontSize: "13px", padding: "10px 20px", textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", flexWrap: "wrap" }}>
+          <span>You're using guest mode — your data is saved on this device only.</span>
+          <button type="button" onClick={() => setUser(null)} style={{ background: "none", border: "none", color: "var(--brass3)", textDecoration: "underline", cursor: "pointer", fontWeight: 600 }}>Sign up</button>
+          <span>to sync across devices.</span>
+        </div>
+      )}
       <Nav tab={tab} setTab={setTab} />
-      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={() => supabase.auth.signOut()} />}
+      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} />}
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}

@@ -6,6 +6,7 @@ import Auth, { ResetPasswordPage } from "./Auth";
 // ── Species Data ──────────────────────────────────────────────────────────────
 const SPECIES = {
   Cattle:  { days: 283, emoji: "🐄" },
+  Chicken: { days: 21,  emoji: "🐓" },
   Horse:   { days: 340, emoji: "🐎" },
   Pig:     { days: 114, emoji: "🐖" },
   Sheep:   { days: 147, emoji: "🐑" },
@@ -18,6 +19,48 @@ const SPECIES = {
   Dog:     { days: 63,  emoji: "🐕" },
   Cat:     { days: 65,  emoji: "🐈" },
 };
+
+const PASTURE_SPECIES = ["Cattle", "Horse"];
+
+const SPECIES_SEX_OPTIONS = {
+  Cattle: ["Bull", "Cow", "Heifer", "Steer", "Calf"],
+  Chicken: ["Rooster", "Hen", "Pullet", "Capon", "Chick"],
+  Horse: ["Stallion", "Mare", "Filly", "Colt", "Gelding"],
+  Pig: ["Boar", "Sow", "Gilt", "Barrow", "Piglet"],
+  Sheep: ["Ram", "Ewe", "Ewe Lamb", "Wether", "Lamb"],
+  Goat: ["Buck", "Doe", "Doeling", "Wether", "Kid"],
+  Llama: ["Male", "Female", "Cria"],
+  Alpaca: ["Male", "Female", "Cria"],
+  Donkey: ["Jack", "Jenny", "Foal", "Gelding"],
+  Mule: ["Jack", "Jenny", "Foal", "Gelding"],
+  Rabbit: ["Buck", "Doe", "Kitten"],
+  Dog: ["Male", "Female"],
+  Cat: ["Male", "Female"],
+};
+
+const SEX_TERM_GENDER = {
+  Bull: "Male", Cow: "Female", Heifer: "Female", Steer: "Male", Calf: "Female",
+  Rooster: "Male", Hen: "Female", Pullet: "Female", Capon: "Male", Chick: "Female",
+  Stallion: "Male", Mare: "Female", Filly: "Female", Colt: "Male", Gelding: "Male",
+  Boar: "Male", Sow: "Female", Gilt: "Female", Barrow: "Male", Piglet: "Female",
+  Ram: "Male", Ewe: "Female", "Ewe Lamb": "Female", Wether: "Male", Lamb: "Female",
+  Buck: "Male", Doe: "Female", Doeling: "Female", Kid: "Female",
+  Male: "Male", Female: "Female", Cria: "Female",
+  Jack: "Male", Jenny: "Female", Foal: "Female",
+  Kitten: "Female",
+};
+
+function getSexOptions(species) {
+  return SPECIES_SEX_OPTIONS[species] || SPECIES_SEX_OPTIONS.Cattle;
+}
+
+function isFemale(animal) {
+  return animal && SEX_TERM_GENDER[animal.sex] === "Female";
+}
+
+function isMale(animal) {
+  return animal && SEX_TERM_GENDER[animal.sex] === "Male";
+}
 
 const MOON_ICONS  = ["🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘"];
 const MOON_NAMES  = ["New Moon","Waxing Crescent","First Quarter","Waxing Gibbous","Full Moon","Waning Gibbous","Last Quarter","Waning Crescent"];
@@ -101,6 +144,7 @@ function ageFromDobMonths(months) {
 
 const CASTRATED_TERM_BY_SPECIES = {
   Cattle: "Steer",
+  Chicken: "Capon",
   Pig: "Barrow",
   Sheep: "Wether",
   Goat: "Wether",
@@ -111,6 +155,7 @@ const CASTRATED_TERM_BY_SPECIES = {
 
 const FEMALE_MAIDEN_BY_SPECIES = {
   Cattle: "Heifer",
+  Chicken: "Pullet",
   Pig: "Gilt",
   Sheep: "Ewe Lamb",
   Goat: "Doeling",
@@ -118,6 +163,7 @@ const FEMALE_MAIDEN_BY_SPECIES = {
 
 const FEMALE_BRED_BY_SPECIES = {
   Cattle: "Cow",
+  Chicken: "Hen",
   Pig: "Sow",
   Sheep: "Ewe",
   Goat: "Doe",
@@ -125,15 +171,15 @@ const FEMALE_BRED_BY_SPECIES = {
 
 function displaySex(animal, gestations) {
   if (!animal) return "—";
-  if (animal.castration && (animal.sex === "Male" || !animal.sex)) {
+  if (animal.castration && isMale(animal)) {
     return CASTRATED_TERM_BY_SPECIES[animal.species] ?? "Castrated";
   }
-  if (animal.sex === "Female") {
+  if (isFemale(animal)) {
     const hasBreedingRecord = gestations?.some(g => g.animalId === animal.id);
     if (hasBreedingRecord) {
-      return FEMALE_BRED_BY_SPECIES[animal.species] ?? "Female";
+      return FEMALE_BRED_BY_SPECIES[animal.species] ?? animal.sex ?? "Female";
     }
-    return FEMALE_MAIDEN_BY_SPECIES[animal.species] ?? "Female";
+    return FEMALE_MAIDEN_BY_SPECIES[animal.species] ?? animal.sex ?? "Female";
   }
   return animal.sex || "—";
 }
@@ -512,6 +558,33 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
             </Card>
           )}
 
+          {/* Pasture summary — only if at least one Cattle or Horse is registered */}
+          {(() => {
+            const hasCattleOrHorse = activeAnimals.some(a => PASTURE_SPECIES.includes(a.species));
+            if (!hasCattleOrHorse) return null;
+            const pastureAnimals = activeAnimals.filter(a => PASTURE_SPECIES.includes(a.species));
+            const byPasture = {};
+            pastureAnimals.forEach(a => {
+              const p = a.movements?.[0]?.pastureName?.trim() || "—";
+              byPasture[p] = (byPasture[p] || 0) + 1;
+            });
+            return (
+              <Card style={{ padding: "20px" }}>
+                <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Pasture Summary</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {Object.entries(byPasture)
+                    .sort(([a], [b]) => (a === "—" ? 1 : b === "—" ? -1 : a.localeCompare(b)))
+                    .map(([pastureName, n]) => (
+                      <div key={pastureName} style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "14px", color: pastureName === "—" ? "var(--muted)" : "var(--ink2)" }}>{pastureName === "—" ? "Not in pasture" : pastureName}</span>
+                        <span style={{ fontWeight: 600, color: "var(--green)" }}>{n}</span>
+                      </div>
+                    ))}
+                </div>
+              </Card>
+            );
+          })()}
+
           {!activeAnimals.length && !activeGestations.length && (
             <Card style={{ padding: "48px", textAlign: "center" }}>
               <div style={{ fontSize: "48px", marginBottom: "12px" }}>🐄</div>
@@ -578,7 +651,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, onLogou
 function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
+  const [form, setForm] = useState(() => ({ name: "", species: "Cattle", sex: getSexOptions("Cattle").find(o => SEX_TERM_GENDER[o] === "Female") || "Cow", dob: "", breed: "", tag: "", notes: "" }));
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
   const [search, setSearch] = useState("");
@@ -614,10 +687,12 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [showDeceasedAnimals, setShowDeceasedAnimals] = useState(false);
   const [showBreedingForm, setShowBreedingForm] = useState(false);
   const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
+  const [showMoveForm, setShowMoveForm] = useState(false);
+  const [moveForm, setMoveForm] = useState({ pastureName: "", dateMovedIn: "", notes: "" });
 
   const DECEASED_CAUSES = ["Natural Causes", "Illness", "Injury", "Predator", "Culled", "Unknown"];
 
-  const emptyForm = () => ({ name: "", species: "Cattle", sex: "Female", dob: "", breed: "", tag: "", notes: "" });
+  const emptyForm = () => ({ name: "", species: "Cattle", sex: getSexOptions("Cattle").find(o => SEX_TERM_GENDER[o] === "Female") || "Cow", dob: "", breed: "", tag: "", notes: "" });
 
   function add() {
     if (!form.name) return;
@@ -650,8 +725,6 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   if (viewing) {
     const a = viewing;
     const offspringForMother = (offspring && offspring[a.id]) || [];
-    const isFemale = a.sex === "Female";
-    const isMale = a.sex === "Male";
 
     function deleteOffspring(offspringId) {
       if (!confirm("Remove this offspring record? The linked animal card will also be removed from the Animals list.")) return;
@@ -814,6 +887,20 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
       setDeceasedForm({ date: "", cause: "Unknown", notes: "" });
     }
 
+    function saveMove() {
+      const move = {
+        pastureName: moveForm.pastureName?.trim() || undefined,
+        dateMovedIn: moveForm.dateMovedIn || undefined,
+        notes: moveForm.notes?.trim() || undefined,
+      };
+      const nextMovements = [move, ...(a.movements || [])];
+      const updated = { ...a, movements: nextMovements };
+      setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
+      setViewing(updated);
+      setShowMoveForm(false);
+      setMoveForm({ pastureName: "", dateMovedIn: "", notes: "" });
+    }
+
     function addBreedingFromProfile() {
       const start = breedingForm.breedingDate;
       const end = breedingForm.runningWithBull ? breedingForm.breedingDateEnd : breedingForm.breedingDate;
@@ -852,7 +939,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             ← Back to Animals
           </button>
           {editingId !== a.id && (
-            <Btn onClick={() => { setEditingId(a.id); setForm({ name: a.name || "", species: a.species || "Cattle", sex: a.sex || "Female", dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "" }); }}>Edit</Btn>
+            <Btn onClick={() => {
+                const species = a.species || "Cattle";
+                const opts = getSexOptions(species);
+                const sex = opts.includes(a.sex) ? a.sex : (SEX_TERM_GENDER[a.sex] === "Female" ? opts.find(o => SEX_TERM_GENDER[o] === "Female") : opts.find(o => SEX_TERM_GENDER[o] === "Male")) || opts[0];
+                setEditingId(a.id);
+                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "" });
+              }}>Edit</Btn>
           )}
         </div>
 
@@ -863,11 +956,15 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
               <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
               <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
-              <Select label="Species" value={form.species} onChange={e => setForm(p => ({ ...p, species: e.target.value }))}>
+              <Select label="Species" value={form.species} onChange={e => {
+                const newSpecies = e.target.value;
+                const opts = getSexOptions(newSpecies);
+                setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+              }}>
                 {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
               </Select>
               <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
-                <option>Female</option><option>Male</option><option>Wether/Steer</option>
+                {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
               </Select>
               <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
             </div>
@@ -899,7 +996,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 ["Sex", displaySex(a, gestations)],
                 ["Date of Birth", fmt(a.dob)],
                 ["Tag / ID", a.tag || "—"],
-                ...(a.species !== "Mule" && a.sex === "Female" ? [["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]] : []),
+                ...(a.species !== "Mule" && isFemale(a) ? [["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]] : []),
               ].map(([k, v]) => (
                 <div key={k}>
                   <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>{k}</div>
@@ -948,7 +1045,51 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               )}
             </div>
 
-            {isMale && (
+            {PASTURE_SPECIES.includes(a.species) && (
+              <div style={{ marginTop: "24px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>
+                  Current Pasture
+                </div>
+                {!showMoveForm ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "15px", color: "var(--ink2)" }}>{a.movements?.[0]?.pastureName || "—"}</span>
+                    <Btn size="sm" variant="secondary" onClick={() => setShowMoveForm(true)}>Move Animal</Btn>
+                  </div>
+                ) : (
+                  <Card style={{ padding: "18px 20px", borderLeft: "3px solid var(--green3)" }}>
+                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Move Animal</div>
+                    <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                      <Input label="Pasture name" value={moveForm.pastureName} onChange={e => setMoveForm(p => ({ ...p, pastureName: e.target.value }))} placeholder="e.g. North Paddock" />
+                      <Input label="Move date" type="date" value={moveForm.dateMovedIn} onChange={e => setMoveForm(p => ({ ...p, dateMovedIn: e.target.value }))} />
+                    </div>
+                    <Textarea label="Notes" value={moveForm.notes} onChange={e => setMoveForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes..." />
+                    <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                      <Btn size="sm" onClick={saveMove}>Save Move</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => { setShowMoveForm(false); setMoveForm({ pastureName: "", dateMovedIn: "", notes: "" }); }}>Cancel</Btn>
+                    </div>
+                  </Card>
+                )}
+                {(a.movements?.length ?? 0) > 0 && (
+                  <div style={{ marginTop: "16px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "8px" }}>Movement history</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+                      {a.movements.map((m, i) => (
+                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "10px 0", borderBottom: i < a.movements.length - 1 ? "1px solid var(--cream2)" : "none" }}>
+                          <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--green3)", flexShrink: 0, marginTop: "6px" }} />
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: "14px" }}>{m.pastureName || "—"}</div>
+                            <div style={{ fontSize: "12px", color: "var(--muted)" }}>Moved in {m.dateMovedIn ? fmt(m.dateMovedIn) : "—"}</div>
+                            {m.notes && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "4px" }}>{m.notes}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {isMale(a) && (
               <div style={{ marginTop: "24px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
@@ -1057,7 +1198,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 )}
               </div>
             )}
-            {isFemale && (
+            {isFemale(a) && (
               <div style={{ marginTop: "24px" }}>
                 {a.species !== "Mule" && (
                   <div style={{ marginBottom: "24px" }}>
@@ -1402,7 +1543,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
   return (
     <div className="hl-page hl-fade-in">
-      <SectionTitle action={<Btn onClick={() => { setEditingId(null); setShowAdd(true); }}>+ Register Animal</Btn>}>
+      <SectionTitle action={<Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setShowAdd(true); }}>+ Register Animal</Btn>}>
         Animal Register
       </SectionTitle>
 
@@ -1426,11 +1567,15 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
             <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
             <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
-            <Select label="Species" value={form.species} onChange={e => setForm(p => ({ ...p, species: e.target.value }))}>
+            <Select label="Species" value={form.species} onChange={e => {
+              const newSpecies = e.target.value;
+              const opts = getSexOptions(newSpecies);
+              setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+            }}>
               {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
             </Select>
             <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
-              <option>Female</option><option>Male</option><option>Wether/Steer</option>
+              {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
             </Select>
             <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
           </div>
@@ -1487,7 +1632,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
   const [editingCalfGestationId, setEditingCalfGestationId] = useState(null);
   const [calfForm, setCalfForm] = useState({ name: "", tag: "", sex: "", birthWeight: "", weaningDate: "" });
 
-  const females = animals.filter(a => a.sex === "Female");
+  const females = animals.filter(a => isFemale(a));
 
   function add() {
     const start = form.breedingDate;
@@ -1986,7 +2131,7 @@ export default function App() {
           <span>to sync across devices.</span>
         </div>
       )}
-      <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && viewingAnimal.sex !== "Female"} />
+      <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} />
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} />}
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}

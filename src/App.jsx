@@ -22,6 +22,19 @@ const SPECIES = {
 
 const PASTURE_SPECIES = ["Cattle", "Horse"];
 
+const TREATMENT_TYPES = ["Illness", "Injury", "Medication", "Deworming", "Vitamin/Supplement", "Vet Visit", "Other"];
+
+function getHealthStatus(animal) {
+  const treatments = animal?.treatments || [];
+  if (treatments.length === 0) return "green";
+  const now = Date.now();
+  const thirtyDaysAgo = now - 30 * 86400000;
+  const recent = treatments.filter(t => new Date(t.date || 0).getTime() >= thirtyDaysAgo);
+  if (recent.some(t => t.type === "Illness")) return "red";
+  if (recent.length > 0) return "yellow";
+  return "green";
+}
+
 const SPECIES_SEX_OPTIONS = {
   Cattle: ["Bull", "Cow", "Heifer", "Steer", "Calf"],
   Chicken: ["Rooster", "Hen", "Pullet", "Capon", "Chick"],
@@ -759,6 +772,14 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
   const [moveForm, setMoveForm] = useState({ pastureName: "", dateMovedIn: "", notes: "" });
+  const [showWeightForm, setShowWeightForm] = useState(false);
+  const [weightForm, setWeightForm] = useState({ weight: "", date: "", notes: "" });
+  const [showTreatmentForm, setShowTreatmentForm] = useState(false);
+  const [treatmentForm, setTreatmentForm] = useState({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" });
+  const [bulkMode, setBulkMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkFormType, setBulkFormType] = useState(null);
+  const [bulkForm, setBulkForm] = useState({});
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
@@ -1017,6 +1038,64 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
       setMoveForm({ pastureName: "", dateMovedIn: "", notes: "" });
     }
 
+    function saveWeight() {
+      const w = parseFloat(weightForm.weight);
+      if (!weightForm.date || isNaN(w) || w <= 0) return;
+      const entry = { id: Date.now().toString(), weight: w, date: weightForm.date, notes: weightForm.notes?.trim() || undefined };
+      const nextWeights = [...(a.weights || []), entry].sort((x, y) => (x.date || "").localeCompare(y.date || ""));
+      const updated = { ...a, weights: nextWeights };
+      setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
+      setViewing(updated);
+      setShowWeightForm(false);
+      setWeightForm({ weight: "", date: "", notes: "" });
+    }
+
+    function deleteWeightEntry(entryId) {
+      const nextWeights = (a.weights || []).filter(e => e.id !== entryId);
+      const updated = { ...a, weights: nextWeights };
+      setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
+      setViewing(updated);
+    }
+
+    const weightsSorted = [...(a.weights || [])].sort((x, y) => (x.date || "").localeCompare(y.date || ""));
+    const firstWeight = weightsSorted[0];
+    const lastWeight = weightsSorted[weightsSorted.length - 1];
+    const daysBetween = firstWeight && lastWeight && firstWeight !== lastWeight && firstWeight.date && lastWeight.date
+      ? Math.max(1, (new Date(lastWeight.date) - new Date(firstWeight.date)) / 86400000)
+      : 0;
+    const adg = daysBetween > 0 && firstWeight && lastWeight ? (lastWeight.weight - firstWeight.weight) / daysBetween : null;
+    const trend = adg === null ? "flat" : adg > 0 ? "up" : adg < 0 ? "down" : "flat";
+
+    function saveTreatment() {
+      if (!treatmentForm.date || !treatmentForm.type) return;
+      const entry = {
+        id: Date.now().toString(),
+        date: treatmentForm.date,
+        type: treatmentForm.type,
+        description: treatmentForm.description?.trim() || undefined,
+        treatmentGiven: treatmentForm.treatmentGiven?.trim() || undefined,
+        dosage: treatmentForm.dosage?.trim() || undefined,
+        administeredBy: treatmentForm.administeredBy || "Owner",
+        cost: treatmentForm.cost?.trim() ? parseFloat(treatmentForm.cost) : undefined,
+        notes: treatmentForm.notes?.trim() || undefined,
+      };
+      const nextTreatments = [...(a.treatments || []), entry].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+      const updated = { ...a, treatments: nextTreatments };
+      setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
+      setViewing(updated);
+      setShowTreatmentForm(false);
+      setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" });
+    }
+
+    function deleteTreatmentEntry(entryId) {
+      const nextTreatments = (a.treatments || []).filter(e => e.id !== entryId);
+      const updated = { ...a, treatments: nextTreatments };
+      setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
+      setViewing(updated);
+    }
+
+    const treatmentsSorted = [...(a.treatments || [])].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+
     function addBreedingFromProfile() {
       const start = breedingForm.breedingDate;
       const end = breedingForm.runningWithBull ? breedingForm.breedingDateEnd : breedingForm.breedingDate;
@@ -1121,6 +1200,113 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 </div>
               ))}
             </div>
+
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Weight Tracking</div>
+                <Btn size="sm" variant="secondary" onClick={() => { setShowWeightForm(true); setWeightForm({ weight: "", date: "", notes: "" }); }}>Add Weight</Btn>
+              </div>
+              {weightsSorted.length > 0 && (adg !== null || trend !== "flat") && (
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px", flexWrap: "wrap" }}>
+                  {adg !== null && (
+                    <span style={{ fontSize: "14px", color: "var(--ink2)" }}>
+                      ADG: <strong>{adg >= 0 ? "+" : ""}{adg.toFixed(3)}</strong> lb/day
+                      {firstWeight && lastWeight && <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "6px" }}>({firstWeight.weight} → {lastWeight.weight} lb over {Math.round(daysBetween)} days)</span>}
+                    </span>
+                  )}
+                  <span style={{ fontSize: "18px", color: trend === "up" ? "var(--green)" : trend === "down" ? "var(--danger2)" : "var(--muted)" }} title={trend === "up" ? "Gaining" : trend === "down" ? "Losing" : "Stable"}>
+                    {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
+                  </span>
+                </div>
+              )}
+              {showWeightForm && (
+                <Card style={{ padding: "18px 20px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Add Weight</div>
+                  <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                    <Input label="Weight (lbs)" type="number" min="0" step="0.1" value={weightForm.weight} onChange={e => setWeightForm(p => ({ ...p, weight: e.target.value }))} placeholder="e.g. 850" />
+                    <Input label="Date" type="date" value={weightForm.date} onChange={e => setWeightForm(p => ({ ...p, date: e.target.value }))} />
+                    <Input label="Notes" value={weightForm.notes} onChange={e => setWeightForm(p => ({ ...p, notes: e.target.value }))} placeholder="Optional" />
+                  </div>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <Btn size="sm" onClick={saveWeight}>Save</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowWeightForm(false); setWeightForm({ weight: "", date: "", notes: "" }); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              )}
+              {weightsSorted.length === 0 && !showWeightForm && (
+                <p style={{ fontSize: "13px", color: "var(--muted)" }}>No weight records yet.</p>
+              )}
+              {weightsSorted.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+                  {weightsSorted.map(entry => (
+                    <div key={entry.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderBottom: "1px solid var(--cream2)", background: "var(--cream)" }}>
+                      <div>
+                        <span style={{ fontWeight: 600, fontSize: "15px" }}>{entry.weight} lb</span>
+                        <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "10px" }}>{fmt(entry.date)}</span>
+                        {entry.notes && <div style={{ fontSize: "12px", color: "var(--ink2)", marginTop: "2px" }}>{entry.notes}</div>}
+                      </div>
+                      <Btn size="sm" variant="ghost" onClick={() => deleteWeightEntry(entry.id)}>×</Btn>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Health & Treatment Log</div>
+                <Btn size="sm" variant="secondary" onClick={() => { setShowTreatmentForm(true); setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Add Treatment</Btn>
+              </div>
+              {showTreatmentForm && (
+                <Card style={{ padding: "18px 20px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Add Treatment</div>
+                  <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                    <Input label="Date *" type="date" value={treatmentForm.date} onChange={e => setTreatmentForm(p => ({ ...p, date: e.target.value }))} />
+                    <Select label="Type *" value={treatmentForm.type} onChange={e => setTreatmentForm(p => ({ ...p, type: e.target.value }))}>
+                      <option value="">— Select —</option>
+                      {TREATMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                    <Input label="Description" value={treatmentForm.description} onChange={e => setTreatmentForm(p => ({ ...p, description: e.target.value }))} placeholder="e.g. Lameness, respiratory" />
+                    <Input label="Treatment given" value={treatmentForm.treatmentGiven} onChange={e => setTreatmentForm(p => ({ ...p, treatmentGiven: e.target.value }))} placeholder="e.g. Penicillin, bandage" />
+                    <Input label="Dosage" value={treatmentForm.dosage} onChange={e => setTreatmentForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 5 ml" />
+                    <Select label="Administered by" value={treatmentForm.administeredBy} onChange={e => setTreatmentForm(p => ({ ...p, administeredBy: e.target.value }))}>
+                      <option>Owner</option>
+                      <option>Vet</option>
+                    </Select>
+                    <Input label="Cost" type="number" min="0" step="0.01" value={treatmentForm.cost} onChange={e => setTreatmentForm(p => ({ ...p, cost: e.target.value }))} placeholder="Optional" />
+                  </div>
+                  <Textarea label="Notes" value={treatmentForm.notes} onChange={e => setTreatmentForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes" style={{ marginBottom: "12px" }} />
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <Btn size="sm" onClick={saveTreatment}>Save</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowTreatmentForm(false); setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              )}
+              {treatmentsSorted.length === 0 && !showTreatmentForm && (
+                <p style={{ fontSize: "13px", color: "var(--muted)" }}>No treatment records yet.</p>
+              )}
+              {treatmentsSorted.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+                  {treatmentsSorted.map(entry => (
+                    <div key={entry.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--cream2)", background: "var(--cream)", marginBottom: "1px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                        <div>
+                          <span style={{ fontWeight: 600, fontSize: "14px" }}>{entry.type}</span>
+                          <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{fmt(entry.date)}</span>
+                          {entry.administeredBy && <span style={{ fontSize: "12px", color: "var(--muted)", marginLeft: "6px" }}> · {entry.administeredBy}</span>}
+                          {entry.description && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "4px" }}>{entry.description}</div>}
+                          {entry.treatmentGiven && <div style={{ fontSize: "13px", marginTop: "2px" }}><strong>Treatment:</strong> {entry.treatmentGiven}{entry.dosage ? ` — ${entry.dosage}` : ""}</div>}
+                          {(entry.cost != null && entry.cost !== "") && <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>Cost: {`$${Number(entry.cost).toFixed(2)}`}</div>}
+                          {entry.notes && <div style={{ fontSize: "12px", color: "var(--ink2)", marginTop: "4px" }}>{entry.notes}</div>}
+                        </div>
+                        <Btn size="sm" variant="ghost" onClick={() => deleteTreatmentEntry(entry.id)}>×</Btn>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {a.motherId && (() => {
               const mother = animals.find(m => m.id === a.motherId);
               const sire = a.sireId ? animals.find(s => s.id === a.sireId) : null;
@@ -1702,6 +1888,41 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           </div>
         </section>
 
+        {(a.weights?.length ?? 0) > 0 && (
+          <section style={{ marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Weight Tracking</h2>
+            <div style={{ fontSize: "14px" }}>
+              {weightsSorted.map(entry => (
+                <div key={entry.id} style={{ padding: "4px 0", borderBottom: "1px solid #EDE6D6" }}>
+                  <strong>{entry.weight} lb</strong> — {fmt(entry.date)}{entry.notes ? ` · ${entry.notes}` : ""}
+                </div>
+              ))}
+              {adg !== null && (
+                <div style={{ marginTop: "8px", fontWeight: 600 }}>
+                  ADG: {adg >= 0 ? "+" : ""}{adg.toFixed(3)} lb/day {trend === "up" ? "↑" : trend === "down" ? "↓" : "→"}
+                </div>
+              )}
+            </div>
+          </section>
+        )}
+
+        {(a.treatments?.length ?? 0) > 0 && (
+          <section style={{ marginBottom: "20px" }}>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Health & Treatment Log</h2>
+            <div style={{ fontSize: "14px" }}>
+              {treatmentsSorted.map(entry => (
+                <div key={entry.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
+                  <strong>{entry.type}</strong> — {fmt(entry.date)}{entry.administeredBy ? ` · ${entry.administeredBy}` : ""}
+                  {entry.description && ` · ${entry.description}`}
+                  {entry.treatmentGiven && ` · Treatment: ${entry.treatmentGiven}${entry.dosage ? ` (${entry.dosage})` : ""}`}
+                  {entry.cost != null && entry.cost !== "" && ` · $${Number(entry.cost).toFixed(2)}`}
+                  {entry.notes && ` · ${entry.notes}`}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {a.motherId && (() => {
           const mother = animals.find(m => m.id === a.motherId);
           const sire = a.sireId ? animals.find(s => s.id === a.sireId) : null;
@@ -1805,9 +2026,113 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
   const deceasedCount = animals.filter(a => a.deceased).length;
 
+  function toggleBulkSelect(id) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+  function exitBulkMode() {
+    setBulkMode(false);
+    setSelectedIds([]);
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+  const selectedAnimals = animals.filter(an => selectedIds.includes(an.id));
+  const selectedFemales = selectedAnimals.filter(an => isFemale(an) && an.species !== "Mule");
+  const selectedPastureEligible = selectedAnimals.filter(an => PASTURE_SPECIES.includes(an.species));
+
+  function saveBulkVaccination() {
+    const rec = {
+      vaccineName: bulkForm.vaccineName || undefined,
+      dateGiven: bulkForm.dateGiven || undefined,
+      nextDueDate: bulkForm.nextDueDate || undefined,
+      administeredBy: bulkForm.administeredBy || undefined,
+      notes: bulkForm.notes || undefined,
+    };
+    setAnimals(prev =>
+      prev.map(an => {
+        if (!selectedIds.includes(an.id)) return an;
+        const entry = { ...rec, id: Date.now().toString() + "-" + an.id };
+        return { ...an, vaccinations: [...(an.vaccinations || []), entry] };
+      })
+    );
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+
+  function saveBulkBreeding() {
+    const start = bulkForm.breedingDate;
+    const end = bulkForm.runningWithBull ? bulkForm.breedingDateEnd : bulkForm.breedingDate;
+    if (!start || (bulkForm.runningWithBull && !end)) return;
+    const newRecords = selectedFemales.map(an => {
+      const totalDays = SPECIES[an.species]?.days || 150;
+      const dueStart = dueDate(start, totalDays);
+      const dueEnd = bulkForm.runningWithBull ? dueDate(end, totalDays) : dueStart;
+      return {
+        animalId: an.id,
+        breedingDate: start,
+        ...(bulkForm.runningWithBull && { breedingDateEnd: end, runningWithBull: true }),
+        dueDate: dueStart,
+        ...(bulkForm.runningWithBull && { dueDateStart: dueStart, dueDateEnd: dueEnd }),
+        sire: bulkForm.sire,
+        notes: bulkForm.notes,
+        id: Date.now().toString() + "-" + an.id,
+        gestationDays: totalDays,
+        status: "Active",
+        createdAt: new Date().toISOString(),
+      };
+    });
+    setGestations(p => [...p, ...newRecords]);
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+
+  function saveBulkMove() {
+    const movePayload = {
+      pastureName: bulkForm.pastureName?.trim() || undefined,
+      dateMovedIn: bulkForm.dateMovedIn || undefined,
+      notes: bulkForm.notes?.trim() || undefined,
+    };
+    setAnimals(prev =>
+      prev.map(an => {
+        if (!selectedIds.includes(an.id) || !PASTURE_SPECIES.includes(an.species)) return an;
+        return { ...an, movements: [{ ...movePayload }, ...(an.movements || [])] };
+      })
+    );
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+
+  function saveBulkTreatment() {
+    if (!bulkForm.date || !bulkForm.type) return;
+    const entry = {
+      date: bulkForm.date,
+      type: bulkForm.type,
+      description: bulkForm.description?.trim() || undefined,
+      treatmentGiven: bulkForm.treatmentGiven?.trim() || undefined,
+      dosage: bulkForm.dosage?.trim() || undefined,
+      administeredBy: bulkForm.administeredBy || "Owner",
+      cost: bulkForm.cost?.trim() ? parseFloat(bulkForm.cost) : undefined,
+      notes: bulkForm.notes?.trim() || undefined,
+    };
+    setAnimals(prev =>
+      prev.map(an => {
+        if (!selectedIds.includes(an.id)) return an;
+        const fullEntry = { ...entry, id: Date.now().toString() + "-" + an.id };
+        const nextTreatments = [...(an.treatments || []), fullEntry].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+        return { ...an, treatments: nextTreatments };
+      })
+    );
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+
   return (
     <div className="hl-page hl-fade-in">
-      <SectionTitle action={<Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setShowAdd(true); }}>+ Register Animal</Btn>}>
+      <SectionTitle action={
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <Btn variant="secondary" onClick={() => { setBulkMode(true); setSelectedIds([]); setBulkFormType(null); setViewing(null); }}>Bulk Actions</Btn>
+          <Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setShowAdd(true); }}>+ Register Animal</Btn>
+        </div>
+      }>
         Animal Register
       </SectionTitle>
 
@@ -1823,6 +2148,104 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           <Input placeholder="Search by name, species, or tag..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
+
+      {bulkMode && selectedIds.length > 0 && (
+        <Card style={{ padding: "14px 18px", marginBottom: "16px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", borderLeft: "4px solid var(--brass)" }}>
+          <span style={{ fontWeight: 600, marginRight: "8px" }}>{selectedIds.length} selected</span>
+          <Btn size="sm" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "" }); }}>Apply Vaccination</Btn>
+          <Btn size="sm" onClick={() => { setBulkFormType("breeding"); setBulkForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>Log Breeding</Btn>
+          <Btn size="sm" onClick={() => { setBulkFormType("move"); setBulkForm({ pastureName: "", dateMovedIn: "", notes: "" }); }}>Move to Pasture</Btn>
+          <Btn size="sm" onClick={() => { setBulkFormType("treatment"); setBulkForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Apply Treatment</Btn>
+          <Btn size="sm" variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
+        </Card>
+      )}
+
+      {bulkFormType === "vaccination" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Apply Vaccination ({selectedIds.length} animals)</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Input label="Vaccine name" value={bulkForm.vaccineName} onChange={e => setBulkForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder="e.g. Clostridial 7-way" />
+            <Input label="Date given" type="date" value={bulkForm.dateGiven} onChange={e => setBulkForm(p => ({ ...p, dateGiven: e.target.value }))} />
+            <Input label="Next due date" type="date" value={bulkForm.nextDueDate} onChange={e => setBulkForm(p => ({ ...p, nextDueDate: e.target.value }))} />
+            <Select label="Administered by" value={bulkForm.administeredBy} onChange={e => setBulkForm(p => ({ ...p, administeredBy: e.target.value }))}>
+              <option>Owner</option>
+              <option>Vet</option>
+            </Select>
+          </div>
+          <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkVaccination}>Apply to {selectedIds.length} animals</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {bulkFormType === "breeding" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Log Breeding ({selectedFemales.length} females)</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            {!bulkForm.runningWithBull ? (
+              <Input label="Breeding Date *" type="date" value={bulkForm.breedingDate} onChange={e => setBulkForm(p => ({ ...p, breedingDate: e.target.value }))} />
+            ) : (
+              <>
+                <Input label="Exposure start *" type="date" value={bulkForm.breedingDate} onChange={e => setBulkForm(p => ({ ...p, breedingDate: e.target.value }))} />
+                <Input label="Exposure end *" type="date" value={bulkForm.breedingDateEnd} onChange={e => setBulkForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
+              </>
+            )}
+            <Input label="Sire (optional)" value={bulkForm.sire} onChange={e => setBulkForm(p => ({ ...p, sire: e.target.value }))} placeholder="Sire name or tag" />
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "14px", cursor: "pointer" }}>
+            <input type="checkbox" checked={bulkForm.runningWithBull} onChange={e => setBulkForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDate : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+            <span>Bull turned out with group (exposure window)</span>
+          </label>
+          <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkBreeding} disabled={selectedFemales.length === 0}>Apply to {selectedFemales.length} females</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {bulkFormType === "move" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Move to Pasture ({selectedPastureEligible.length} Cattle/Horses)</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Input label="Pasture name" value={bulkForm.pastureName} onChange={e => setBulkForm(p => ({ ...p, pastureName: e.target.value }))} placeholder="e.g. North Paddock" />
+            <Input label="Move date" type="date" value={bulkForm.dateMovedIn} onChange={e => setBulkForm(p => ({ ...p, dateMovedIn: e.target.value }))} />
+          </div>
+          <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkMove} disabled={selectedPastureEligible.length === 0}>Move {selectedPastureEligible.length} animals</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {bulkFormType === "treatment" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Apply Treatment ({selectedIds.length} animals)</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Input label="Date *" type="date" value={bulkForm.date} onChange={e => setBulkForm(p => ({ ...p, date: e.target.value }))} />
+            <Select label="Type *" value={bulkForm.type} onChange={e => setBulkForm(p => ({ ...p, type: e.target.value }))}>
+              <option value="">— Select —</option>
+              {TREATMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Input label="Description" value={bulkForm.description} onChange={e => setBulkForm(p => ({ ...p, description: e.target.value }))} placeholder="e.g. Lameness, respiratory" />
+            <Input label="Treatment given" value={bulkForm.treatmentGiven} onChange={e => setBulkForm(p => ({ ...p, treatmentGiven: e.target.value }))} placeholder="e.g. Penicillin, bandage" />
+            <Input label="Dosage" value={bulkForm.dosage} onChange={e => setBulkForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 5 ml" />
+            <Select label="Administered by" value={bulkForm.administeredBy} onChange={e => setBulkForm(p => ({ ...p, administeredBy: e.target.value }))}>
+              <option>Owner</option>
+              <option>Vet</option>
+            </Select>
+            <Input label="Cost" type="number" min="0" step="0.01" value={bulkForm.cost} onChange={e => setBulkForm(p => ({ ...p, cost: e.target.value }))} placeholder="Optional" />
+          </div>
+          <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkTreatment}>Apply to {selectedIds.length} animals</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
 
       {showAdd && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
@@ -1860,11 +2283,19 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
         {filtered.map(a => (
-          <Card key={a.id} style={{ padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s", position: "relative", overflow: "hidden" }}
-            onClick={() => setViewing(a)}
-            onMouseEnter={e => { e.currentTarget.style.boxShadow = "var(--shadow2)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
-            onMouseLeave={e => { e.currentTarget.style.boxShadow = "var(--shadow)"; e.currentTarget.style.transform = ""; }}
+          <Card key={a.id} style={{
+            padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s", position: "relative", overflow: "hidden",
+            ...(bulkMode && selectedIds.includes(a.id) ? { boxShadow: "0 0 0 2px var(--brass)", borderColor: "var(--brass)" } : {})
+          }}
+            onClick={() => { if (bulkMode) { toggleBulkSelect(a.id); } else { setViewing(a); } }}
+            onMouseEnter={e => { if (!bulkMode) { e.currentTarget.style.boxShadow = "var(--shadow2)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
+            onMouseLeave={e => { if (!bulkMode) { e.currentTarget.style.boxShadow = "var(--shadow)"; e.currentTarget.style.transform = ""; } }}
           >
+            {bulkMode && (
+              <div style={{ position: "absolute", top: "12px", left: "12px", zIndex: 1 }} onClick={e => e.stopPropagation()}>
+                <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleBulkSelect(a.id)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", cursor: "pointer" }} />
+              </div>
+            )}
             {a.deceased && (
               <>
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", pointerEvents: "none" }} />
@@ -1874,7 +2305,12 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               </>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
-              <span style={{ fontSize: "28px" }}>{SPECIES[a.species]?.emoji}</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                {!a.deceased && (
+                  <span style={{ width: "10px", height: "10px", flexShrink: 0, borderRadius: "50%", background: getHealthStatus(a) === "red" ? "var(--danger2)" : getHealthStatus(a) === "yellow" ? "var(--brass2)" : "var(--green3)", boxShadow: "0 0 0 2px #fff" }} title={getHealthStatus(a) === "red" ? "Recent illness" : getHealthStatus(a) === "yellow" ? "Treatment in last 30 days" : "No recent issues"} />
+                )}
+                <span style={{ fontSize: "28px" }}>{SPECIES[a.species]?.emoji}</span>
+              </div>
               {a.name && a.tag && !a.deceased && <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>#{a.tag}</span>}
             </div>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{getAnimalName(a)}</div>

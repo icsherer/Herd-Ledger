@@ -2038,6 +2038,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const selectedAnimals = animals.filter(an => selectedIds.includes(an.id));
   const selectedFemales = selectedAnimals.filter(an => isFemale(an) && an.species !== "Mule");
   const selectedPastureEligible = selectedAnimals.filter(an => PASTURE_SPECIES.includes(an.species));
+  const selectedMales = selectedAnimals.filter(an => isMale(an));
 
   function saveBulkVaccination() {
     const rec = {
@@ -2125,6 +2126,29 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     setBulkForm({});
   }
 
+  function saveBulkCastration() {
+    const rec = {
+      date: bulkForm.date || undefined,
+      method: bulkForm.method || undefined,
+      performer: bulkForm.performer || undefined,
+      notes: bulkForm.notes?.trim() || undefined,
+      recordedAt: new Date().toISOString(),
+    };
+    setAnimals(prev =>
+      prev.map(an => {
+        if (!selectedIds.includes(an.id) || !isMale(an)) return an;
+        const castratedTerm = CASTRATED_TERM_BY_SPECIES[an.species];
+        return {
+          ...an,
+          castration: rec,
+          ...(castratedTerm != null && { sex: castratedTerm }),
+        };
+      })
+    );
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+
   return (
     <div className="hl-page hl-fade-in">
       <SectionTitle action={
@@ -2156,6 +2180,9 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           <Btn size="sm" onClick={() => { setBulkFormType("breeding"); setBulkForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>Log Breeding</Btn>
           <Btn size="sm" onClick={() => { setBulkFormType("move"); setBulkForm({ pastureName: "", dateMovedIn: "", notes: "" }); }}>Move to Pasture</Btn>
           <Btn size="sm" onClick={() => { setBulkFormType("treatment"); setBulkForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Apply Treatment</Btn>
+          {selectedMales.length > 0 && (
+            <Btn size="sm" onClick={() => { setBulkFormType("castration"); setBulkForm({ date: "", method: "Banding", performer: "Owner", notes: "" }); }}>Castrate</Btn>
+          )}
           <Btn size="sm" variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
         </Card>
       )}
@@ -2247,6 +2274,29 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         </Card>
       )}
 
+      {bulkFormType === "castration" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Castrate ({selectedMales.length} males)</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Input label="Date performed" type="date" value={bulkForm.date} onChange={e => setBulkForm(p => ({ ...p, date: e.target.value }))} />
+            <Select label="Method" value={bulkForm.method} onChange={e => setBulkForm(p => ({ ...p, method: e.target.value }))}>
+              <option>Banding</option>
+              <option>Surgical</option>
+              <option>Burdizzo</option>
+            </Select>
+            <Select label="Performed by" value={bulkForm.performer} onChange={e => setBulkForm(p => ({ ...p, performer: e.target.value }))}>
+              <option>Owner</option>
+              <option>Vet</option>
+            </Select>
+          </div>
+          <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={3} style={{ marginBottom: "14px" }} />
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkCastration}>Apply to {selectedMales.length} males</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
       {showAdd && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>New Animal</div>
@@ -2315,6 +2365,28 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             </div>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{getAnimalName(a)}</div>
             <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {displaySex(a, gestations)}</div>
+            {isFemale(a) && a.species !== "Mule" && (() => {
+              const activeGest = gestations.find(g => g.animalId === a.id && g.status !== "Delivered");
+              if (!activeGest) return null;
+              const totalDays = activeGest.gestationDays ?? SPECIES[a.species]?.days ?? 283;
+              const prog = progress(breedingDateForProgress(activeGest), totalDays);
+              const dueInfo = daysUntilDue(activeGest);
+              const daysRemaining = dueInfo.isRange ? dueInfo.end : dueInfo.start;
+              const overdue = daysRemaining < 0;
+              const accent = overdue ? "var(--danger2)" : "var(--brass)";
+              const dueLabel = overdue ? `Overdue ${Math.abs(daysRemaining)}d` : daysRemaining === 0 ? "Due today" : `${daysRemaining} days left`;
+              return (
+                <div style={{ marginTop: "8px", marginBottom: "4px", padding: "8px 10px", background: overdue ? "rgba(192,57,43,0.08)" : "rgba(201,149,42,0.12)", borderRadius: "6px", borderLeft: `3px solid ${accent}` }}>
+                  <div style={{ fontSize: "11px", fontWeight: 600, color: accent, textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Pregnant</div>
+                  <div style={{ fontSize: "12px", color: overdue ? "var(--danger2)" : "var(--ink2)", marginBottom: "6px" }}>
+                    Due {fmtDueRange(activeGest)} · {dueLabel}
+                  </div>
+                  <div style={{ height: "4px", background: "var(--cream2)", borderRadius: "2px", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, prog))}%`, background: accent, borderRadius: "2px", transition: "width 0.2s ease" }} />
+                  </div>
+                </div>
+              );
+            })()}
             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>{ageFromDob(a.dob)}</div>
           </Card>
         ))}

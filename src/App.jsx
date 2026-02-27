@@ -67,6 +67,25 @@ function getSexOptions(species) {
   return SPECIES_SEX_OPTIONS[species] || SPECIES_SEX_OPTIONS.Cattle;
 }
 
+const OFFSPRING_TERM_BY_SPECIES = {
+  Cattle: "Calf",
+  Horse: "Foal",
+  Pig: "Piglet",
+  Sheep: "Lamb",
+  Goat: "Kid",
+  Llama: "Cria",
+  Alpaca: "Cria",
+  Donkey: "Foal",
+  Mule: "Foal",
+  Rabbit: "Kitten",
+  Dog: "Puppy",
+  Cat: "Kitten",
+  Chicken: "Chick",
+};
+function getOffspringTerm(species) {
+  return OFFSPRING_TERM_BY_SPECIES[species] || "Offspring";
+}
+
 function isFemale(animal) {
   return animal && SEX_TERM_GENDER[animal.sex] === "Female";
 }
@@ -139,6 +158,7 @@ function isOverdue(g) {
   const d = daysUntilDue(g);
   return d.isRange ? d.end < 0 : d.start < 0;
 }
+/** Calf DOB is within expected gestation window: due date (= breeding + gestation days) ± 30 days buffer. */
 function birthDateWithinGestationWindow(calfDobStr, g) {
   if (!calfDobStr || !g) return false;
   const calf = new Date(calfDobStr + "T12:00:00").getTime();
@@ -440,6 +460,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.dashboard !== false ? [{ id: "dashboard", label: "Dashboard", icon: "⊞" }] : []),
     ...(visibility.animals !== false ? [{ id: "animals", label: "Animals", icon: "🐄" }] : []),
     ...(visibility.gestation !== false && !hideGestationTab ? [{ id: "gestation", label: "Gestation", icon: "📅" }] : []),
+    ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Cattle", icon: "🌾" }] : []),
     ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
@@ -490,8 +511,9 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
 
-  const activeAnimals = animals.filter(a => !a.deceased);
+  const activeAnimals = animals.filter(a => !a.deceased && !a.sale);
   const deceasedCount = animals.filter(a => a.deceased).length;
+  const soldCount = animals.filter(a => a.sale).length;
   const speciesCounts = activeAnimals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
   const activeGestations = gestations.filter(g => g.status !== "Delivered");
 
@@ -538,7 +560,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
       {/* Top stats row */}
       <div className="hl-dash-stats">
         {[
-          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}`, icon: "🐄", onClick: () => { setAnimalsSearch?.(""); setTab?.("animals"); } },
+          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}${soldCount > 0 ? ` · ${soldCount} sold` : ""}`, icon: "🐄", onClick: () => { setAnimalsSearch?.(""); setTab?.("animals"); } },
           { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅", onClick: () => setTab?.("gestation") },
           { label: "Due This Month",value: upcoming.length, sub: overdue.length > 0 ? `${overdue.length} overdue` : "none overdue", icon: "⚠️", alert: overdue.length > 0, onClick: () => setTab?.("gestation") },
           {
@@ -780,6 +802,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkFormType, setBulkFormType] = useState(null);
   const [bulkForm, setBulkForm] = useState({});
+  const [showSaleForm, setShowSaleForm] = useState(false);
+  const [saleForm, setSaleForm] = useState({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" });
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
@@ -835,7 +859,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     function deleteOffspring(offspringId) {
       const rec = offspringForMother.find(c => c.id === offspringId);
       const hadAnimal = rec && !rec.stillborn;
-      if (!confirm(hadAnimal ? "Remove this offspring record? The linked animal card will also be removed from the Animals list." : "Remove this offspring record?")) return;
+      const term = getOffspringTerm(a.species);
+      if (!confirm(hadAnimal ? `Remove this ${term.toLowerCase()} record? The linked animal card will also be removed from the Animals list.` : `Remove this ${term.toLowerCase()} record?`)) return;
       setOffspring(prev => {
         const base = prev || {};
         const list = (base[a.id] || []).filter(c => c.id !== offspringId);
@@ -909,7 +934,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               ? { ...gr, status: "Delivered", deliveredAt: rec.dob, calf: calfData }
               : gr
           ));
-        } else {
+        } else if (activeForMother.length === 0) {
           const gestationDays = SPECIES[a.species]?.days ?? 283;
           const breedingDate = breedingDateFromDelivery(rec.dob, gestationDays);
           const newGestation = {
@@ -973,6 +998,25 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
       );
       setShowCastrationForm(false);
       setCastrationForm({ date: "", method: "Banding", performer: "Owner", notes: "" });
+    }
+
+    function saveSale() {
+      const saleRec = {
+        dateSold: saleForm.dateSold || undefined,
+        pricePerHead: saleForm.pricePerHead?.trim() ? parseFloat(saleForm.pricePerHead) : undefined,
+        buyerName: saleForm.buyerName?.trim() || undefined,
+        buyerContact: saleForm.buyerContact?.trim() || undefined,
+        saleLocation: saleForm.saleLocation?.trim() || undefined,
+        notes: saleForm.notes?.trim() || undefined,
+      };
+      setAnimals(prev =>
+        prev.map(an => (an.id === a.id ? { ...an, sale: saleRec } : an))
+      );
+      setViewing(prev =>
+        prev && prev.id === a.id ? { ...prev, sale: saleRec } : prev
+      );
+      setShowSaleForm(false);
+      setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" });
     }
 
     function saveVaccination() {
@@ -1181,6 +1225,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             </div>
             <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
+              {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
               {a.tag && a.name && !a.deceased && <Badge color="var(--brass2)">#{a.tag}</Badge>}
             </div>
           </div>
@@ -1583,7 +1628,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
-                    Offspring Records
+                    {getOffspringTerm(a.species)} Records
                   </div>
                   <Btn
                     size="sm"
@@ -1603,12 +1648,12 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                       });
                     }}
                   >
-                    + Add Offspring
+                    + Add {getOffspringTerm(a.species)}
                   </Btn>
                 </div>
 
                 {offspringForMother.length === 0 && !showOffspringForm && (
-                  <p style={{ fontSize: "13px", color: "var(--muted)" }}>No offspring recorded yet for this dam.</p>
+                  <p style={{ fontSize: "13px", color: "var(--muted)" }}>No {getOffspringTerm(a.species).toLowerCase()} records yet for this dam.</p>
                 )}
 
                 {offspringForMother.length > 0 && (
@@ -1645,11 +1690,11 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 {showOffspringForm && (
                   <Card style={{ padding: "18px 20px", marginTop: "14px", borderLeft: "3px solid var(--brass)" }}>
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
-                      {editingOffspringId ? "Edit Offspring" : "Add Offspring"}
+                      {editingOffspringId ? `Edit ${getOffspringTerm(a.species)}` : `Add ${getOffspringTerm(a.species)}`}
                     </div>
                     <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                       <Input
-                        label="Offspring Name"
+                        label={`${getOffspringTerm(a.species)} Name`}
                         value={offspringForm.name}
                         onChange={e => setOffspringForm(p => ({ ...p, name: e.target.value }))}
                         placeholder="e.g. Bessie Jr"
@@ -1851,8 +1896,48 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               )}
             </div>
 
-            <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+            {/* Sale */}
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Sale</div>
+              {a.sale && !showSaleForm && (
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)", marginBottom: "10px" }}>
+                  <div style={{ fontSize: "13px", color: "var(--ink2)" }}>
+                    {a.sale.dateSold && <div><strong>Date sold:</strong> {fmt(a.sale.dateSold)}</div>}
+                    {a.sale.pricePerHead != null && <div><strong>Price per head:</strong> ${Number(a.sale.pricePerHead).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>}
+                    {a.sale.buyerName && <div><strong>Buyer:</strong> {a.sale.buyerName}</div>}
+                    {a.sale.buyerContact && <div><strong>Buyer contact:</strong> {a.sale.buyerContact}</div>}
+                    {a.sale.saleLocation && <div><strong>Sale location:</strong> {a.sale.saleLocation}</div>}
+                    {a.sale.notes && <div style={{ marginTop: "4px" }}><strong>Notes:</strong> {a.sale.notes}</div>}
+                  </div>
+                </div>
+              )}
+              {!a.sale && !a.deceased && !showSaleForm && (
+                <Btn size="sm" variant="secondary" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
+              )}
+              {showSaleForm && (
+                <Card style={{ padding: "18px 20px", borderLeft: "3px solid var(--brass)" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Mark as Sold</div>
+                  <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                    <Input label="Date sold" type="date" value={saleForm.dateSold} onChange={e => setSaleForm(p => ({ ...p, dateSold: e.target.value }))} />
+                    <Input label="Price per head ($)" type="number" min="0" step="0.01" value={saleForm.pricePerHead} onChange={e => setSaleForm(p => ({ ...p, pricePerHead: e.target.value }))} placeholder="e.g. 1250.00" />
+                    <Input label="Buyer name" value={saleForm.buyerName} onChange={e => setSaleForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                    <Input label="Buyer contact (optional)" value={saleForm.buyerContact} onChange={e => setSaleForm(p => ({ ...p, buyerContact: e.target.value }))} placeholder="Phone or email" />
+                    <Input label="Sale location (optional)" value={saleForm.saleLocation} onChange={e => setSaleForm(p => ({ ...p, saleLocation: e.target.value }))} placeholder="e.g. Sale barn name" />
+                  </div>
+                  <Textarea label="Notes" value={saleForm.notes} onChange={e => setSaleForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <Btn size="sm" onClick={saveSale}>Save</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowSaleForm(false); setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              )}
+            </div>
+
+            <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap" }}>
               <Btn variant="secondary" size="sm" onClick={() => window.print()}>Print / Export PDF</Btn>
+              {!a.sale && !a.deceased && (
+                <Btn variant="secondary" size="sm" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
+              )}
               <Btn variant="secondary" size="sm" onClick={() => {
                 const species = a.species || "Cattle";
                 const opts = getSexOptions(species);
@@ -1966,7 +2051,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
         {isFemale(a) && (offspringForMother?.length ?? 0) > 0 && (
           <section style={{ marginBottom: "20px" }}>
-            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Offspring Records</h2>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>{getOffspringTerm(a.species)} Records</h2>
             <div style={{ fontSize: "14px" }}>
               {offspringForMother.map(c => (
                 <div key={c.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
@@ -1991,7 +2076,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                   <div key={g.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
                     {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${fmt(g.dueDate)}`}
                     {g.sire && ` · Sire: ${g.sire}`}
-                    {g.calf && (g.calf.stillborn ? " · Stillborn" : (g.calf.name ? ` · Calf: ${g.calf.name}` : ""))}
+                    {g.calf && (g.calf.stillborn ? " · Stillborn" : (g.calf.name ? ` · ${getOffspringTerm(a.species)}: ${g.calf.name}` : ""))}
                   </div>
                 ))}
               </div>
@@ -2337,7 +2422,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s", position: "relative", overflow: "hidden",
             ...(bulkMode && selectedIds.includes(a.id) ? { boxShadow: "0 0 0 2px var(--brass)", borderColor: "var(--brass)" } : {})
           }}
-            onClick={() => { if (bulkMode) { toggleBulkSelect(a.id); } else { setViewing(a); } }}
+            onClick={() => { if (bulkMode) { toggleBulkSelect(a.id); } else { setViewing(a); setShowSaleForm(false); } }}
             onMouseEnter={e => { if (!bulkMode) { e.currentTarget.style.boxShadow = "var(--shadow2)"; e.currentTarget.style.transform = "translateY(-1px)"; } }}
             onMouseLeave={e => { if (!bulkMode) { e.currentTarget.style.boxShadow = "var(--shadow)"; e.currentTarget.style.transform = ""; } }}
           >
@@ -2353,6 +2438,11 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                   <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>
                 </div>
               </>
+            )}
+            {a.sale && !a.deceased && (
+              <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", zIndex: 1 }}>
+                <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>
+              </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -2503,8 +2593,10 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
   function deleteCalfRecord(gestationId) {
     const g = gestations.find(x => x.id === gestationId);
     if (!g?.calf) return;
+    const mother = animals.find(a => a.id === g.animalId);
+    const term = getOffspringTerm(mother?.species);
     const hadAnimal = g.calf.animalId && !g.calf.stillborn;
-    if (!confirm(hadAnimal ? "Remove this calf record? The linked animal card will also be removed from the Animals list." : "Remove this calf record?")) return;
+    if (!confirm(hadAnimal ? `Remove this ${term.toLowerCase()} record? The linked animal card will also be removed from the Animals list.` : `Remove this ${term.toLowerCase()} record?`)) return;
     if (hadAnimal) {
       setAnimals(prev => prev.filter(an => an.id !== g.calf.animalId));
     }
@@ -2575,16 +2667,17 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
         const g = gestations.find(x => x.id === deliveringId);
         const animal = animals.find(a => a.id === g?.animalId);
         const isEditCalf = !!editingCalfGestationId;
+        const offspringTerm = getOffspringTerm(animal?.species);
         return (
           <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>
-              {isEditCalf ? "Edit Calf Record" : "Add Calf Record (Optional)"}
+              {isEditCalf ? `Edit ${offspringTerm} Record` : `Add ${offspringTerm} Record (Optional)`}
             </div>
             <div style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "18px" }}>
-              Record details for the calf born to <strong>{getAnimalName(animal)}</strong>
+              Record details for the {offspringTerm.toLowerCase()} born to <strong>{getAnimalName(animal)}</strong>
             </div>
             <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-              <Input label="Calf Name" value={calfForm.name} onChange={e => setCalfForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie Jr" />
+              <Input label={`${offspringTerm} Name`} value={calfForm.name} onChange={e => setCalfForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie Jr" />
               <Input label="Tag / ID" value={calfForm.tag} onChange={e => setCalfForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1043" />
               <Select label="Sex" value={calfForm.sex} onChange={e => setCalfForm(p => ({ ...p, sex: e.target.value }))}>
                 <option value="">— Select —</option>
@@ -2600,7 +2693,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
               </div>
             </div>
             <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <Btn onClick={() => saveCalfRecord(deliveringId)}>{isEditCalf ? "Save Changes" : "Save Calf Record"}</Btn>
+              <Btn onClick={() => saveCalfRecord(deliveringId)}>{isEditCalf ? "Save Changes" : `Save ${offspringTerm} Record`}</Btn>
               <Btn variant="secondary" onClick={skipCalfRecord}>{isEditCalf ? "Cancel" : "Skip"}</Btn>
             </div>
           </Card>
@@ -2669,6 +2762,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
             {delivered.map(g => {
               const animal = animals.find(a => a.id === g.animalId);
               const hasCalf = g.calf && (g.calf.stillborn || g.calf.name || g.calf.tag || g.calf.sex || g.calf.birthWeight || g.calf.weaningDate);
+              const offspringTerm = getOffspringTerm(animal?.species);
               return (
                 <Card key={g.id} className="hl-delivered-row" style={{ padding: "14px 20px", opacity: 0.65 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: hasCalf ? "10px" : "0" }}>
@@ -2684,7 +2778,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
                       <span style={{ fontSize: "13px", color: "var(--muted)" }}>Due {fmtDueRange(g)}</span>
                       {!hasCalf && (
                         <Btn size="sm" onClick={() => { setDeliveringId(g.id); setShowCalfForm(true); setCalfForm({ name: "", tag: "", sex: "", birthWeight: "", weaningDate: "", stillborn: false }); }}>
-                          Add Calf Record
+                          Add {offspringTerm} Record
                         </Btn>
                       )}
                       <Btn size="sm" variant="ghost" onClick={() => remove(g.id)}>×</Btn>
@@ -2693,7 +2787,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
                   {hasCalf && (
                     <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--cream2)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Calf Record</div>
+                      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px" }}>{offspringTerm} Record</div>
                       <div style={{ display: "flex", gap: "6px" }}>
                         <Btn size="sm" variant="ghost" onClick={() => { setEditingCalfGestationId(g.id); setDeliveringId(g.id); setCalfForm({ name: g.calf.name || "", tag: g.calf.tag || "", sex: g.calf.sex || "", birthWeight: g.calf.birthWeight != null ? String(g.calf.birthWeight) : "", weaningDate: g.calf.weaningDate || "", stillborn: !!g.calf.stillborn }); setShowCalfForm(true); }}>Edit</Btn>
                         <Btn size="sm" variant="ghost" onClick={() => deleteCalfRecord(g.id)}>Delete</Btn>
@@ -2774,15 +2868,190 @@ function Notes({ notes, setNotes, user }) {
   );
 }
 
+// ── Feeder Cattle ─────────────────────────────────────────────────────────────
+const FEED_TYPES = ["Corn", "Silage", "Hay", "Mixed Ration", "Custom"];
+
+function feederDaysOnFeed(startDateStr) {
+  if (!startDateStr) return 0;
+  const start = new Date(startDateStr + "T12:00:00").getTime();
+  const now = Date.now();
+  return Math.max(0, Math.floor((now - start) / 86400000));
+}
+
+function estimatedWeightFromADG(animal, feederStartDateStr) {
+  const weights = [...(animal?.weights || [])].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  if (weights.length < 2) return null;
+  const first = weights[0];
+  const last = weights[weights.length - 1];
+  if (!first?.date || !last?.date) return null;
+  const daysBetween = (new Date(last.date) - new Date(first.date)) / 86400000;
+  if (daysBetween <= 0) return null;
+  const adg = (last.weight - first.weight) / daysBetween;
+  const lastDate = new Date(last.date + "T12:00:00").getTime();
+  const daysSinceLast = (Date.now() - lastDate) / 86400000;
+  return last.weight + adg * daysSinceLast;
+}
+
+function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setViewingAnimal }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    animalId: "",
+    startDate: "",
+    startingWeight: "",
+    targetDaysOnFeed: "",
+    dailyFeedLbs: "",
+    feedType: "Corn",
+    costPerLb: "",
+  });
+
+  const cattle = (animals || []).filter(a => a.species === "Cattle" && !a.deceased && !a.sale);
+  const inProgramIds = new Set((feederPrograms || []).map(f => f.animalId));
+  const availableCattle = cattle.filter(a => !inProgramIds.has(a.id));
+
+  const totalHead = (feederPrograms || []).length;
+  const totalEstimatedCost = (feederPrograms || []).reduce((sum, fp) => {
+    const days = feederDaysOnFeed(fp.startDate);
+    const costPerDay = (fp.dailyFeedLbs || 0) * (fp.costPerLb ?? 0);
+    return sum + days * costPerDay;
+  }, 0);
+
+  function addToProgram() {
+    if (!form.animalId || !form.startDate) return;
+    const startWeight = form.startingWeight?.trim() ? parseFloat(form.startingWeight) : undefined;
+    const targetDays = form.targetDaysOnFeed?.trim() ? parseInt(form.targetDaysOnFeed, 10) : undefined;
+    const dailyLbs = form.dailyFeedLbs?.trim() ? parseFloat(form.dailyFeedLbs) : undefined;
+    const costPerLb = form.costPerLb?.trim() ? parseFloat(form.costPerLb) : undefined;
+    setFeederPrograms(prev => [...prev, {
+      id: Date.now().toString(),
+      animalId: form.animalId,
+      startDate: form.startDate,
+      startingWeight: startWeight,
+      targetDaysOnFeed: targetDays,
+      dailyFeedLbs: dailyLbs,
+      feedType: form.feedType || "Corn",
+      costPerLb: costPerLb,
+    }]);
+    setForm({ animalId: "", startDate: "", startingWeight: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" });
+    setShowAdd(false);
+  }
+
+  function removeFromProgram(id) {
+    setFeederPrograms(prev => prev.filter(f => f.id !== id));
+  }
+
+  return (
+    <div className="hl-page hl-fade-in">
+      <SectionTitle action={<Btn onClick={() => setShowAdd(true)} disabled={availableCattle.length === 0}>+ Add to Feeder Program</Btn>}>
+        Feeder Cattle
+      </SectionTitle>
+
+      {totalHead > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
+          <Card style={{ padding: "18px 24px", minWidth: "160px", borderLeft: "4px solid var(--brass)" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Head on feed</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "var(--green)" }}>{totalHead}</div>
+          </Card>
+          <Card style={{ padding: "18px 24px", minWidth: "160px", borderLeft: "4px solid var(--brass)" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Est. feed cost to date</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "var(--green)" }}>${totalEstimatedCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          </Card>
+        </div>
+      )}
+
+      {showAdd && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add to Feeder Program</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Select label="Animal (Cattle) *" value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}>
+              <option value="">— Select —</option>
+              {availableCattle.map(a => (
+                <option key={a.id} value={a.id}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</option>
+              ))}
+            </Select>
+            <Input label="Start date *" type="date" value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
+            <Input label="Starting weight (lbs)" type="number" min="0" step="0.1" value={form.startingWeight} onChange={e => setForm(p => ({ ...p, startingWeight: e.target.value }))} placeholder="e.g. 650" />
+            <Input label="Target days on feed" type="number" min="1" value={form.targetDaysOnFeed} onChange={e => setForm(p => ({ ...p, targetDaysOnFeed: e.target.value }))} placeholder="e.g. 120" />
+            <Input label="Daily feed amount (lbs)" type="number" min="0" step="0.1" value={form.dailyFeedLbs} onChange={e => setForm(p => ({ ...p, dailyFeedLbs: e.target.value }))} placeholder="e.g. 25" />
+            <Select label="Feed type" value={form.feedType} onChange={e => setForm(p => ({ ...p, feedType: e.target.value }))}>
+              {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Input label="Cost per lb of feed ($)" type="number" min="0" step="0.01" value={form.costPerLb} onChange={e => setForm(p => ({ ...p, costPerLb: e.target.value }))} placeholder="e.g. 0.08" />
+          </div>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={addToProgram}>Add to Program</Btn>
+            <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {feederPrograms.length === 0 && !showAdd && (
+        <Card style={{ padding: "60px", textAlign: "center" }}>
+          <div style={{ fontSize: "40px", marginBottom: "10px" }}>🌾</div>
+          <div style={{ color: "var(--muted)", fontSize: "15px" }}>No animals in the feeder program yet.</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginTop: "8px" }}>Add Cattle from your herd to track feed and growth.</p>
+        </Card>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
+        {(feederPrograms || []).map(fp => {
+          const animal = (animals || []).find(a => a.id === fp.animalId);
+          if (!animal) return null;
+          const daysOnFeed = feederDaysOnFeed(fp.startDate);
+          const targetDays = fp.targetDaysOnFeed ?? 0;
+          const daysRemaining = Math.max(0, targetDays - daysOnFeed);
+          const finishDate = fp.startDate && targetDays ? (() => { const d = new Date(fp.startDate); d.setDate(d.getDate() + targetDays); return d.toISOString().split("T")[0]; })() : null;
+          const progressPct = targetDays > 0 ? Math.min(100, (daysOnFeed / targetDays) * 100) : 0;
+          const totalFeedConsumed = daysOnFeed * (fp.dailyFeedLbs ?? 0);
+          const costToDate = totalFeedConsumed * (fp.costPerLb ?? 0);
+          const estWeight = estimatedWeightFromADG(animal, fp.startDate);
+          return (
+            <Card key={fp.id} style={{ padding: "18px 20px", borderLeft: "4px solid var(--brass)", position: "relative" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                <div>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{getAnimalName(animal)}</div>
+                  <div style={{ fontSize: "13px", color: "var(--muted)" }}>{animal.tag ? `#${animal.tag}` : animal.species}</div>
+                </div>
+                <Btn size="sm" variant="ghost" onClick={() => removeFromProgram(fp.id)} style={{ padding: "4px 8px", minWidth: 0 }} title="Remove from program">×</Btn>
+              </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: "13px", marginBottom: "12px" }}>
+                <span style={{ color: "var(--muted)" }}>Days on feed</span>
+                <span style={{ fontWeight: 600 }}>{daysOnFeed}</span>
+                <span style={{ color: "var(--muted)" }}>Days remaining</span>
+                <span style={{ fontWeight: 600 }}>{targetDays ? daysRemaining : "—"}</span>
+                <span style={{ color: "var(--muted)" }}>Est. weight</span>
+                <span style={{ fontWeight: 600 }}>{estWeight != null ? `${Math.round(estWeight)} lb` : (fp.startingWeight != null ? `${fp.startingWeight} lb (start)` : "—")}</span>
+                <span style={{ color: "var(--muted)" }}>Feed consumed</span>
+                <span style={{ fontWeight: 600 }}>{totalFeedConsumed.toLocaleString("en-US", { maximumFractionDigits: 1 })} lb</span>
+                <span style={{ color: "var(--muted)" }}>Feed cost to date</span>
+                <span style={{ fontWeight: 600 }}>${costToDate.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+              </div>
+              {targetDays > 0 && (
+                <div style={{ marginBottom: "12px" }}>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Progress to target · {finishDate ? fmt(finishDate) : ""}</div>
+                  <div style={{ height: "6px", background: "var(--cream2)", borderRadius: "3px", overflow: "hidden" }}>
+                    <div style={{ height: "100%", width: `${progressPct}%`, background: "var(--brass)", borderRadius: "3px", transition: "width 0.2s" }} />
+                  </div>
+                </div>
+              )}
+              <Btn size="sm" variant="secondary" onClick={() => { setTab("animals"); setViewingAnimal(animal); }} style={{ width: "100%" }}>Record Weight</Btn>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 const TAB_OPTIONS = [
   { id: "dashboard", label: "Dashboard", icon: "⊞" },
   { id: "animals", label: "Animals", icon: "🐄" },
   { id: "gestation", label: "Gestation", icon: "📅" },
+  { id: "feeder", label: "Feeder Cattle", icon: "🌾" },
   { id: "notes", label: "Journal", icon: "📖" },
 ];
 
-function Settings({ settings, setSettings, onLogout }) {
+function Settings({ settings, setSettings, onLogout, animals = [] }) {
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const setVisibility = (id, value) => {
     setSettings(prev => ({
@@ -2790,6 +3059,29 @@ function Settings({ settings, setSettings, onLogout }) {
       tabVisibility: { ...(prev?.tabVisibility ?? DEFAULT_TAB_VISIBILITY), [id]: value },
     }));
   };
+  const soldAnimals = (animals || []).filter(a => a.sale).sort((x, y) => (y.sale?.dateSold || "").localeCompare(x.sale?.dateSold || ""));
+  function exportSalesReport() {
+    const headers = ["Name", "Species", "Tag", "Date Sold", "Price", "Buyer", "Buyer Contact", "Sale Location", "Notes"];
+    const rows = soldAnimals.map(a => [
+      getAnimalName(a),
+      a.species || "",
+      a.tag || "",
+      a.sale?.dateSold ? fmt(a.sale.dateSold) : "",
+      a.sale?.pricePerHead != null ? String(a.sale.pricePerHead) : "",
+      a.sale?.buyerName || "",
+      a.sale?.buyerContact || "",
+      a.sale?.saleLocation || "",
+      a.sale?.notes || "",
+    ]);
+    const csv = [headers.join(","), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sales-report-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
   return (
     <div className="hl-page hl-fade-in">
       <div style={{ maxWidth: "560px", margin: "0 auto" }}>
@@ -2844,6 +3136,40 @@ function Settings({ settings, setSettings, onLogout }) {
           </div>
         </Card>
 
+        <Card style={{ padding: "24px", marginBottom: "20px" }}>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Sales Report</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>All sold animals with sale date, price, and buyer — for tax and records.</p>
+          {soldAnimals.length === 0 ? (
+            <p style={{ fontSize: "13px", color: "var(--muted)" }}>No sales recorded yet.</p>
+          ) : (
+            <>
+              <div style={{ maxHeight: "280px", overflowY: "auto", marginBottom: "14px", border: "1px solid var(--cream2)", borderRadius: "var(--radius)" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Animal</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Date Sold</th>
+                      <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Price</th>
+                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Buyer</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {soldAnimals.map(a => (
+                      <tr key={a.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
+                        <td style={{ padding: "10px 12px" }}>{getAnimalName(a)}{a.species ? ` · ${a.species}` : ""}</td>
+                        <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
+                        <td style={{ padding: "10px 12px", textAlign: "right" }}>{a.sale?.pricePerHead != null ? `$${Number(a.sale.pricePerHead).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}</td>
+                        <td style={{ padding: "10px 12px" }}>{a.sale?.buyerName || "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <Btn size="sm" onClick={exportSalesReport}>Export as CSV (for taxes)</Btn>
+            </>
+          )}
+        </Card>
+
         <Card
           role="button"
           tabIndex={0}
@@ -2868,11 +3194,11 @@ function Settings({ settings, setSettings, onLogout }) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
-const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings"];
+const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms"];
 const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 const GUEST_USER = { id: "guest", isGuest: true };
 
-const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true };
+const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: true };
 const DEFAULT_SETTINGS = {
   farmName: "",
   ownerName: "",
@@ -2908,6 +3234,7 @@ export default function App() {
   const [notes, setNotes] = useState([]);
   const [offspring, setOffspring] = useState({});
   const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS }));
+  const [feederPrograms, setFeederPrograms] = useState([]);
   const initialLoadDone = useRef(false);
 
   const isGuest = user?.isGuest === true;
@@ -2942,6 +3269,7 @@ export default function App() {
       setNotes([]);
       setOffspring({});
       setSettings({ ...DEFAULT_SETTINGS });
+      setFeederPrograms([]);
       initialLoadDone.current = false;
       return;
     }
@@ -2955,17 +3283,21 @@ export default function App() {
         const offspringData = data.offspring && typeof data.offspring === "object" ? data.offspring : {};
         const settingsData = data.settings && typeof data.settings === "object" ? { ...DEFAULT_SETTINGS, ...data.settings } : { ...DEFAULT_SETTINGS };
         const { gestations: cleanedGestations, offspring: cleanedOffspring } = cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
+        const animalIds = new Set(animalsData.map(a => a.id));
+        const feederData = Array.isArray(data.feederPrograms) ? data.feederPrograms.filter(f => animalIds.has(f.animalId)) : [];
         setAnimals(animalsData);
         setGestations(cleanedGestations);
         setNotes(Array.isArray(data.notes) ? data.notes : []);
         setOffspring(cleanedOffspring);
         setSettings(settingsData);
+        setFeederPrograms(feederData);
       } catch (_) {
         setAnimals([]);
         setGestations([]);
         setNotes([]);
         setOffspring({});
         setSettings({ ...DEFAULT_SETTINGS });
+        setFeederPrograms([]);
       }
       initialLoadDone.current = true;
       return;
@@ -2984,11 +3316,14 @@ export default function App() {
         const offspringData = byKey.offspring && typeof byKey.offspring === "object" ? byKey.offspring : {};
         const settingsData = byKey.settings && typeof byKey.settings === "object" ? { ...DEFAULT_SETTINGS, ...byKey.settings } : { ...DEFAULT_SETTINGS };
         const { gestations: cleanedGestations, offspring: cleanedOffspring } = cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
+        const animalIds = new Set(animalsData.map(a => a.id));
+        const feederData = Array.isArray(byKey.feederPrograms) ? byKey.feederPrograms.filter(f => animalIds.has(f.animalId)) : [];
         setAnimals(animalsData);
         setGestations(cleanedGestations);
         setNotes(Array.isArray(byKey.notes) ? byKey.notes : []);
         setOffspring(cleanedOffspring);
         setSettings(settingsData);
+        setFeederPrograms(feederData);
         initialLoadDone.current = true;
       });
   }, [user]);
@@ -2997,7 +3332,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
       } catch (_) {}
       return;
     }
@@ -3007,7 +3342,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
       } catch (_) {}
       return;
     }
@@ -3017,7 +3352,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
       } catch (_) {}
       return;
     }
@@ -3027,7 +3362,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
       } catch (_) {}
       return;
     }
@@ -3037,24 +3372,35 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
       } catch (_) {}
       return;
     }
     supabase.from("user_data").upsert({ user_id: user.id, key: "settings", data: settings }, { onConflict: "user_id,key" }).then(() => {});
   }, [user, settings]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
+      } catch (_) {}
+      return;
+    }
+    supabase.from("user_data").upsert({ user_id: user.id, key: "feederPrograms", data: feederPrograms }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, feederPrograms]);
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([
     ...(visibility.dashboard !== false ? ["dashboard"] : []),
     ...(visibility.animals !== false ? ["animals"] : []),
     ...(visibility.gestation !== false ? ["gestation"] : []),
+    ...(visibility.feeder !== false ? ["feeder"] : []),
     ...(visibility.notes !== false ? ["notes"] : []),
     "settings",
   ]);
   useEffect(() => {
     if (!visibleTabIds.has(tab)) setTab(visibility.dashboard !== false ? "dashboard" : "settings");
-  }, [tab, visibility.dashboard, visibility.animals, visibility.gestation, visibility.notes]);
+  }, [tab, visibility.dashboard, visibility.animals, visibility.gestation, visibility.feeder, visibility.notes]);
 
   if (user === null) {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
@@ -3076,8 +3422,9 @@ export default function App() {
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} />}
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
+      {tab === "feeder"    && <FeederCattle animals={animals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
-      {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} />}
+      {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} animals={animals} />}
     </div>
   );
 }

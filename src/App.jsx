@@ -204,6 +204,19 @@ const CASTRATED_TERM_BY_SPECIES = {
   Mule: "Gelding",
 };
 
+/** Intact male sex term per species — used when reverting after castration record is deleted */
+const INTACT_MALE_TERM_BY_SPECIES = {
+  Cattle: "Bull",
+  Chicken: "Rooster",
+  Pig: "Boar",
+  Sheep: "Ram",
+  Goat: "Buck",
+  Horse: "Stallion",
+  Donkey: "Jack",
+  Mule: "Jack",
+  Rabbit: "Buck",
+};
+
 const FEMALE_MAIDEN_BY_SPECIES = {
   Cattle: "Heifer",
   Chicken: "Pullet",
@@ -999,12 +1012,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     }
 
     function deleteCastration() {
-      if (!confirm("Remove this castration record? The animal's sex will display as Male again.")) return;
+      if (!confirm("Remove this castration record? The animal's sex will revert to the intact male term for their species.")) return;
+      const intactSex = INTACT_MALE_TERM_BY_SPECIES[a.species] ?? a.sex;
       setAnimals(prev =>
-        prev.map(an => (an.id === a.id ? { ...an, castration: undefined } : an))
+        prev.map(an => (an.id === a.id ? { ...an, castration: undefined, sex: intactSex } : an))
       );
       setViewing(prev =>
-        prev && prev.id === a.id ? { ...prev, castration: undefined } : prev
+        prev && prev.id === a.id ? { ...prev, castration: undefined, sex: intactSex } : prev
       );
       setShowCastrationForm(false);
       setCastrationForm({ date: "", method: "Banding", performer: "Owner", notes: "" });
@@ -1306,6 +1320,57 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 </div>
               )}
             </div>
+
+            {a.species === "Cattle" && !a.deceased && !a.sale && (
+              <div className="hl-profile-section" style={{ marginTop: "24px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Feedlot</div>
+                {(() => {
+                  const fp = (feederPrograms || []).find(f => f.animalId === a.id);
+                  if (!fp) {
+                    return setTab && setFeederPreselectAnimalId ? (
+                      <Btn variant="secondary" onClick={() => { setTab("feeder"); setFeederPreselectAnimalId(a.id); }}>Add to Feedlot</Btn>
+                    ) : (
+                      <p style={{ fontSize: "13px", color: "var(--muted)" }}>Add this animal to the feeder program from the Feeder Cattle tab.</p>
+                    );
+                  }
+                  const daysOnFeed = feederDaysOnFeed(fp.startDate);
+                  const targetDays = fp.targetDaysOnFeed ?? 0;
+                  const daysRemaining = Math.max(0, targetDays - daysOnFeed);
+                  const finishDate = fp.startDate && targetDays ? (() => { const d = new Date(fp.startDate); d.setDate(d.getDate() + targetDays); return d.toISOString().split("T")[0]; })() : null;
+                  const progressPct = targetDays > 0 ? Math.min(100, (daysOnFeed / targetDays) * 100) : 0;
+                  const totalFeedConsumed = daysOnFeed * (fp.dailyFeedLbs ?? 0);
+                  const costToDate = totalFeedConsumed * (fp.costPerLb ?? 0);
+                  const estWeight = estimatedWeightFromADG(a, fp.startDate);
+                  return (
+                    <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)" }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: "13px", marginBottom: "12px" }}>
+                        <span style={{ color: "var(--muted)" }}>Days on feed</span>
+                        <span style={{ fontWeight: 600 }}>{daysOnFeed}</span>
+                        <span style={{ color: "var(--muted)" }}>Days remaining</span>
+                        <span style={{ fontWeight: 600 }}>{targetDays ? daysRemaining : "—"}</span>
+                        <span style={{ color: "var(--muted)" }}>Est. weight</span>
+                        <span style={{ fontWeight: 600 }}>{estWeight != null ? `${Math.round(estWeight)} lb` : (fp.startingWeight != null ? `${fp.startingWeight} lb (start)` : "—")}</span>
+                        <span style={{ color: "var(--muted)" }}>Feed consumed</span>
+                        <span style={{ fontWeight: 600 }}>{totalFeedConsumed.toLocaleString("en-US", { maximumFractionDigits: 1 })} lb</span>
+                        <span style={{ color: "var(--muted)" }}>Feed cost to date</span>
+                        <span style={{ fontWeight: 600 }}>${costToDate.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                        <span style={{ color: "var(--muted)" }}>Feed type</span>
+                        <span style={{ fontWeight: 600 }}>{fp.feedType || "—"}</span>
+                      </div>
+                      {targetDays > 0 && (
+                        <div style={{ marginBottom: "12px" }}>
+                          <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Progress to target{finishDate ? ` · ${fmt(finishDate)}` : ""}</div>
+                          <div style={{ height: "6px", background: "var(--cream2)", borderRadius: "3px", overflow: "hidden" }}>
+                            <div style={{ height: "100%", width: `${progressPct}%`, background: "var(--brass)", borderRadius: "3px", transition: "width 0.2s" }} />
+                          </div>
+                        </div>
+                      )}
+                      {setTab && <Btn size="sm" variant="secondary" onClick={() => setTab("feeder")} style={{ width: "100%" }}>Open Feeder tab</Btn>}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
 
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
@@ -2499,11 +2564,6 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               );
             })()}
             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>{ageFromDob(a.dob)}</div>
-            {a.species === "Cattle" && !a.deceased && !a.sale && setTab && setFeederPreselectAnimalId && !inFeedlotIds.has(a.id) && (
-              <div style={{ marginTop: "10px" }} onClick={e => e.stopPropagation()}>
-                <Btn size="sm" variant="secondary" onClick={() => { setTab("feeder"); setFeederPreselectAnimalId(a.id); }}>Add to Feedlot</Btn>
-              </div>
-            )}
           </Card>
         ))}
       </div>
@@ -2840,7 +2900,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
 }
 
 // ── Pastures ───────────────────────────────────────────────────────────────────
-function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewingAnimal }) {
+function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewingAnimal, feederPrograms }) {
   const [showAddPasture, setShowAddPasture] = useState(false);
   const [newPastureName, setNewPastureName] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
@@ -2962,6 +3022,45 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
           );
         })}
       </div>
+
+      {(() => {
+        const withPen = (feederPrograms || []).filter(f => (f.penName || "").trim());
+        const feedlotPenNames = [...new Set(withPen.map(f => (f.penName || "").trim()))].filter(Boolean).sort((a, b) => a.localeCompare(b));
+        if (feedlotPenNames.length === 0) return null;
+        return (
+          <>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600, marginTop: "28px", marginBottom: "14px" }}>Feedlot Pens</div>
+            <div className="hl-pastures-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
+              {feedlotPenNames.map(penName => {
+                const entries = withPen.filter(f => (f.penName || "").trim() === penName);
+                return (
+                  <Card key={penName} style={{ padding: "18px 20px", borderLeft: "4px solid var(--brass)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                      <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>{penName}</div>
+                      <div style={{ fontSize: "13px", color: "var(--muted)" }}>{entries.length} animal{entries.length !== 1 ? "s" : ""}</div>
+                    </div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                      {entries.map(fp => {
+                        const animal = (animals || []).find(a => a.id === fp.animalId);
+                        const daysOnFeed = feederDaysOnFeed(fp.startDate);
+                        return (
+                          <div key={fp.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--brass2)", background: "rgba(201,149,42,0.15)", padding: "2px 6px", borderRadius: "4px", flexShrink: 0 }}>Feedlot</span>
+                            <button type="button" onClick={() => { setTab("animals"); setViewingAnimal(animal); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: "14px", color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>
+                              {animal ? getAnimalName(animal) : "—"}{animal?.tag ? ` #${animal.tag}` : ""}
+                            </button>
+                            <span style={{ fontSize: "12px", color: "var(--muted)" }}>{daysOnFeed}d on feed</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
@@ -3062,9 +3161,10 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
     dailyFeedLbs: "",
     feedType: "Corn",
     costPerLb: "",
+    penName: "",
   });
   const [showBulkAdd, setShowBulkAdd] = useState(false);
-  const [bulkFormShared, setBulkFormShared] = useState({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" });
+  const [bulkFormShared, setBulkFormShared] = useState({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" });
   const [bulkAddAnimals, setBulkAddAnimals] = useState([]);
 
   const cattle = (animals || []).filter(a => a.species === "Cattle" && !a.deceased && !a.sale);
@@ -3074,9 +3174,10 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
   useEffect(() => {
     if (!feederPreselectAnimalId || !setFeederPreselectAnimalId) return;
     const weight = getLatestWeightForAnimal(animals, feederPreselectAnimalId);
+    const today = new Date().toISOString().split("T")[0];
     setShowBulkAdd(false);
     setShowAdd(true);
-    setForm(p => ({ ...p, animalId: feederPreselectAnimalId, startingWeight: weight }));
+    setForm(p => ({ ...p, animalId: feederPreselectAnimalId, startingWeight: weight, startDate: today }));
     setFeederPreselectAnimalId(null);
   }, [feederPreselectAnimalId, setFeederPreselectAnimalId, animals]);
 
@@ -3088,7 +3189,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
     if (toAdd.length === 0) return;
     setShowAdd(false);
     setShowBulkAdd(true);
-    setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" });
+    setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" });
     setBulkAddAnimals(toAdd);
   }, [feederBulkAnimalIds, setFeederBulkAnimalIds, animals, feederPrograms]);
 
@@ -3114,8 +3215,9 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
       dailyFeedLbs: dailyLbs,
       feedType: form.feedType || "Corn",
       costPerLb: costPerLb,
+      penName: form.penName?.trim() || undefined,
     }]);
-    setForm({ animalId: "", startDate: "", startingWeight: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" });
+    setForm({ animalId: "", startDate: "", startingWeight: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" });
     setShowAdd(false);
   }
 
@@ -3128,6 +3230,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
     const targetDays = bulkFormShared.targetDaysOnFeed?.trim() ? parseInt(bulkFormShared.targetDaysOnFeed, 10) : undefined;
     const dailyLbs = bulkFormShared.dailyFeedLbs?.trim() ? parseFloat(bulkFormShared.dailyFeedLbs) : undefined;
     const costPerLb = bulkFormShared.costPerLb?.trim() ? parseFloat(bulkFormShared.costPerLb) : undefined;
+    const penName = bulkFormShared.penName?.trim() || undefined;
     const newRecords = bulkAddAnimals.map((row, i) => ({
       id: Date.now().toString() + "-" + i,
       animalId: row.animalId,
@@ -3137,11 +3240,12 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
       dailyFeedLbs: dailyLbs,
       feedType: bulkFormShared.feedType || "Corn",
       costPerLb: costPerLb,
+      penName,
     }));
     setFeederPrograms(prev => [...prev, ...newRecords]);
     setShowBulkAdd(false);
     setBulkAddAnimals([]);
-    setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" });
+    setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" });
   }
 
   function setBulkAnimalStartingWeight(animalId, value) {
@@ -3178,6 +3282,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
               {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </Select>
             <Input label="Cost per lb of feed ($)" type="number" min="0" step="0.01" value={bulkFormShared.costPerLb} onChange={e => setBulkFormShared(p => ({ ...p, costPerLb: e.target.value }))} placeholder="e.g. 0.08" />
+            <Input label="Pen or Lot Name" value={bulkFormShared.penName} onChange={e => setBulkFormShared(p => ({ ...p, penName: e.target.value }))} placeholder="e.g. Pen 1, East Lot, Finishing Pen" />
           </div>
           <div style={{ marginBottom: "14px" }}>
             <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>Starting weight per animal (lbs)</div>
@@ -3195,7 +3300,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
           </div>
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={submitBulkAdd}>Add all to Program</Btn>
-            <Btn variant="secondary" onClick={() => { setShowBulkAdd(false); setBulkAddAnimals([]); setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" }); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={() => { setShowBulkAdd(false); setBulkAddAnimals([]); setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" }); }}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -3216,6 +3321,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
                 <option key={a.id} value={a.id}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</option>
               ))}
             </Select>
+            <Input label="Start date *" type="date" value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
             <Input label="Starting weight (lbs)" type="number" min="0" step="0.1" value={form.startingWeight} onChange={e => setForm(p => ({ ...p, startingWeight: e.target.value }))} placeholder="e.g. 650" />
             <Input label="Target days on feed" type="number" min="1" value={form.targetDaysOnFeed} onChange={e => setForm(p => ({ ...p, targetDaysOnFeed: e.target.value }))} placeholder="e.g. 120" />
             <Input label="Daily feed amount (lbs)" type="number" min="0" step="0.1" value={form.dailyFeedLbs} onChange={e => setForm(p => ({ ...p, dailyFeedLbs: e.target.value }))} placeholder="e.g. 25" />
@@ -3223,6 +3329,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
               {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </Select>
             <Input label="Cost per lb of feed ($)" type="number" min="0" step="0.01" value={form.costPerLb} onChange={e => setForm(p => ({ ...p, costPerLb: e.target.value }))} placeholder="e.g. 0.08" />
+            <Input label="Pen or Lot Name" value={form.penName} onChange={e => setForm(p => ({ ...p, penName: e.target.value }))} placeholder="e.g. Pen 1, East Lot, Finishing Pen" />
           </div>
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={addToProgram}>Add to Program</Btn>
@@ -3689,7 +3796,7 @@ export default function App() {
       {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "feeder"    && <FeederCattle animals={animals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} />}
-      {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
+      {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
       {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} animals={animals} />}
     </div>

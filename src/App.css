@@ -204,3 +204,167 @@
     gap: 8px;
   }
 }
+
+/* ── Mobile cleanup (390px) ───────────────────────────────────────────────── */
+
+/* Nav: icons only on very small screens, labels on larger */
+@media (max-width: 480px) {
+  .hl-nav-tab {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+  .hl-nav-tab-label {
+    display: none;
+  }
+}
+@media (min-width: 481px) {
+  .hl-nav-tab-label {
+    display: inline;
+  }
+}
+
+/* Cards: consistent padding on mobile (cards with inner padding keep their own) */
+@media (max-width: 480px) {
+  .hl-card:not(.hl-card-no-padding) {
+    padding: 16px !important;
+  }
+}
+
+/* Card footer buttons: full width on mobile when they don't fit */
+.hl-card-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+@media (max-width: 480px) {
+  .hl-card-actions {
+    flex-direction: column;
+  }
+  .hl-card-actions button,
+  .hl-card-actions .hl-btn-wrap {
+    width: 100%;
+    min-width: 0;
+    justify-content: center;
+  }
+}
+
+/* Dashboard stat cards: smaller font so numbers don't overflow */
+@media (max-width: 480px) {
+  .hl-dash-stat-value {
+    font-size: 22px !important;
+    line-height: 1.2 !important;
+  }
+  .hl-dash-stat-sub {
+    font-size: 11px !important;
+    word-break: break-word;
+  }
+}
+
+/* Animal profile header: stack cleanly, no truncation */
+@media (max-width: 480px) {
+  .hl-detail-header {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .hl-detail-header .hl-detail-name {
+    font-size: 20px !important;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+  .hl-detail-header .hl-detail-meta {
+    font-size: 13px !important;
+  }
+  .hl-detail-header .hl-detail-badges {
+    width: 100%;
+    margin-left: 0 !important;
+    flex-wrap: wrap;
+  }
+  .hl-detail-header > div:first-child {
+    font-size: 40px !important;
+  }
+}
+
+/* Form inputs: min 44px height for thumb tap (enforced in components + fallback) */
+@media (max-width: 480px) {
+  .hl-input,
+  .hl-select,
+  .hl-textarea {
+    min-height: 44px !important;
+  }
+}
+
+/* Bulk action toolbar: fixed to bottom on mobile */
+@media (max-width: 480px) {
+  .hl-bulk-toolbar {
+    position: fixed !important;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    margin-bottom: 0 !important;
+    margin-left: -14px;
+    margin-right: -14px;
+    width: 100vw;
+    box-sizing: border-box;
+    border-radius: 0 !important;
+    box-shadow: 0 -2px 12px rgba(0,0,0,0.12);
+  }
+  .hl-page-with-bulk-toolbar {
+    padding-bottom: 88px !important;
+  }
+}
+
+/* Text: prevent overflow on small screens */
+.hl-card,
+.hl-detail-header,
+.hl-section-title h2 {
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+}
+@media (max-width: 480px) {
+  .hl-card * {
+    min-width: 0;
+  }
+}
+
+/* Pastures and Feedlot tab cards: single column on mobile */
+@media (max-width: 480px) {
+  .hl-pastures-grid,
+  .hl-feedlot-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Animal profile page ───────────────────────────────────────────────────── */
+
+/* Consistent spacing between profile sections */
+.hl-profile-content .hl-profile-section {
+  margin-top: 28px !important;
+}
+
+/* Divider and block for bottom actions (Print, Duplicate, Remove) */
+.hl-profile-actions-sep {
+  border-top: 1px solid var(--cream3);
+  margin-top: 28px;
+  padding-top: 24px;
+}
+
+.hl-profile-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 480px) {
+  .hl-profile-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .hl-profile-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+}

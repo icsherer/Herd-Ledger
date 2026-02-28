@@ -312,7 +312,7 @@ const GLOBAL_CSS = `
 // ── Shared UI ─────────────────────────────────────────────────────────────────
 function Card({ children, style = {}, className = "", ...rest }) {
   return (
-    <div className={className} style={{
+    <div className={`hl-card ${className}`.trim()} style={{
       background: "#fff",
       borderRadius: var2("radius2"),
       boxShadow: "var(--shadow)",
@@ -389,6 +389,7 @@ function Input({ label, type, style = {}, ...props }) {
       <input
         type={type ?? "text"}
         {...props}
+        className="hl-input"
         style={{
           width: "100%",
           padding: "9px 12px",
@@ -399,12 +400,12 @@ function Input({ label, type, style = {}, ...props }) {
           background: "#fff",
           outline: "none",
           transition: "border-color 0.15s",
+          minHeight: "44px",
           ...(isDateOrTime && {
             touchAction: "manipulation",
             WebkitUserSelect: "none",
             userSelect: "none",
             WebkitTapHighlightColor: "transparent",
-            minHeight: "44px",
           }),
           ...style,
         }}
@@ -419,12 +420,13 @@ function Select({ label, children, ...props }) {
   return (
     <div>
       {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
-      <select {...props} style={{
+      <select {...props} className="hl-select" style={{
         width: "100%", padding: "9px 12px",
         border: "1.5px solid var(--cream3)",
         borderRadius: "var(--radius)",
         fontSize: "14px", color: "var(--ink)",
         background: "#fff", outline: "none",
+        minHeight: "44px",
         ...props.style,
       }}>{children}</select>
     </div>
@@ -435,13 +437,14 @@ function Textarea({ label, ...props }) {
   return (
     <div>
       {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
-      <textarea {...props} style={{
+      <textarea {...props} className="hl-textarea" style={{
         width: "100%", padding: "9px 12px",
         border: "1.5px solid var(--cream3)",
         borderRadius: "var(--radius)",
         fontSize: "14px", color: "var(--ink)",
         background: "#fff", outline: "none",
         resize: "vertical",
+        minHeight: "44px",
         ...props.style,
       }}
       onFocus={e => e.target.style.borderColor = "var(--green3)"}
@@ -461,6 +464,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.animals !== false ? [{ id: "animals", label: "Animals", icon: "🐄" }] : []),
     ...(visibility.gestation !== false && !hideGestationTab ? [{ id: "gestation", label: "Gestation", icon: "📅" }] : []),
     ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Cattle", icon: "🌾" }] : []),
+    ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🟩" }] : []),
     ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
@@ -495,9 +499,10 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
             }}
             onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.color = "#fff"; }}
             onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+            className="hl-nav-tab"
             >
-              <span style={{ fontSize: "16px" }}>{t.icon}</span>
-              {t.label}
+              <span className="hl-nav-tab-icon" style={{ fontSize: "16px" }}>{t.icon}</span>
+              <span className="hl-nav-tab-label">{t.label}</span>
             </button>
           ))}
         </nav>
@@ -588,8 +593,8 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
             onMouseLeave={e => { if (s.onClick) { e.currentTarget.style.boxShadow = ""; e.currentTarget.style.transform = ""; } }}
           >
             <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "6px" }}>{s.label}</div>
-            <div style={{ fontFamily: s.large ? "inherit" : "'Playfair Display'", fontSize: s.large ? "32px" : "30px", fontWeight: 700, color: s.alert ? "var(--danger2)" : "var(--green)", lineHeight: 1, marginBottom: "4px" }}>{s.value}</div>
-            <div style={{ fontSize: "12px", color: s.alert ? "var(--danger2)" : "var(--muted)" }}>{s.sub}</div>
+            <div className="hl-dash-stat-value" style={{ fontFamily: s.large ? "inherit" : "'Playfair Display'", fontSize: s.large ? "32px" : "30px", fontWeight: 700, color: s.alert ? "var(--danger2)" : "var(--green)", lineHeight: 1, marginBottom: "4px" }}>{s.value}</div>
+            <div className="hl-dash-stat-sub" style={{ fontSize: "12px", color: s.alert ? "var(--danger2)" : "var(--muted)" }}>{s.sub}</div>
           </Card>
         ))}
       </div>
@@ -599,7 +604,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
 
           {/* Overdue alerts */}
           {overdue.length > 0 && (
-            <Card style={{ borderLeft: "4px solid var(--danger2)", padding: "0" }}>
+            <Card className="hl-card-no-padding" style={{ borderLeft: "4px solid var(--danger2)", padding: "0" }}>
               <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "16px" }}>⚠️</span>
                 <span style={{ fontWeight: 700, color: "var(--danger2)", fontSize: "14px" }}>Overdue — Check Immediately</span>
@@ -618,7 +623,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
 
           {/* Upcoming births */}
           {upcoming.length > 0 && (
-            <Card style={{ padding: "0" }}>
+            <Card className="hl-card-no-padding" style={{ padding: "0" }}>
               <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)" }}>
                 <span style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600 }}>Upcoming Births</span>
                 <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>next 30 days</span>
@@ -749,12 +754,12 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle" }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "" };
   });
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
@@ -807,12 +812,17 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "" };
   };
 
   function add() {
     if (!form.name) return;
-    setAnimals(p => [...p, { ...form, id: Date.now().toString() }]);
+    const { currentPasture, ...rest } = form;
+    const newAnimal = { ...rest, id: Date.now().toString() };
+    if (currentPasture?.trim() && PASTURE_SPECIES.includes(form.species)) {
+      newAnimal.movements = [{ pastureName: currentPasture.trim(), dateMovedIn: new Date().toISOString().split("T")[0] }];
+    }
+    setAnimals(p => [...p, newAnimal]);
     setForm(emptyForm());
     setShowAdd(false);
   }
@@ -1209,27 +1219,27 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
             </div>
             <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
-            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
               <Btn onClick={saveEdit}>Save Changes</Btn>
               <Btn variant="secondary" onClick={() => { setEditingId(null); setForm(emptyForm()); }}>Cancel</Btn>
             </div>
           </Card>
         )}
 
-        <Card style={{ padding: "0", overflow: "hidden" }}>
+        <Card className="hl-card-no-padding" style={{ padding: "0", overflow: "hidden" }}>
           <div className="hl-detail-header" style={{ background: "var(--green)", padding: "28px 32px", display: "flex", alignItems: "center", gap: "20px" }}>
-            <div style={{ fontSize: "52px" }}>{SPECIES[a.species]?.emoji}</div>
-            <div>
+            <div style={{ fontSize: "52px", flexShrink: 0 }}>{SPECIES[a.species]?.emoji}</div>
+            <div style={{ minWidth: 0, flex: "1 1 auto" }}>
               <div className="hl-detail-name" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{getAnimalName(a)}</div>
-              <div style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a, gestations)}</div>
+              <div className="hl-detail-meta" style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a, gestations)}</div>
             </div>
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+            <div className="hl-detail-badges" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
               {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
               {a.tag && a.name && !a.deceased && <Badge color="var(--brass2)">#{a.tag}</Badge>}
             </div>
           </div>
-          <div style={{ padding: "28px 32px" }}>
+          <div className="hl-profile-content" style={{ padding: "28px 32px" }}>
             <div className="hl-detail-grid" style={{ marginBottom: "24px" }}>
               {[
                 ["Species", a.species],
@@ -1246,7 +1256,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               ))}
             </div>
 
-            <div style={{ marginTop: "24px" }}>
+            <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Weight Tracking</div>
                 <Btn size="sm" variant="secondary" onClick={() => { setShowWeightForm(true); setWeightForm({ weight: "", date: "", notes: "" }); }}>Add Weight</Btn>
@@ -1272,7 +1282,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     <Input label="Date" type="date" value={weightForm.date} onChange={e => setWeightForm(p => ({ ...p, date: e.target.value }))} />
                     <Input label="Notes" value={weightForm.notes} onChange={e => setWeightForm(p => ({ ...p, notes: e.target.value }))} placeholder="Optional" />
                   </div>
-                  <div style={{ display: "flex", gap: "10px" }}>
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
                     <Btn size="sm" onClick={saveWeight}>Save</Btn>
                     <Btn size="sm" variant="ghost" onClick={() => { setShowWeightForm(false); setWeightForm({ weight: "", date: "", notes: "" }); }}>Cancel</Btn>
                   </div>
@@ -1297,7 +1307,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               )}
             </div>
 
-            <div style={{ marginTop: "24px" }}>
+            <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Health & Treatment Log</div>
                 <Btn size="sm" variant="secondary" onClick={() => { setShowTreatmentForm(true); setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Add Treatment</Btn>
@@ -1321,7 +1331,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     <Input label="Cost" type="number" min="0" step="0.01" value={treatmentForm.cost} onChange={e => setTreatmentForm(p => ({ ...p, cost: e.target.value }))} placeholder="Optional" />
                   </div>
                   <Textarea label="Notes" value={treatmentForm.notes} onChange={e => setTreatmentForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes" style={{ marginBottom: "12px" }} />
-                  <div style={{ display: "flex", gap: "10px" }}>
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
                     <Btn size="sm" onClick={saveTreatment}>Save</Btn>
                     <Btn size="sm" variant="ghost" onClick={() => { setShowTreatmentForm(false); setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Cancel</Btn>
                   </div>
@@ -1389,15 +1399,19 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             )}
 
             {PASTURE_SPECIES.includes(a.species) && (
-              <div style={{ marginTop: "24px" }}>
+              <div className="hl-profile-section" style={{ marginTop: "24px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>
                   Current Pasture
                 </div>
                 {!showMoveForm ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-                    <span style={{ fontSize: "15px", color: "var(--ink2)" }}>{a.movements?.[0]?.pastureName || "—"}</span>
-                    <Btn size="sm" variant="secondary" onClick={() => setShowMoveForm(true)}>Move Animal</Btn>
-                  </div>
+                  (a.movements?.[0]?.pastureName ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "15px", color: "var(--ink2)" }}>{a.movements[0].pastureName}</span>
+                      <Btn size="sm" variant="secondary" onClick={() => setShowMoveForm(true)}>Move Animal</Btn>
+                    </div>
+                  ) : (
+                    <Btn size="sm" onClick={() => setShowMoveForm(true)} style={{ background: "var(--green3)", color: "var(--green)" }}>Assign to Pasture</Btn>
+                  ))
                 ) : (
                   <Card style={{ padding: "18px 20px", borderLeft: "3px solid var(--green3)" }}>
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Move Animal</div>
@@ -1405,8 +1419,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                       <Input label="Pasture name" value={moveForm.pastureName} onChange={e => setMoveForm(p => ({ ...p, pastureName: e.target.value }))} placeholder="e.g. North Paddock" />
                       <Input label="Move date" type="date" value={moveForm.dateMovedIn} onChange={e => setMoveForm(p => ({ ...p, dateMovedIn: e.target.value }))} />
                     </div>
-                    <Textarea label="Notes" value={moveForm.notes} onChange={e => setMoveForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes..." />
-                    <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                    <Textarea label="Notes (e.g. reason for move)" value={moveForm.notes} onChange={e => setMoveForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="e.g. Rotating to fresh grass, weaning" />
+                    <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
                       <Btn size="sm" onClick={saveMove}>Save Move</Btn>
                       <Btn size="sm" variant="ghost" onClick={() => { setShowMoveForm(false); setMoveForm({ pastureName: "", dateMovedIn: "", notes: "" }); }}>Cancel</Btn>
                     </div>
@@ -1433,7 +1447,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             )}
 
             {isMale(a) && (
-              <div style={{ marginTop: "24px" }}>
+              <div className="hl-profile-section" style={{ marginTop: "24px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                   <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
                     Castration Record
@@ -1519,7 +1533,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                       onChange={e => setCastrationForm(p => ({ ...p, notes: e.target.value }))}
                       rows={3}
                     />
-                    <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                    <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                       <Btn size="sm" onClick={saveCastration}>Save Record</Btn>
                       <Btn
                         size="sm"
@@ -1542,7 +1556,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               </div>
             )}
             {isFemale(a) && (
-              <div style={{ marginTop: "24px" }}>
+              <div className="hl-profile-section" style={{ marginTop: "24px" }}>
                 {a.species !== "Mule" && (
                   <div style={{ marginBottom: "24px" }}>
                     <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>
@@ -1582,7 +1596,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                             </div>
                           );
                         })()}
-                        <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                        <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                           <Btn onClick={addBreedingFromProfile}>Record</Btn>
                           <Btn variant="secondary" onClick={() => { setShowBreedingForm(false); setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>Cancel</Btn>
                         </div>
@@ -1754,7 +1768,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                         <label htmlFor="offspring-stillborn" style={{ fontSize: "14px", color: "var(--ink2)", cursor: "pointer" }}>Stillborn</label>
                       </div>
                     </div>
-                    <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                    <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
                       <Btn size="sm" onClick={saveOffspring}>{editingOffspringId ? "Save Changes" : "Save Offspring"}</Btn>
                       <Btn
                         size="sm"
@@ -1783,7 +1797,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             )}
 
             {/* Vaccination Records — all animals */}
-            <div style={{ marginTop: "24px" }}>
+            <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
                   Vaccination Records
@@ -1872,7 +1886,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     onChange={e => setVaccinationForm(p => ({ ...p, notes: e.target.value }))}
                     rows={2}
                   />
-                  <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                     <Btn size="sm" onClick={saveVaccination}>{editingVaccinationId ? "Save Changes" : "Save Vaccination"}</Btn>
                     <Btn
                       size="sm"
@@ -1897,7 +1911,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             </div>
 
             {/* Sale */}
-            <div style={{ marginTop: "24px" }}>
+            <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Sale</div>
               {a.sale && !showSaleForm && (
                 <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)", marginBottom: "10px" }}>
@@ -1925,7 +1939,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     <Input label="Sale location (optional)" value={saleForm.saleLocation} onChange={e => setSaleForm(p => ({ ...p, saleLocation: e.target.value }))} placeholder="e.g. Sale barn name" />
                   </div>
                   <Textarea label="Notes" value={saleForm.notes} onChange={e => setSaleForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
-                  <div style={{ display: "flex", gap: "10px" }}>
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
                     <Btn size="sm" onClick={saveSale}>Save</Btn>
                     <Btn size="sm" variant="ghost" onClick={() => { setShowSaleForm(false); setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); }}>Cancel</Btn>
                   </div>
@@ -1933,20 +1947,19 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               )}
             </div>
 
-            <div style={{ marginTop: "24px", display: "flex", justifyContent: "flex-end", gap: "10px", flexWrap: "wrap" }}>
-              <Btn variant="secondary" size="sm" onClick={() => window.print()}>Print / Export PDF</Btn>
-              {!a.sale && !a.deceased && (
-                <Btn variant="secondary" size="sm" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
-              )}
-              <Btn variant="secondary" size="sm" onClick={() => {
-                const species = a.species || "Cattle";
-                const opts = getSexOptions(species);
-                const sex = opts.includes(a.sex) ? a.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]);
-                setForm({ name: "", species, sex, breed: a.breed || "", tag: a.tag || "", dob: "", notes: a.notes || "" });
-                setShowAdd(true);
-                setViewing(null);
-              }}>Duplicate Animal</Btn>
-              <Btn variant="danger" size="sm" onClick={() => remove(a.id)}>Remove Animal</Btn>
+            <div className="hl-profile-actions-sep">
+              <div className="hl-profile-actions">
+                <Btn variant="secondary" size="sm" onClick={() => window.print()}>Print / Export PDF</Btn>
+                <Btn variant="secondary" size="sm" onClick={() => {
+                  const species = a.species || "Cattle";
+                  const opts = getSexOptions(species);
+                  const sex = opts.includes(a.sex) ? a.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]);
+                  setForm({ name: "", species, sex, breed: a.breed || "", tag: a.tag || "", dob: "", notes: a.notes || "" });
+                  setShowAdd(true);
+                  setViewing(null);
+                }}>Duplicate Animal</Btn>
+                <Btn variant="danger" size="sm" onClick={() => remove(a.id)}>Remove Animal</Btn>
+              </div>
             </div>
           </div>
         </Card>
@@ -2124,6 +2137,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const selectedFemales = selectedAnimals.filter(an => isFemale(an) && an.species !== "Mule");
   const selectedPastureEligible = selectedAnimals.filter(an => PASTURE_SPECIES.includes(an.species));
   const selectedMales = selectedAnimals.filter(an => isMale(an));
+  const inFeedlotIds = new Set((feederPrograms || []).map(f => f.animalId));
+  const selectedCattleForFeedlot = selectedAnimals.filter(an => an.species === "Cattle" && !inFeedlotIds.has(an.id));
 
   function saveBulkVaccination() {
     const rec = {
@@ -2235,7 +2250,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   }
 
   return (
-    <div className="hl-page hl-fade-in">
+    <div className={`hl-page hl-fade-in${bulkMode && selectedIds.length > 0 ? " hl-page-with-bulk-toolbar" : ""}`}>
       <SectionTitle action={
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <Btn variant="secondary" onClick={() => { setBulkMode(true); setSelectedIds([]); setBulkFormType(null); setViewing(null); }}>Bulk Actions</Btn>
@@ -2259,7 +2274,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
       </div>
 
       {bulkMode && selectedIds.length > 0 && (
-        <Card style={{ padding: "14px 18px", marginBottom: "16px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", borderLeft: "4px solid var(--brass)" }}>
+        <Card className="hl-bulk-toolbar" style={{ padding: "14px 18px", marginBottom: "16px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", borderLeft: "4px solid var(--brass)" }}>
           <span style={{ fontWeight: 600, marginRight: "8px" }}>{selectedIds.length} selected</span>
           <Btn size="sm" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "" }); }}>Apply Vaccination</Btn>
           <Btn size="sm" onClick={() => { setBulkFormType("breeding"); setBulkForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>Log Breeding</Btn>
@@ -2267,6 +2282,9 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           <Btn size="sm" onClick={() => { setBulkFormType("treatment"); setBulkForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Apply Treatment</Btn>
           {selectedMales.length > 0 && (
             <Btn size="sm" onClick={() => { setBulkFormType("castration"); setBulkForm({ date: "", method: "Banding", performer: "Owner", notes: "" }); }}>Castrate</Btn>
+          )}
+          {selectedCattleForFeedlot.length > 0 && setTab && setFeederBulkAnimalIds && (
+            <Btn size="sm" onClick={() => { setTab("feeder"); setFeederBulkAnimalIds(selectedCattleForFeedlot.map(a => a.id)); }}>Add to Feedlot</Btn>
           )}
           <Btn size="sm" variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
         </Card>
@@ -2285,7 +2303,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             </Select>
           </div>
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkVaccination}>Apply to {selectedIds.length} animals</Btn>
             <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
           </div>
@@ -2311,7 +2329,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             <span>Bull turned out with group (exposure window)</span>
           </label>
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkBreeding} disabled={selectedFemales.length === 0}>Apply to {selectedFemales.length} females</Btn>
             <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
           </div>
@@ -2326,7 +2344,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             <Input label="Move date" type="date" value={bulkForm.dateMovedIn} onChange={e => setBulkForm(p => ({ ...p, dateMovedIn: e.target.value }))} />
           </div>
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkMove} disabled={selectedPastureEligible.length === 0}>Move {selectedPastureEligible.length} animals</Btn>
             <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
           </div>
@@ -2352,7 +2370,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             <Input label="Cost" type="number" min="0" step="0.01" value={bulkForm.cost} onChange={e => setBulkForm(p => ({ ...p, cost: e.target.value }))} placeholder="Optional" />
           </div>
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkTreatment}>Apply to {selectedIds.length} animals</Btn>
             <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
           </div>
@@ -2375,7 +2393,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             </Select>
           </div>
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={3} style={{ marginBottom: "14px" }} />
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkCastration}>Apply to {selectedMales.length} males</Btn>
             <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
           </div>
@@ -2400,9 +2418,12 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
             </Select>
             <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+            {PASTURE_SPECIES.includes(form.species) && (
+              <Input label="Current Pasture (optional)" value={form.currentPasture} onChange={e => setForm(p => ({ ...p, currentPasture: e.target.value }))} placeholder="e.g. North Paddock" />
+            )}
           </div>
           <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
             <Btn onClick={add}>Register</Btn>
             <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
           </div>
@@ -2478,6 +2499,11 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               );
             })()}
             <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>{ageFromDob(a.dob)}</div>
+            {a.species === "Cattle" && !a.deceased && !a.sale && setTab && setFeederPreselectAnimalId && !inFeedlotIds.has(a.id) && (
+              <div style={{ marginTop: "10px" }} onClick={e => e.stopPropagation()}>
+                <Btn size="sm" variant="secondary" onClick={() => { setTab("feeder"); setFeederPreselectAnimalId(a.id); }}>Add to Feedlot</Btn>
+              </div>
+            )}
           </Card>
         ))}
       </div>
@@ -2656,7 +2682,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
               </div>
             );
           })()}
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
             <Btn onClick={add}>Record</Btn>
             <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
           </div>
@@ -2692,7 +2718,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
                 <label htmlFor="calf-stillborn" style={{ fontSize: "14px", color: "var(--ink2)", cursor: "pointer" }}>Stillborn</label>
               </div>
             </div>
-            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
               <Btn onClick={() => saveCalfRecord(deliveringId)}>{isEditCalf ? "Save Changes" : `Save ${offspringTerm} Record`}</Btn>
               <Btn variant="secondary" onClick={skipCalfRecord}>{isEditCalf ? "Cancel" : "Skip"}</Btn>
             </div>
@@ -2813,6 +2839,133 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
   );
 }
 
+// ── Pastures ───────────────────────────────────────────────────────────────────
+function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewingAnimal }) {
+  const [showAddPasture, setShowAddPasture] = useState(false);
+  const [newPastureName, setNewPastureName] = useState("");
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkMoveTo, setBulkMoveTo] = useState("");
+  const [bulkMoveNotes, setBulkMoveNotes] = useState("");
+
+  const pastureEligible = (animals || []).filter(a => PASTURE_SPECIES.includes(a.species) && !a.deceased && !a.sale);
+  const namesFromAnimals = new Set(pastureEligible.map(a => a.movements?.[0]?.pastureName).filter(Boolean));
+  const sortedNames = [...new Set([...(pastures || []), ...namesFromAnimals])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const allPastureNames = pastureEligible.some(a => !(a.movements?.[0]?.pastureName || "").trim()) ? ["— Not assigned —", ...sortedNames] : sortedNames;
+
+  const animalsByPasture = {};
+  allPastureNames.forEach(name => {
+    if (name === "— Not assigned —") {
+      animalsByPasture[name] = pastureEligible.filter(a => !(a.movements?.[0]?.pastureName || "").trim());
+    } else {
+      animalsByPasture[name] = pastureEligible.filter(a => (a.movements?.[0]?.pastureName || "").trim() === name);
+    }
+  });
+  const selectedAnimals = pastureEligible.filter(a => selectedIds.includes(a.id));
+
+  function addPasture() {
+    const name = newPastureName?.trim();
+    if (!name) return;
+    if (!(pastures || []).includes(name)) setPastures(prev => [...(prev || []), name].sort((a, b) => a.localeCompare(b)));
+    setNewPastureName("");
+    setShowAddPasture(false);
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  }
+
+  function doBulkMove() {
+    const toPasture = bulkMoveTo?.trim();
+    if (!toPasture || selectedIds.length === 0) return;
+    const movePayload = { pastureName: toPasture, dateMovedIn: new Date().toISOString().split("T")[0], notes: bulkMoveNotes?.trim() || undefined };
+    setAnimals(prev =>
+      prev.map(an => {
+        if (!selectedIds.includes(an.id)) return an;
+        return { ...an, movements: [{ ...movePayload }, ...(an.movements || [])] };
+      })
+    );
+    setSelectedIds([]);
+    setBulkMoveTo("");
+    setBulkMoveNotes("");
+  }
+
+  return (
+    <div className="hl-page hl-fade-in">
+      <SectionTitle action={<Btn onClick={() => setShowAddPasture(true)}>+ New Pasture</Btn>}>
+        Pastures
+      </SectionTitle>
+
+      {showAddPasture && (
+        <Card style={{ padding: "20px 24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "12px" }}>Create new pasture</div>
+          <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <Input label="Pasture name" value={newPastureName} onChange={e => setNewPastureName(e.target.value)} placeholder="e.g. North Paddock" style={{ minWidth: "200px" }} />
+            <Btn onClick={addPasture}>Add Pasture</Btn>
+            <Btn variant="secondary" onClick={() => { setShowAddPasture(false); setNewPastureName(""); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {selectedIds.length > 0 && (
+        <Card style={{ padding: "14px 18px", marginBottom: "16px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", borderLeft: "4px solid var(--green3)" }}>
+          <span style={{ fontWeight: 600 }}>{selectedIds.length} selected</span>
+          <Select label="Move to" value={bulkMoveTo} onChange={e => setBulkMoveTo(e.target.value)}>
+            <option value="">— Select pasture —</option>
+            {allPastureNames.filter(n => n !== "— Not assigned —").map(n => <option key={n} value={n}>{n}</option>)}
+          </Select>
+          <Input value={bulkMoveNotes} onChange={e => setBulkMoveNotes(e.target.value)} placeholder="Notes (optional)" style={{ minWidth: "180px" }} />
+          <Btn size="sm" onClick={doBulkMove} disabled={!bulkMoveTo?.trim()}>Move</Btn>
+          <Btn size="sm" variant="secondary" onClick={() => { setSelectedIds([]); setBulkMoveTo(""); setBulkMoveNotes(""); }}>Clear</Btn>
+        </Card>
+      )}
+
+      {allPastureNames.length === 0 && !showAddPasture && (
+        <Card style={{ padding: "60px", textAlign: "center" }}>
+          <div style={{ fontSize: "40px", marginBottom: "10px" }}>🟩</div>
+          <div style={{ color: "var(--muted)", fontSize: "15px" }}>No pastures yet.</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginTop: "8px" }}>Create a pasture or assign Cattle/Horses to a pasture from their profile.</p>
+        </Card>
+      )}
+
+      <div className="hl-pastures-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
+        {allPastureNames.map(pastureName => {
+          const list = animalsByPasture[pastureName] || [];
+          const cattleCount = list.filter(a => a.species === "Cattle").length;
+          const horseCount = list.filter(a => a.species === "Horse").length;
+          return (
+            <Card key={pastureName} style={{ padding: "18px 20px", borderLeft: "4px solid var(--green3)" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>{pastureName}</div>
+                <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+                  {cattleCount > 0 && <span>{cattleCount} Cattle</span>}
+                  {cattleCount > 0 && horseCount > 0 && " · "}
+                  {horseCount > 0 && <span>{horseCount} Horse{horseCount !== 1 ? "s" : ""}</span>}
+                  {cattleCount === 0 && horseCount === 0 && "0 animals"}
+                </div>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                {list.length === 0 ? (
+                  <p style={{ fontSize: "13px", color: "var(--muted)" }}>No animals in this pasture</p>
+                ) : (
+                  list.map(a => (
+                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                      <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleSelect(a.id)} onClick={e => e.stopPropagation()} style={{ width: "16px", height: "16px", accentColor: "var(--green)", flexShrink: 0 }} />
+                      <button type="button" onClick={() => { setTab("animals"); setViewingAnimal(a); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: "14px", color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>
+                        {getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}
+                      </button>
+                      <span style={{ fontSize: "12px", color: "var(--muted)" }}>{a.species}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Notes ─────────────────────────────────────────────────────────────────────
 function Notes({ notes, setNotes, user }) {
   const [newTitle, setNewTitle] = useState("");
@@ -2835,7 +2988,7 @@ function Notes({ notes, setNotes, user }) {
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
           <Input label="Title (optional)" value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="e.g. Moved herd to south pasture" style={{ marginBottom: "12px", fontSize: "16px" }} />
           <Textarea label="Entry" value={newBody} onChange={e => setNewBody(e.target.value)} rows={6} placeholder="Record observations, treatments, purchases, or anything worth noting..." />
-          <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
             <Btn onClick={add}>Save Entry</Btn>
             <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
           </div>
@@ -2892,7 +3045,14 @@ function estimatedWeightFromADG(animal, feederStartDateStr) {
   return last.weight + adg * daysSinceLast;
 }
 
-function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setViewingAnimal }) {
+function getLatestWeightForAnimal(animals, animalId) {
+  const an = (animals || []).find(a => a.id === animalId);
+  const weights = [...(an?.weights || [])].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+  const w = weights[0]?.weight;
+  return w != null ? String(w) : "";
+}
+
+function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setViewingAnimal, feederPreselectAnimalId, setFeederPreselectAnimalId, feederBulkAnimalIds, setFeederBulkAnimalIds }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     animalId: "",
@@ -2903,10 +3063,34 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
     feedType: "Corn",
     costPerLb: "",
   });
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [bulkFormShared, setBulkFormShared] = useState({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" });
+  const [bulkAddAnimals, setBulkAddAnimals] = useState([]);
 
   const cattle = (animals || []).filter(a => a.species === "Cattle" && !a.deceased && !a.sale);
   const inProgramIds = new Set((feederPrograms || []).map(f => f.animalId));
   const availableCattle = cattle.filter(a => !inProgramIds.has(a.id));
+
+  useEffect(() => {
+    if (!feederPreselectAnimalId || !setFeederPreselectAnimalId) return;
+    const weight = getLatestWeightForAnimal(animals, feederPreselectAnimalId);
+    setShowBulkAdd(false);
+    setShowAdd(true);
+    setForm(p => ({ ...p, animalId: feederPreselectAnimalId, startingWeight: weight }));
+    setFeederPreselectAnimalId(null);
+  }, [feederPreselectAnimalId, setFeederPreselectAnimalId, animals]);
+
+  useEffect(() => {
+    if (!feederBulkAnimalIds?.length || !setFeederBulkAnimalIds) return;
+    const inProgram = new Set((feederPrograms || []).map(f => f.animalId));
+    const toAdd = feederBulkAnimalIds.filter(id => !inProgram.has(id)).map(id => ({ animalId: id, startingWeight: getLatestWeightForAnimal(animals, id) }));
+    setFeederBulkAnimalIds([]);
+    if (toAdd.length === 0) return;
+    setShowAdd(false);
+    setShowBulkAdd(true);
+    setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" });
+    setBulkAddAnimals(toAdd);
+  }, [feederBulkAnimalIds, setFeederBulkAnimalIds, animals, feederPrograms]);
 
   const totalHead = (feederPrograms || []).length;
   const totalEstimatedCost = (feederPrograms || []).reduce((sum, fp) => {
@@ -2939,6 +3123,31 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
     setFeederPrograms(prev => prev.filter(f => f.id !== id));
   }
 
+  function submitBulkAdd() {
+    if (!bulkFormShared.startDate || bulkAddAnimals.length === 0) return;
+    const targetDays = bulkFormShared.targetDaysOnFeed?.trim() ? parseInt(bulkFormShared.targetDaysOnFeed, 10) : undefined;
+    const dailyLbs = bulkFormShared.dailyFeedLbs?.trim() ? parseFloat(bulkFormShared.dailyFeedLbs) : undefined;
+    const costPerLb = bulkFormShared.costPerLb?.trim() ? parseFloat(bulkFormShared.costPerLb) : undefined;
+    const newRecords = bulkAddAnimals.map((row, i) => ({
+      id: Date.now().toString() + "-" + i,
+      animalId: row.animalId,
+      startDate: bulkFormShared.startDate,
+      startingWeight: row.startingWeight?.trim() ? parseFloat(row.startingWeight) : undefined,
+      targetDaysOnFeed: targetDays,
+      dailyFeedLbs: dailyLbs,
+      feedType: bulkFormShared.feedType || "Corn",
+      costPerLb: costPerLb,
+    }));
+    setFeederPrograms(prev => [...prev, ...newRecords]);
+    setShowBulkAdd(false);
+    setBulkAddAnimals([]);
+    setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" });
+  }
+
+  function setBulkAnimalStartingWeight(animalId, value) {
+    setBulkAddAnimals(prev => prev.map(row => row.animalId === animalId ? { ...row, startingWeight: value } : row));
+  }
+
   return (
     <div className="hl-page hl-fade-in">
       <SectionTitle action={<Btn onClick={() => setShowAdd(true)} disabled={availableCattle.length === 0}>+ Add to Feeder Program</Btn>}>
@@ -2958,17 +3167,55 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
         </div>
       )}
 
+      {showBulkAdd && bulkAddAnimals.length > 0 && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add to Feeder Program ({bulkAddAnimals.length} animals)</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Input label="Start date *" type="date" value={bulkFormShared.startDate} onChange={e => setBulkFormShared(p => ({ ...p, startDate: e.target.value }))} />
+            <Input label="Target days on feed" type="number" min="1" value={bulkFormShared.targetDaysOnFeed} onChange={e => setBulkFormShared(p => ({ ...p, targetDaysOnFeed: e.target.value }))} placeholder="e.g. 120" />
+            <Input label="Daily feed amount (lbs)" type="number" min="0" step="0.1" value={bulkFormShared.dailyFeedLbs} onChange={e => setBulkFormShared(p => ({ ...p, dailyFeedLbs: e.target.value }))} placeholder="e.g. 25" />
+            <Select label="Feed type" value={bulkFormShared.feedType} onChange={e => setBulkFormShared(p => ({ ...p, feedType: e.target.value }))}>
+              {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Input label="Cost per lb of feed ($)" type="number" min="0" step="0.01" value={bulkFormShared.costPerLb} onChange={e => setBulkFormShared(p => ({ ...p, costPerLb: e.target.value }))} placeholder="e.g. 0.08" />
+          </div>
+          <div style={{ marginBottom: "14px" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>Starting weight per animal (lbs)</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              {bulkAddAnimals.map(row => {
+                const an = (animals || []).find(a => a.id === row.animalId);
+                return (
+                  <div key={row.animalId} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <span style={{ flex: "1 1 auto", fontSize: "14px" }}>{getAnimalName(an)}{an?.tag ? ` #${an.tag}` : ""}</span>
+                    <Input type="number" min="0" step="0.1" value={row.startingWeight} onChange={e => setBulkAnimalStartingWeight(row.animalId, e.target.value)} placeholder="e.g. 650" style={{ width: "120px" }} />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={submitBulkAdd}>Add all to Program</Btn>
+            <Btn variant="secondary" onClick={() => { setShowBulkAdd(false); setBulkAddAnimals([]); setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "" }); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
       {showAdd && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add to Feeder Program</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-            <Select label="Animal (Cattle) *" value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}>
+            <Select label="Animal (Cattle) *" value={form.animalId} onChange={e => {
+              const id = e.target.value;
+              const an = (animals || []).find(a => a.id === id);
+              const weightsSorted = [...(an?.weights || [])].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+              const lastWeight = weightsSorted[0]?.weight;
+              setForm(p => ({ ...p, animalId: id, startingWeight: lastWeight != null ? String(lastWeight) : "" }));
+            }}>
               <option value="">— Select —</option>
               {availableCattle.map(a => (
                 <option key={a.id} value={a.id}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</option>
               ))}
             </Select>
-            <Input label="Start date *" type="date" value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
             <Input label="Starting weight (lbs)" type="number" min="0" step="0.1" value={form.startingWeight} onChange={e => setForm(p => ({ ...p, startingWeight: e.target.value }))} placeholder="e.g. 650" />
             <Input label="Target days on feed" type="number" min="1" value={form.targetDaysOnFeed} onChange={e => setForm(p => ({ ...p, targetDaysOnFeed: e.target.value }))} placeholder="e.g. 120" />
             <Input label="Daily feed amount (lbs)" type="number" min="0" step="0.1" value={form.dailyFeedLbs} onChange={e => setForm(p => ({ ...p, dailyFeedLbs: e.target.value }))} placeholder="e.g. 25" />
@@ -2977,7 +3224,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
             </Select>
             <Input label="Cost per lb of feed ($)" type="number" min="0" step="0.01" value={form.costPerLb} onChange={e => setForm(p => ({ ...p, costPerLb: e.target.value }))} placeholder="e.g. 0.08" />
           </div>
-          <div style={{ display: "flex", gap: "10px" }}>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={addToProgram}>Add to Program</Btn>
             <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
           </div>
@@ -2992,7 +3239,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
         </Card>
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
+      <div className="hl-feedlot-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
         {(feederPrograms || []).map(fp => {
           const animal = (animals || []).find(a => a.id === fp.animalId);
           if (!animal) return null;
@@ -3048,6 +3295,7 @@ const TAB_OPTIONS = [
   { id: "animals", label: "Animals", icon: "🐄" },
   { id: "gestation", label: "Gestation", icon: "📅" },
   { id: "feeder", label: "Feeder Cattle", icon: "🌾" },
+  { id: "pastures", label: "Pastures", icon: "🟩" },
   { id: "notes", label: "Journal", icon: "📖" },
 ];
 
@@ -3194,11 +3442,11 @@ function Settings({ settings, setSettings, onLogout, animals = [] }) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
-const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms"];
+const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures"];
 const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 const GUEST_USER = { id: "guest", isGuest: true };
 
-const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: true };
+const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: true, pastures: true };
 const DEFAULT_SETTINGS = {
   farmName: "",
   ownerName: "",
@@ -3235,6 +3483,9 @@ export default function App() {
   const [offspring, setOffspring] = useState({});
   const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS }));
   const [feederPrograms, setFeederPrograms] = useState([]);
+  const [pastures, setPastures] = useState([]);
+  const [feederPreselectAnimalId, setFeederPreselectAnimalId] = useState(null);
+  const [feederBulkAnimalIds, setFeederBulkAnimalIds] = useState([]);
   const initialLoadDone = useRef(false);
 
   const isGuest = user?.isGuest === true;
@@ -3270,6 +3521,7 @@ export default function App() {
       setOffspring({});
       setSettings({ ...DEFAULT_SETTINGS });
       setFeederPrograms([]);
+      setPastures([]);
       initialLoadDone.current = false;
       return;
     }
@@ -3291,6 +3543,7 @@ export default function App() {
         setOffspring(cleanedOffspring);
         setSettings(settingsData);
         setFeederPrograms(feederData);
+        setPastures(Array.isArray(data.pastures) ? data.pastures : []);
       } catch (_) {
         setAnimals([]);
         setGestations([]);
@@ -3298,6 +3551,7 @@ export default function App() {
         setOffspring({});
         setSettings({ ...DEFAULT_SETTINGS });
         setFeederPrograms([]);
+        setPastures([]);
       }
       initialLoadDone.current = true;
       return;
@@ -3324,6 +3578,7 @@ export default function App() {
         setOffspring(cleanedOffspring);
         setSettings(settingsData);
         setFeederPrograms(feederData);
+        setPastures(Array.isArray(byKey.pastures) ? byKey.pastures : []);
         initialLoadDone.current = true;
       });
   }, [user]);
@@ -3332,7 +3587,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
       } catch (_) {}
       return;
     }
@@ -3342,7 +3597,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
       } catch (_) {}
       return;
     }
@@ -3352,7 +3607,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
       } catch (_) {}
       return;
     }
@@ -3362,7 +3617,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
       } catch (_) {}
       return;
     }
@@ -3372,7 +3627,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
       } catch (_) {}
       return;
     }
@@ -3382,12 +3637,22 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
       } catch (_) {}
       return;
     }
     supabase.from("user_data").upsert({ user_id: user.id, key: "feederPrograms", data: feederPrograms }, { onConflict: "user_id,key" }).then(() => {});
   }, [user, feederPrograms]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
+      } catch (_) {}
+      return;
+    }
+    supabase.from("user_data").upsert({ user_id: user.id, key: "pastures", data: pastures }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, pastures]);
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([
@@ -3395,12 +3660,13 @@ export default function App() {
     ...(visibility.animals !== false ? ["animals"] : []),
     ...(visibility.gestation !== false ? ["gestation"] : []),
     ...(visibility.feeder !== false ? ["feeder"] : []),
+    ...(visibility.pastures !== false ? ["pastures"] : []),
     ...(visibility.notes !== false ? ["notes"] : []),
     "settings",
   ]);
   useEffect(() => {
     if (!visibleTabIds.has(tab)) setTab(visibility.dashboard !== false ? "dashboard" : "settings");
-  }, [tab, visibility.dashboard, visibility.animals, visibility.gestation, visibility.feeder, visibility.notes]);
+  }, [tab, visibility.dashboard, visibility.animals, visibility.gestation, visibility.feeder, visibility.pastures, visibility.notes]);
 
   if (user === null) {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
@@ -3420,9 +3686,10 @@ export default function App() {
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
-      {tab === "feeder"    && <FeederCattle animals={animals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
+      {tab === "feeder"    && <FeederCattle animals={animals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} />}
+      {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
       {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} animals={animals} />}
     </div>

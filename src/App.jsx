@@ -204,6 +204,21 @@ function fmt(dateStr) {
   if (!dateStr) return "—";
   return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
+function createMovementJournalEntry(animal, fromPasture, toPasture, dateMovedIn, notes, movementId) {
+  const nameOrTag = getAnimalName(animal);
+  const dateStr = dateMovedIn ? fmt(dateMovedIn) : "—";
+  const body = fromPasture
+    ? `${nameOrTag} moved from ${fromPasture} to ${toPasture || "—"} on ${dateStr}.${notes ? ` Notes: ${notes}` : ""}`
+    : `${nameOrTag} moved to ${toPasture || "—"} on ${dateStr}.${notes ? ` Notes: ${notes}` : ""}`;
+  return {
+    id: Date.now().toString() + "-" + (movementId || ""),
+    title: `Pasture move — ${nameOrTag}`,
+    body,
+    date: new Date().toISOString(),
+    animalId: animal.id,
+    movementId: movementId || undefined,
+  };
+}
 function fmtDueRange(g) {
   if (g.dueDateStart && g.dueDateEnd) return `${fmt(g.dueDateStart)} – ${fmt(g.dueDateEnd)}`;
   return fmt(g.dueDate);
@@ -574,8 +589,8 @@ function var2(name) { return `var(--${name})`; }
 function Nav({ tab, setTab, hideGestationTab, settings }) {
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const tabs = [
-    ...(visibility.dashboard !== false ? [{ id: "dashboard", label: "Dashboard", icon: "⊞" }] : []),
-    ...(visibility.animals !== false ? [{ id: "animals", label: "Animals", icon: "🐄" }] : []),
+    { id: "dashboard", label: "Dashboard", icon: "⊞" },
+    { id: "animals", label: "Animals", icon: "🐄" },
     ...(visibility.gestation !== false && !hideGestationTab ? [{ id: "gestation", label: "Gestation", icon: "📅" }] : []),
     ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾" }] : []),
     ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🟩" }] : []),
@@ -931,7 +946,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes }) {
   const [showAdd, setShowAdd] = useState(false);
   const forceList = (animals || []).length > 50;
   const viewMode = forceList ? "list" : (settings?.animalsViewMode || "tile");
@@ -1189,7 +1204,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     if (currentPasture?.trim() && PASTURE_SPECIES.includes(form.species)) {
       const canonical = getCanonicalPastureNames(animals, pastures);
       const resolved = resolvePastureName(currentPasture.trim(), canonical);
-      newAnimal.movements = [{ pastureName: resolved, dateMovedIn: new Date().toISOString().split("T")[0] }];
+      const dateMovedIn = new Date().toISOString().split("T")[0];
+      const movementId = Date.now().toString() + "-" + newAnimal.id;
+      newAnimal.movements = [{ pastureName: resolved, dateMovedIn, movementId }];
+      if (setNotes) {
+        const journalEntry = createMovementJournalEntry(newAnimal, null, resolved, dateMovedIn, undefined, movementId);
+        setNotes(prev => [journalEntry, ...prev]);
+      }
     }
     setAnimals(p => [...p, newAnimal]);
     setForm(emptyForm());
@@ -1485,17 +1506,24 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     function saveMove() {
       const canonical = getCanonicalPastureNames(animals, pastures);
       const resolvedName = resolvePastureName(moveForm.pastureName?.trim(), canonical) || undefined;
+      const movementId = Date.now().toString() + "-" + a.id;
       const move = {
         pastureName: resolvedName,
         dateMovedIn: moveForm.dateMovedIn || undefined,
         notes: moveForm.notes?.trim() || undefined,
+        movementId,
       };
+      const prevPasture = (a.movements || [])[0]?.pastureName;
       const nextMovements = [move, ...(a.movements || [])];
       const updated = { ...a, movements: nextMovements };
       setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
       setViewing(updated);
       setShowMoveForm(false);
       setMoveForm({ pastureName: "", dateMovedIn: "", notes: "" });
+      if (setNotes) {
+        const journalEntry = createMovementJournalEntry(a, prevPasture, resolvedName, moveForm.dateMovedIn || undefined, move.notes, movementId);
+        setNotes(prev => [journalEntry, ...prev]);
+      }
       if (move.pastureName) {
         const nextAnimals = animals.map(an => (an.id === a.id ? updated : an));
         const male = getBreedingMaleInPasture(nextAnimals, move.pastureName);
@@ -1891,7 +1919,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
                       <span style={{ fontSize: "15px", color: "var(--ink2)" }}>{a.movements[0].pastureName}</span>
                       <Btn size="sm" variant="secondary" onClick={() => setShowMoveForm(true)}>Move Animal</Btn>
-                      <Btn size="sm" variant="ghost" onClick={() => { const next = (a.movements || []).slice(1); const updated = { ...a, movements: next }; setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an))); setViewing(updated); }} style={{ color: "var(--muted)" }}>Remove from Pasture</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => { const removed = (a.movements || [])[0]; const next = (a.movements || []).slice(1); const updated = { ...a, movements: next }; if (removed?.movementId && setNotes) setNotes(prev => prev.filter(n => n.movementId !== removed.movementId)); setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an))); setViewing(updated); }} style={{ color: "var(--muted)" }}>Remove from Pasture</Btn>
                     </div>
                   ) : (
                     <Btn size="sm" onClick={() => setShowMoveForm(true)} style={{ background: "var(--green3)", color: "var(--green)" }}>Assign to Pasture</Btn>
@@ -1915,13 +1943,14 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "8px" }}>Movement history</div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
                       {a.movements.map((m, i) => (
-                        <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "10px 0", borderBottom: i < a.movements.length - 1 ? "1px solid var(--cream2)" : "none" }}>
+                        <div key={m.movementId || i} style={{ display: "flex", alignItems: "flex-start", gap: "12px", padding: "10px 0", borderBottom: i < a.movements.length - 1 ? "1px solid var(--cream2)" : "none" }}>
                           <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: "var(--green3)", flexShrink: 0, marginTop: "6px" }} />
-                          <div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: 600, fontSize: "14px" }}>{m.pastureName || "—"}</div>
                             <div style={{ fontSize: "12px", color: "var(--muted)" }}>Moved in {m.dateMovedIn ? fmt(m.dateMovedIn) : "—"}</div>
                             {m.notes && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "4px" }}>{m.notes}</div>}
                           </div>
+                          <Btn size="sm" variant="ghost" onClick={() => { if (!confirm("Delete this movement record? The related journal entry will also be removed.")) return; const next = a.movements.filter((_, j) => j !== i); const updated = { ...a, movements: next }; if (m.movementId && setNotes) setNotes(prev => prev.filter(n => n.movementId !== m.movementId)); setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an))); setViewing(updated); }} style={{ color: "var(--muted)", flexShrink: 0 }} title="Delete movement and journal entry">×</Btn>
                         </div>
                       ))}
                     </div>
@@ -2674,17 +2703,20 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   function saveBulkMove() {
     const canonical = getCanonicalPastureNames(animals, pastures);
     const pastureName = resolvePastureName(bulkForm.pastureName?.trim(), canonical) || undefined;
-    const movePayload = {
-      pastureName,
-      dateMovedIn: bulkForm.dateMovedIn || undefined,
-      notes: bulkForm.notes?.trim() || undefined,
-    };
+    const dateMovedIn = bulkForm.dateMovedIn || undefined;
+    const notes = bulkForm.notes?.trim() || undefined;
+    const journalEntries = [];
     setAnimals(prev =>
       prev.map(an => {
         if (!selectedIds.includes(an.id) || !PASTURE_SPECIES.includes(an.species)) return an;
+        const movementId = Date.now().toString() + "-" + an.id;
+        const movePayload = { pastureName, dateMovedIn, notes, movementId };
+        const prevPasture = (an.movements || [])[0]?.pastureName;
+        if (setNotes) journalEntries.push(createMovementJournalEntry(an, prevPasture, pastureName, dateMovedIn, notes, movementId));
         return { ...an, movements: [{ ...movePayload }, ...(an.movements || [])] };
       })
     );
+    if (setNotes && journalEntries.length > 0) setNotes(prev => [...journalEntries, ...prev]);
     setBulkFormType(null);
     setBulkForm({});
     if (pastureName) setRunningWithBullCheckPending({ pastureName });
@@ -3703,7 +3735,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
 }
 
 // ── Pastures ───────────────────────────────────────────────────────────────────
-function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewingAnimal, feederPrograms, gestations, setGestations }) {
+function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewingAnimal, feederPrograms, gestations, setGestations, notes, setNotes }) {
   const [showAddPasture, setShowAddPasture] = useState(false);
   const [newPastureName, setNewPastureName] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
@@ -3778,13 +3810,20 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
     const raw = bulkMoveTo?.trim();
     if (!raw || selectedIds.length === 0) return;
     const toPasture = resolvePastureName(raw, sortedNames);
-    const movePayload = { pastureName: toPasture, dateMovedIn: new Date().toISOString().split("T")[0], notes: bulkMoveNotes?.trim() || undefined };
+    const dateMovedIn = new Date().toISOString().split("T")[0];
+    const notes = bulkMoveNotes?.trim() || undefined;
+    const journalEntries = [];
     setAnimals(prev =>
       prev.map(an => {
         if (!selectedIds.includes(an.id)) return an;
+        const movementId = Date.now().toString() + "-" + an.id;
+        const movePayload = { pastureName: toPasture, dateMovedIn, notes, movementId };
+        const prevPasture = (an.movements || [])[0]?.pastureName;
+        if (setNotes) journalEntries.push(createMovementJournalEntry(an, prevPasture, toPasture, dateMovedIn, notes, movementId));
         return { ...an, movements: [{ ...movePayload }, ...(an.movements || [])] };
       })
     );
+    if (setNotes && journalEntries.length > 0) setNotes(prev => [...journalEntries, ...prev]);
     setRunningWithBullCheckPending({ pastureName: toPasture });
     setSelectedIds([]);
     setBulkMoveTo("");
@@ -3933,7 +3972,7 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
                         {getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}
                       </button>
                       <span style={{ fontSize: "12px", color: "var(--muted)" }}>{a.species}</span>
-                      <button type="button" onClick={e => { e.stopPropagation(); const next = (a.movements || []).slice(1); setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, movements: next } : an))); }} style={{ fontSize: "12px", color: "var(--muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }} title="Remove from pasture (no movement record)">Remove</button>
+                      <button type="button" onClick={e => { e.stopPropagation(); const removed = (a.movements || [])[0]; const next = (a.movements || []).slice(1); if (removed?.movementId && setNotes) setNotes(prev => prev.filter(n => n.movementId !== removed.movementId)); setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, movements: next } : an))); }} style={{ fontSize: "12px", color: "var(--muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }} title="Remove from pasture (no movement record)">Remove</button>
                     </div>
                   ))
                 )}
@@ -3949,7 +3988,7 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
         if (feedlotPenNames.length === 0) return null;
         return (
           <>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600, marginTop: "28px", marginBottom: "14px" }}>Feeder Program Pens</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600, marginTop: "28px", marginBottom: "14px" }}>Feedlot Pens</div>
             <div className="hl-pastures-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
               {feedlotPenNames.map(penName => {
                 const entries = withPen.filter(f => (f.penName || "").trim() === penName);
@@ -3963,13 +4002,14 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
                       {entries.map(fp => {
                         const animal = (animals || []).find(a => a.id === fp.animalId);
                         const daysOnFeed = feederDaysOnFeed(fp.startDate);
+                        const currentWeight = getLatestWeightForAnimal(animals, fp.animalId);
                         return (
-                          <div key={fp.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--brass2)", background: "rgba(201,149,42,0.15)", padding: "2px 6px", borderRadius: "4px", flexShrink: 0 }}>Feeder Program</span>
-                            <button type="button" onClick={() => { setTab("animals"); setViewingAnimal(animal); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: "14px", color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>
+                          <div key={fp.id} style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                            <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--brass2)", background: "rgba(201,149,42,0.15)", padding: "2px 6px", borderRadius: "4px", flexShrink: 0 }}>Feeder</span>
+                            <button type="button" onClick={() => { setTab("animals"); setViewingAnimal(animal); }} style={{ flex: "1 1 auto", minWidth: 0, textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: "14px", color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>
                               {animal ? getAnimalName(animal) : "—"}{animal?.tag ? ` #${animal.tag}` : ""}
                             </button>
-                            <span style={{ fontSize: "12px", color: "var(--muted)" }}>{daysOnFeed}d on feed</span>
+                            <span style={{ fontSize: "12px", color: "var(--muted)", whiteSpace: "nowrap" }}>{daysOnFeed}d on feed{currentWeight ? ` · ${currentWeight} lb` : ""}</span>
                           </div>
                         );
                       })}
@@ -3986,10 +4026,12 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
 }
 
 // ── Notes ─────────────────────────────────────────────────────────────────────
-function Notes({ notes, setNotes, user }) {
+function Notes({ notes, setNotes, user, animals = [] }) {
   const [newTitle, setNewTitle] = useState("");
   const [newBody, setNewBody] = useState("");
   const [showAdd, setShowAdd] = useState(false);
+  const [journalSearch, setJournalSearch] = useState("");
+  const [journalFilter, setJournalFilter] = useState("all"); // "all" | "manual" | "movement"
 
   function add() {
     if (!newBody.trim()) return;
@@ -3997,11 +4039,40 @@ function Notes({ notes, setNotes, user }) {
     setNewTitle(""); setNewBody(""); setShowAdd(false);
   }
 
+  const filteredNotes = (() => {
+    let list = notes;
+    if (journalFilter === "manual") list = list.filter(n => !n.movementId);
+    else if (journalFilter === "movement") list = list.filter(n => n.movementId);
+    if (!journalSearch.trim()) return list;
+    const q = journalSearch.trim().toLowerCase();
+    return list.filter(n => {
+      if ((n.title || "").toLowerCase().includes(q) || (n.body || "").toLowerCase().includes(q)) return true;
+      if (n.animalId && animals.length) {
+        const animal = animals.find(a => a.id === n.animalId);
+        if (animal && (getAnimalName(animal).toLowerCase().includes(q) || (animal.tag && String(animal.tag).toLowerCase().includes(q)))) return true;
+      }
+      return false;
+    });
+  })();
+
   return (
     <div className="hl-page hl-page-narrow hl-fade-in">
       <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ New Entry</Btn>}>
         Farm Journal
       </SectionTitle>
+
+      {(notes.length > 0 || showAdd) && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "center", marginBottom: "20px" }}>
+          <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+            <Input placeholder="Search by keyword, animal name, tag, or pasture..." value={journalSearch} onChange={e => setJournalSearch(e.target.value)} />
+          </div>
+          <Select value={journalFilter} onChange={e => setJournalFilter(e.target.value)} style={{ width: "auto", minWidth: "160px" }}>
+            <option value="all">All Entries</option>
+            <option value="manual">Manual Entries</option>
+            <option value="movement">Movement Entries</option>
+          </Select>
+        </div>
+      )}
 
       {showAdd && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
@@ -4022,11 +4093,12 @@ function Notes({ notes, setNotes, user }) {
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {notes.map(n => (
+        {filteredNotes.map(n => (
           <Card key={n.id} style={{ padding: "20px 24px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
               <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{n.title}</div>
               <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+                {n.movementId && <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--green)", background: "rgba(46,99,71,0.12)", padding: "2px 8px", borderRadius: "4px" }}>Movement</span>}
                 <span style={{ fontSize: "12px", color: "var(--muted)" }}>{fmt(n.date.split("T")[0])}</span>
                 <Btn size="sm" variant="ghost" onClick={() => setNotes(p => p.filter(x => x.id !== n.id))}>×</Btn>
               </div>
@@ -4036,6 +4108,9 @@ function Notes({ notes, setNotes, user }) {
           </Card>
         ))}
       </div>
+      {notes.length > 0 && filteredNotes.length === 0 && (
+        <p style={{ fontSize: "14px", color: "var(--muted)", marginTop: "8px" }}>No entries match your search or filter.</p>
+      )}
     </div>
   );
 }
@@ -4772,9 +4847,9 @@ function Settings({ settings, setSettings, onLogout, animals = [] }) {
 
         <Card style={{ padding: "24px", marginBottom: "20px" }}>
           <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Tab Visibility</div>
-          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>Show or hide tabs in the navigation. Settings is always visible.</p>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>Show or hide tabs in the navigation. Dashboard and Animals are always visible. Settings is always visible.</p>
           <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-            {TAB_OPTIONS.map(t => (
+            {TAB_OPTIONS.filter(t => t.id !== "dashboard" && t.id !== "animals").map(t => (
               <div key={t.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                 <span style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px" }}><span>{t.icon}</span> {t.label}</span>
                 <label style={{ display: "flex", alignItems: "center", cursor: "pointer" }}>
@@ -5095,8 +5170,8 @@ export default function App() {
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([
-    ...(visibility.dashboard !== false ? ["dashboard"] : []),
-    ...(visibility.animals !== false ? ["animals"] : []),
+    "dashboard",
+    "animals",
     ...(visibility.gestation !== false ? ["gestation"] : []),
     ...(visibility.feeder !== false ? ["feeder"] : []),
     ...(visibility.pastures !== false ? ["pastures"] : []),
@@ -5106,8 +5181,8 @@ export default function App() {
     "settings",
   ]);
   useEffect(() => {
-    if (!visibleTabIds.has(tab)) setTab(visibility.dashboard !== false ? "dashboard" : "settings");
-  }, [tab, visibility.dashboard, visibility.animals, visibility.gestation, visibility.feeder, visibility.pastures, visibility.notes, visibility.expenses, visibility.tasks]);
+    if (!visibleTabIds.has(tab)) setTab("dashboard");
+  }, [tab, visibility.gestation, visibility.feeder, visibility.pastures, visibility.notes, visibility.expenses, visibility.tasks]);
 
   if (user === null) {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
@@ -5127,11 +5202,11 @@ export default function App() {
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} expenses={expenses} tasks={tasks} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} notes={notes} setNotes={setNotes} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "feeder"    && <FeederCattle animals={animals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} />}
-      {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} gestations={gestations} setGestations={setGestations} />}
-      {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
+      {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} gestations={gestations} setGestations={setGestations} notes={notes} setNotes={setNotes} />}
+      {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} animals={animals} />}
       {tab === "expenses"  && <Expenses expenses={expenses} setExpenses={setExpenses} animals={animals} pastures={pastures} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
       {tab === "tasks"     && <Tasks tasks={tasks} setTasks={setTasks} animals={animals} gestations={gestations} offspring={offspring} pastures={pastures} setTab={setTab} />}
       {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} animals={animals} />}

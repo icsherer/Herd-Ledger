@@ -456,6 +456,51 @@
   }
 }
 
+/* Expenses list: flex row, description ellipsis; mobile: 3-line layout */
+.hl-expense-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.hl-expense-desc {
+  min-width: 0;
+}
+
+/* Desktop: amount + delete grouped on the right */
+.hl-expense-amount-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+@media (max-width: 480px) {
+  .hl-expense-meta {
+    order: 0;
+  }
+
+  .hl-expense-desc {
+    flex-basis: 100%;
+    order: 1;
+  }
+
+  .hl-expense-amount-line {
+    flex-basis: 100%;
+    order: 2;
+    margin-left: 0;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+  }
+
+  /* Single amount on mobile: hide running total */
+  .hl-expense-total {
+    display: none;
+  }
+}
+
 /* ── Animal profile page ───────────────────────────────────────────────────── */
 
 /* Consistent spacing between profile sections */

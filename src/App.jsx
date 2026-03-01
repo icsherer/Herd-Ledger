@@ -25,6 +25,49 @@ const PASTURE_SPECIES = ["Cattle", "Horse"];
 
 const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Notes"];
 
+/** Compress image to under maxBytes; returns data URL (base64). */
+function compressImageToBase64(file, maxBytes = 200 * 1024) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const maxDim = 800;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) {
+          h = Math.round((h * maxDim) / w);
+          w = maxDim;
+        } else {
+          w = Math.round((w * maxDim) / h);
+          h = maxDim;
+        }
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      let quality = 0.82;
+      const tryEncode = () => {
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        const base64Length = dataUrl.split(",")[1]?.length ?? 0;
+        const bytes = Math.floor((base64Length * 3) / 4);
+        if (bytes <= maxBytes || quality <= 0.2) return resolve(dataUrl);
+        quality = Math.max(0.2, quality - 0.15);
+        tryEncode();
+      };
+      tryEncode();
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Failed to load image"));
+    };
+    img.src = url;
+  });
+}
+
 const TREATMENT_TYPES = ["Illness", "Injury", "Medication", "Deworming", "Vitamin/Supplement", "Vet Visit", "Other"];
 /** Treatment type → expense category for auto-created expense when cost is entered */
 const TREATMENT_TYPE_TO_EXPENSE_CATEGORY = {
@@ -1017,6 +1060,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [importSuccess, setImportSuccess] = useState(null);
   const [importDragActive, setImportDragActive] = useState(false);
   const importFileInputRef = useRef(null);
+  const animalPhotoInputRef = useRef(null);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [registerMode, setRegisterMode] = useState("single"); // "single" | "bulk"
   const [bulkRegisterForm, setBulkRegisterForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
@@ -1687,7 +1732,53 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
         <Card className="hl-card-no-padding" style={{ padding: "0", overflow: "hidden" }}>
           <div className="hl-detail-header" style={{ background: "var(--green)", padding: "28px 32px", display: "flex", alignItems: "center", gap: "20px" }}>
-            <div style={{ fontSize: "52px", flexShrink: 0 }}>{SPECIES[a.species]?.emoji}</div>
+            <div className="hl-animal-profile-photo-wrap" style={{ position: "relative", flexShrink: 0 }}>
+              <div className="hl-animal-profile-photo" style={{ width: "96px", height: "96px", borderRadius: "50%", overflow: "hidden", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", border: "3px solid rgba(255,255,255,0.4)" }}>
+                {a.photo ? (
+                  <img src={a.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                ) : (
+                  <span style={{ fontSize: "48px" }}>{SPECIES[a.species]?.emoji}</span>
+                )}
+              </div>
+              <input
+                ref={animalPhotoInputRef}
+                type="file"
+                accept="image/*"
+                style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+                aria-hidden="true"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  setPhotoUploading(true);
+                  try {
+                    const dataUrl = await compressImageToBase64(file);
+                    const updated = { ...a, photo: dataUrl };
+                    setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                    setViewing(updated);
+                  } catch (err) {
+                    alert(err?.message || "Failed to process image");
+                  } finally {
+                    setPhotoUploading(false);
+                    e.target.value = "";
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => animalPhotoInputRef.current?.click()}
+                disabled={photoUploading}
+                className="hl-animal-photo-btn"
+                style={{ position: "absolute", bottom: 0, right: 0, width: "32px", height: "32px", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.9)", background: "var(--green)", color: "#fff", cursor: photoUploading ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
+                title="Add or change photo"
+                aria-label="Add or change photo"
+              >
+                {photoUploading ? (
+                  <span style={{ fontSize: "14px" }}>…</span>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                )}
+              </button>
+            </div>
             <div style={{ minWidth: 0, flex: "1 1 auto" }}>
               <div className="hl-detail-name" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{getAnimalName(a)}</div>
               <div className="hl-detail-meta" style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{(() => { const runningWith = getRunningWithMaleForFemale(a, animals); return runningWith ? ` · Running with ${getAnimalName(runningWith)}` : ""; })()}</div>
@@ -3148,7 +3239,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                       <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleBulkSelect(a.id)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", cursor: "pointer" }} />
                     </div>
                   )}
-                  <div className="hl-animals-list-cell hl-animals-list-emoji">{SPECIES[a.species]?.emoji}</div>
+                  <div className="hl-animals-list-cell hl-animals-list-emoji">
+                    {a.photo ? (
+                      <img src={a.photo} alt="" style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "cover", display: "block" }} />
+                    ) : (
+                      <span>{SPECIES[a.species]?.emoji}</span>
+                    )}
+                  </div>
                   <div className="hl-animals-list-cell hl-animals-list-name-dot">
                     <span className="hl-animals-list-name" style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(a)}</span>
                     {!a.deceased ? (
@@ -3209,7 +3306,11 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 {!a.deceased && (
                   <span style={{ width: "10px", height: "10px", flexShrink: 0, borderRadius: "50%", background: getHealthStatus(a) === "red" ? "var(--danger2)" : getHealthStatus(a) === "yellow" ? "var(--brass2)" : "var(--green3)", boxShadow: "0 0 0 2px #fff" }} title={getHealthStatus(a) === "red" ? "Recent illness" : getHealthStatus(a) === "yellow" ? "Treatment in last 30 days" : "No recent issues"} />
                 )}
-                <span style={{ fontSize: "28px" }}>{SPECIES[a.species]?.emoji}</span>
+                {a.photo ? (
+                  <img src={a.photo} alt="" style={{ width: "40px", height: "40px", borderRadius: "8px", objectFit: "cover", flexShrink: 0 }} />
+                ) : (
+                  <span style={{ fontSize: "28px" }}>{SPECIES[a.species]?.emoji}</span>
+                )}
               </div>
               {a.name && a.tag && !a.deceased && <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>#{a.tag}</span>}
             </div>
@@ -4520,25 +4621,33 @@ function Expenses({ expenses, setExpenses, animals, pastures, setTab, setViewing
             {sortedExpenses.map((e, i) => {
               const runningTotal = sortedExpenses.slice(0, i + 1).reduce((s, x) => s + (Number(x.amount) || 0), 0);
               const animal = e.animalId ? (animals || []).find(a => a.id === e.animalId) : null;
+              const baseDesc = e.description || e.category || "—";
+              const animalName = animal ? getAnimalName(animal) : "";
+              const descLine = animalName && baseDesc.toLowerCase().indexOf(animalName.toLowerCase()) === -1
+                ? `${baseDesc} — ${animalName}`
+                : baseDesc;
               return (
-                <div key={e.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 20px", borderBottom: "1px solid var(--cream2)", background: i % 2 === 0 ? "#fff" : "var(--cream)" }}>
-                  <div style={{ flex: "0 0 100px", fontSize: "13px", color: "var(--muted)" }}>{e.date ? fmt(e.date) : "—"}</div>
-                  <div style={{ flex: "0 0 100px" }}>
-                    <Badge color="var(--brass2)">{e.category || "Other"}</Badge>
+                <div key={e.id} className="hl-expense-row" style={{ padding: "12px 20px", borderBottom: "1px solid var(--cream2)", background: i % 2 === 0 ? "#fff" : "var(--cream)" }}>
+                  <div className="hl-expense-meta" style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+                    <div className="hl-expense-date" style={{ flex: "0 0 100px", fontSize: "13px", color: "var(--muted)" }}>{e.date ? fmt(e.date) : "—"}</div>
+                    <div style={{ flex: "0 0 auto" }}>
+                      <Badge color="var(--brass2)">{e.category || "Other"}</Badge>
+                    </div>
                   </div>
-                  <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: "14px" }}>{e.description || "—"}</div>
-                    {(e.vendorPayee || animal || e.pastureName) && (
-                      <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>
-                        {e.vendorPayee && <span>{e.vendorPayee}</span>}
-                        {animal && <span>{e.vendorPayee ? " · " : ""}{getAnimalName(animal)}</span>}
-                        {e.pastureName && <span>{e.vendorPayee || animal ? " · " : ""}{e.pastureName}</span>}
-                      </div>
-                    )}
+                  <div className="hl-expense-desc" style={{ flex: "1 1 auto", minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{descLine}</div>
                   </div>
-                  <div style={{ flex: "0 0 90px", textAlign: "right", fontWeight: 600 }}>${(Number(e.amount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-                  <div style={{ flex: "0 0 80px", textAlign: "right", fontSize: "12px", color: "var(--muted)" }}>${runningTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-                  <Btn size="sm" variant="ghost" onClick={() => deleteExpense(e.id)} style={{ padding: "4px 8px", minWidth: 0 }} title="Delete">×</Btn>
+                  <div className="hl-expense-amount-line">
+                    <div className="hl-expense-amount-block" style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+                      <div style={{ flex: "0 0 90px", textAlign: "right", fontWeight: 600 }}>${(Number(e.amount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+                      <div className="hl-expense-total" style={{ flex: "0 0 80px", textAlign: "right", fontSize: "12px", color: "var(--muted)" }}>${runningTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+                    </div>
+                    <div className="hl-expense-delete" style={{ flexShrink: 0 }}>
+                      <button type="button" onClick={() => deleteExpense(e.id)} title="Delete" className="hl-expense-trash-btn" style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "var(--muted)", display: "inline-flex", alignItems: "center", justifyContent: "center" }} aria-label="Delete expense">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               );
             })}

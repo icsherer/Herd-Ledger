@@ -92,17 +92,17 @@ function getHealthStatus(animal) {
 }
 
 const SPECIES_SEX_OPTIONS = {
-  Cattle: ["Bull", "Cow", "Heifer", "Steer", "Calf"],
-  Chicken: ["Rooster", "Hen", "Pullet", "Capon", "Chick"],
-  Horse: ["Stallion", "Mare", "Filly", "Colt", "Gelding"],
-  Pig: ["Boar", "Sow", "Gilt", "Barrow", "Piglet"],
-  Sheep: ["Ram", "Ewe", "Ewe Lamb", "Wether", "Lamb"],
-  Goat: ["Buck", "Doe", "Doeling", "Wether", "Kid"],
-  Llama: ["Male", "Female", "Cria"],
-  Alpaca: ["Male", "Female", "Cria"],
-  Donkey: ["Jack", "Jenny", "Foal", "Gelding"],
-  Mule: ["Jack", "Jenny", "Foal", "Gelding"],
-  Rabbit: ["Buck", "Doe", "Kitten"],
+  Cattle: ["Bull", "Cow", "Heifer", "Steer"],
+  Chicken: ["Rooster", "Hen", "Capon"],
+  Horse: ["Stallion", "Mare", "Gelding"],
+  Pig: ["Boar", "Sow", "Gilt", "Barrow"],
+  Sheep: ["Ram", "Ewe", "Wether"],
+  Goat: ["Buck", "Doe", "Wether"],
+  Llama: ["Male", "Female"],
+  Alpaca: ["Male", "Female"],
+  Donkey: ["Jack", "Jenny", "Gelding"],
+  Mule: ["Jack", "Jenny", "Gelding"],
+  Rabbit: ["Buck", "Doe"],
   Dog: ["Male", "Female"],
   Cat: ["Male", "Female"],
 };
@@ -315,6 +315,21 @@ function ageFromDobMonths(months) {
   if (months >= 1) return `${months} month${months === 1 ? "" : "s"}`;
   return "Under 1 month";
 }
+function getAgeInMonths(dobStr) {
+  if (!dobStr) return null;
+  const birth = new Date(dobStr + "T12:00:00");
+  const now = new Date();
+  let months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
+  if (now.getDate() < birth.getDate()) months--;
+  return months < 0 ? null : months;
+}
+function getAgeInWeeks(dobStr) {
+  if (!dobStr) return null;
+  const birth = new Date(dobStr + "T12:00:00").getTime();
+  const now = Date.now();
+  const weeks = Math.floor((now - birth) / (7 * 86400000));
+  return weeks < 0 ? null : weeks;
+}
 
 const CASTRATED_TERM_BY_SPECIES = {
   Cattle: "Steer",
@@ -356,19 +371,53 @@ const FEMALE_BRED_BY_SPECIES = {
   Goat: "Doe",
 };
 
-function displaySex(animal, gestations) {
+/** Age-based sex/status term for display. Castrated always shows castrated term; no DOB uses stored sex; else species rules. */
+function getAgeBasedSexTerm(animal, gestations) {
   if (!animal) return "—";
-  if (animal.castration && isMale(animal)) {
-    return CASTRATED_TERM_BY_SPECIES[animal.species] ?? "Castrated";
+  const species = animal.species || "Cattle";
+  const isMaleStored = SEX_TERM_GENDER[animal.sex] === "Male";
+  const isFemaleStored = SEX_TERM_GENDER[animal.sex] === "Female";
+  const castrated = animal.castration && isMaleStored;
+  if (castrated) return CASTRATED_TERM_BY_SPECIES[species] ?? "Castrated";
+  if (!animal.dob) return animal.sex || "—";
+  const months = getAgeInMonths(animal.dob);
+  const weeks = getAgeInWeeks(animal.dob);
+  if (months == null) return animal.sex || "—";
+  const hasBredOrCalved = gestations?.some(g => g.animalId === animal.id);
+
+  switch (species) {
+    case "Cattle":
+      if (months < 6) return isMaleStored ? "Bull Calf" : "Heifer Calf";
+      if (months < 24) return isMaleStored ? "Yearling Bull" : "Heifer";
+      return isMaleStored ? "Bull" : (hasBredOrCalved ? "Cow" : "Heifer");
+    case "Horse":
+      if (months < 12) return isMaleStored ? "Colt Foal" : "Filly Foal";
+      if (months < 48) return isMaleStored ? "Colt" : "Filly";
+      return isMaleStored ? "Stallion" : "Mare";
+    case "Pig":
+      if (months < 2) return "Piglet"; // 0–8 weeks
+      if (isMaleStored) return "Boar";
+      if (months < 6) return "Gilt";
+      return hasBredOrCalved ? "Sow" : "Gilt";
+    case "Sheep":
+      if (months < 6) return "Lamb";
+      return isFemaleStored ? "Ewe" : "Ram";
+    case "Goat":
+      if (months < 6) return isFemaleStored ? "Doeling" : "Buckling";
+      return isFemaleStored ? "Doe" : "Buck";
+    case "Chicken":
+      if (weeks != null && weeks < 16) return isFemaleStored ? "Pullet" : "Cockerel";
+      return isFemaleStored ? "Hen" : "Rooster";
+    case "Rabbit":
+      if (months < 3) return "Kit";
+      return isFemaleStored ? "Doe" : "Buck";
+    default:
+      return animal.sex || "—";
   }
-  if (isFemale(animal)) {
-    const hasBreedingRecord = gestations?.some(g => g.animalId === animal.id);
-    if (hasBreedingRecord) {
-      return FEMALE_BRED_BY_SPECIES[animal.species] ?? animal.sex ?? "Female";
-    }
-    return FEMALE_MAIDEN_BY_SPECIES[animal.species] ?? animal.sex ?? "Female";
-  }
-  return animal.sex || "—";
+}
+
+function displaySex(animal, gestations) {
+  return getAgeBasedSexTerm(animal, gestations);
 }
 
 function getAnimalName(animal) {
@@ -2291,8 +2340,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                           </div>
                         </div>
                         <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-                          {c.sex && <span>{c.sex}</span>}
-                          {c.birthWeight && <span>{c.sex ? " · " : ""}{c.birthWeight} lbs at birth</span>}
+                          {(c.sex || c.dob) && (() => { const term = getAgeBasedSexTerm({ ...c, species: c.species || a.species }, []); return term !== "—" ? <span>{term}</span> : null; })()}
+                          {c.birthWeight && <span>{(c.sex || c.dob) ? " · " : ""}{c.birthWeight} lbs at birth</span>}
                         </div>
                         {(c.dob || c.weaningDate) && (
                           <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
@@ -2329,9 +2378,9 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                         onChange={e => setOffspringForm(p => ({ ...p, sex: e.target.value }))}
                       >
                         <option value="">— Select —</option>
-                        <option>Female</option>
-                        <option>Male</option>
-                        <option>Steer</option>
+                        {(getSexOptions(offspringForm.species || a.species) || []).map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
                       </Select>
                       <Select
                         label="Species"
@@ -2674,7 +2723,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               {offspringForMother.map(c => (
                 <div key={c.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
                   {c.stillborn ? "Stillborn" : (c.name || "Unnamed")}{!c.stillborn && c.tag ? ` #${c.tag}` : ""}
-                  {c.sex && ` · ${c.sex}`}
+                  {(() => { const term = getAgeBasedSexTerm({ ...c, species: c.species || a.species }, []); return term !== "—" ? ` · ${term}` : null; })()}
                   {c.dob && ` · Born ${fmt(c.dob)}`}
                   {c.weaningDate && ` · Wean ${fmt(c.weaningDate)}`}
                 </div>
@@ -3708,9 +3757,9 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
               <Input label="Tag / ID" value={calfForm.tag} onChange={e => setCalfForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1043" />
               <Select label="Sex" value={calfForm.sex} onChange={e => setCalfForm(p => ({ ...p, sex: e.target.value }))}>
                 <option value="">— Select —</option>
-                <option>Female</option>
-                <option>Male</option>
-                <option>Steer</option>
+                {(getSexOptions(animal?.species) || []).map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
               </Select>
               <Input label="Birth Weight (lbs)" type="number" value={calfForm.birthWeight} onChange={e => setCalfForm(p => ({ ...p, birthWeight: e.target.value }))} placeholder="e.g. 85" />
               <Input label="Target Weaning Date" type="date" value={calfForm.weaningDate} onChange={e => setCalfForm(p => ({ ...p, weaningDate: e.target.value }))} />
@@ -3824,7 +3873,7 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
                       {g.calf.stillborn && <div><span style={{ color: "var(--muted)" }}>Status:</span> <strong>Stillborn</strong></div>}
                       {g.calf.name && <div><span style={{ color: "var(--muted)" }}>Name:</span> <strong>{g.calf.name}</strong></div>}
                       {g.calf.tag && <div><span style={{ color: "var(--muted)" }}>Tag:</span> <strong>#{g.calf.tag}</strong></div>}
-                      {g.calf.sex && <div><span style={{ color: "var(--muted)" }}>Sex:</span> <strong>{g.calf.sex}</strong></div>}
+                      {(g.calf.sex || g.calf.dob) && (() => { const term = getAgeBasedSexTerm({ ...g.calf, species: animal?.species }, []); return term !== "—" ? <div><span style={{ color: "var(--muted)" }}>Sex:</span> <strong>{term}</strong></div> : null; })()}
                       {g.calf.birthWeight && <div><span style={{ color: "var(--muted)" }}>Birth Weight:</span> <strong>{g.calf.birthWeight} lbs</strong></div>}
                       {g.calf.weaningDate && <div><span style={{ color: "var(--muted)" }}>Weaning:</span> <strong>{fmt(g.calf.weaningDate)}</strong></div>}
                     </div>

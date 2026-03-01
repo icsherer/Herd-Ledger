@@ -7,6 +7,7 @@ import Auth, { ResetPasswordPage } from "./Auth";
 // ── Species Data ──────────────────────────────────────────────────────────────
 const SPECIES = {
   Cattle:  { days: 283, emoji: "🐄" },
+  Bison:   { days: 283, emoji: "🦬" },
   Chicken: { days: 21,  emoji: "🐓" },
   Horse:   { days: 340, emoji: "🐎" },
   Pig:     { days: 114, emoji: "🐖" },
@@ -93,6 +94,7 @@ function getHealthStatus(animal) {
 
 const SPECIES_SEX_OPTIONS = {
   Cattle: ["Bull", "Cow", "Heifer", "Steer"],
+  Bison: ["Bull", "Cow", "Heifer", "Steer"],
   Chicken: ["Rooster", "Hen", "Capon"],
   Horse: ["Stallion", "Mare", "Gelding"],
   Pig: ["Boar", "Sow", "Gilt", "Barrow"],
@@ -109,22 +111,70 @@ const SPECIES_SEX_OPTIONS = {
 
 const SEX_TERM_GENDER = {
   Bull: "Male", Cow: "Female", Heifer: "Female", Steer: "Male", Calf: "Female",
-  Rooster: "Male", Hen: "Female", Pullet: "Female", Capon: "Male", Chick: "Female",
+  "Heifer Calf": "Female", "Bull Calf": "Male",
+  Rooster: "Male", Hen: "Female", Pullet: "Female", Capon: "Male", Chick: "Female", Cockerel: "Male",
   Stallion: "Male", Mare: "Female", Filly: "Female", Colt: "Male", Gelding: "Male",
+  "Filly Foal": "Female", "Colt Foal": "Male",
   Boar: "Male", Sow: "Female", Gilt: "Female", Barrow: "Male", Piglet: "Female",
-  Ram: "Male", Ewe: "Female", "Ewe Lamb": "Female", Wether: "Male", Lamb: "Female",
-  Buck: "Male", Doe: "Female", Doeling: "Female", Kid: "Female",
-  Male: "Male", Female: "Female", Cria: "Female",
+  Ram: "Male", Ewe: "Female", "Ewe Lamb": "Female", "Ram Lamb": "Male", Wether: "Male", Lamb: "Female",
+  Buck: "Male", Doe: "Female", Doeling: "Female", Buckling: "Male", Kid: "Female",
+  Male: "Male", Female: "Female", Cria: "Female", "Female Cria": "Female", "Male Cria": "Male",
   Jack: "Male", Jenny: "Female", Foal: "Female",
-  Kitten: "Female",
+  "Doe Kit": "Female", "Buck Kit": "Male", Kitten: "Female", Kit: "Female",
+  "Female Puppy": "Female", "Male Puppy": "Male", "Female Kitten": "Female", "Male Kitten": "Male",
 };
 
 function getSexOptions(species) {
   return SPECIES_SEX_OPTIONS[species] || SPECIES_SEX_OPTIONS.Cattle;
 }
 
+/** Young/offspring sex options only (no adult terms like Bull, Cow). Use in Add Offspring form. */
+const OFFSPRING_SEX_OPTIONS = {
+  Cattle: ["Heifer Calf", "Bull Calf"],
+  Bison: ["Heifer Calf", "Bull Calf"],
+  Chicken: ["Pullet", "Cockerel"],
+  Horse: ["Filly Foal", "Colt Foal"],
+  Pig: ["Gilt", "Barrow"],
+  Sheep: ["Ewe Lamb", "Ram Lamb"],
+  Goat: ["Doeling", "Buckling"],
+  Llama: ["Female Cria", "Male Cria"],
+  Alpaca: ["Female Cria", "Male Cria"],
+  Donkey: ["Filly Foal", "Colt Foal"],
+  Mule: ["Filly Foal", "Colt Foal"],
+  Rabbit: ["Doe Kit", "Buck Kit"],
+  Dog: ["Female Puppy", "Male Puppy"],
+  Cat: ["Female Kitten", "Male Kitten"],
+};
+
+/** Default young female term per species for new offspring. */
+const OFFSPRING_DEFAULT_SEX = {
+  Cattle: "Heifer Calf",
+  Bison: "Heifer Calf",
+  Chicken: "Pullet",
+  Horse: "Filly Foal",
+  Pig: "Gilt",
+  Sheep: "Ewe Lamb",
+  Goat: "Doeling",
+  Llama: "Female Cria",
+  Alpaca: "Female Cria",
+  Rabbit: "Doe Kit",
+  Donkey: "Filly Foal",
+  Mule: "Filly Foal",
+  Dog: "Female Puppy",
+  Cat: "Female Kitten",
+};
+
+function getOffspringSexOptions(species) {
+  return OFFSPRING_SEX_OPTIONS[species] || OFFSPRING_SEX_OPTIONS.Cattle;
+}
+
+function getOffspringDefaultSex(species) {
+  return OFFSPRING_DEFAULT_SEX[species] || getOffspringSexOptions(species)?.[0] || "Heifer Calf";
+}
+
 const OFFSPRING_TERM_BY_SPECIES = {
   Cattle: "Calf",
+  Bison: "Calf",
   Horse: "Foal",
   Pig: "Piglet",
   Sheep: "Lamb",
@@ -221,11 +271,31 @@ function getSeason(d = new Date()) {
   return "Autumn";
 }
 
+const ALMANAC_WISDOM_QUOTES = [
+  "The farmer is the only man in our economy who buys everything at retail, sells everything at wholesale, and pays the freight both ways. — John F. Kennedy",
+  "A bad year for the farmer is a bad year for everybody. — Old farming proverb",
+  "When the well is dry, we know the worth of water. — Benjamin Franklin",
+  "He that by the plow would thrive, himself must either hold or drive. — Benjamin Franklin",
+  "The cattle are lowing, the baby awakes — tend your herd and your blessings will multiply. — Old stockman proverb",
+  "A calf born in the storm is tougher than one born in the sunshine. — Ranch proverb",
+  "Count your calves before you count your profits. — Cattle rancher saying",
+  "A fence that keeps cattle in also keeps trouble out. — Ranch proverb",
+  "The best fertilizer is the farmer's shadow. — Old farming proverb",
+  "Good grass makes good cattle. — Rancher proverb",
+  "A wet spring and a dry summer makes a full barn. — Old weather proverb",
+  "The morning hour has gold in its mouth. — German farming proverb",
+  "A barn full of hay is better than a field full of promises. — Farming proverb",
+  "Take care of the land and the land will take care of you. — Native American proverb",
+  "Bulls may come and go but the herd goes on forever. — Old stockman saying",
+  "The strength of the herd is the individual animal, and the strength of the individual animal is the herd. — Adapted ranch proverb",
+  "He who sows courtesy reaps friendship, and he who plants kindness gathers love. — Saint Basil",
+];
+
 const TIPS = {
-  Winter: ["A ring round the moon foretells rain within three days.","Feed extra grain when the cold bites deep.","Trust the woolly bear — a thick coat means hard winter ahead.","Count your stores twice; winter is long and forgiving of nothing."],
-  Spring: ["Plant above-ground crops under a waxing moon.","A warm March foretells a cold May — do not thin your stores early.","Spring lambs born at full moon tend to grow the sturdiest.","Listen to the robins; when they return, the last frost is near."],
-  Summer: ["When cows lie down before noon, rain comes soon.","Morning dew means a dry afternoon.","Shear before the Dog Days — shorn sheep fare better in heat.","Watch the swallows; low flight means rain before nightfall."],
-  Autumn: ["Mark your breeding dates carefully — spring arrives quickly.","Stock the hayloft full; winter feeds the heaviest animals hardest.","Thicker woolly bears predict harsher winters.","Harvest when the moon wanes for longest storage."],
+  Winter: ["A ring round the moon foretells rain within three days.", "Feed extra grain when the cold bites deep.", "Trust the woolly bear — a thick coat means hard winter ahead.", "Count your stores twice; winter is long and forgiving of nothing.", ...ALMANAC_WISDOM_QUOTES],
+  Spring: ["Plant above-ground crops under a waxing moon.", "A warm March foretells a cold May — do not thin your stores early.", "Spring lambs born at full moon tend to grow the sturdiest.", "Listen to the robins; when they return, the last frost is near.", ...ALMANAC_WISDOM_QUOTES],
+  Summer: ["When cows lie down before noon, rain comes soon.", "Morning dew means a dry afternoon.", "Shear before the Dog Days — shorn sheep fare better in heat.", "Watch the swallows; low flight means rain before nightfall.", ...ALMANAC_WISDOM_QUOTES],
+  Autumn: ["Mark your breeding dates carefully — spring arrives quickly.", "Stock the hayloft full; winter feeds the heaviest animals hardest.", "Thicker woolly bears predict harsher winters.", "Harvest when the moon wanes for longest storage.", ...ALMANAC_WISDOM_QUOTES],
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -1415,12 +1485,13 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     function saveOffspring() {
       const isEdit = !!editingOffspringId;
       const stillborn = !!offspringForm.stillborn;
+      const effectiveSex = (offspringForm.sex && String(offspringForm.sex).trim()) ? offspringForm.sex : getOffspringDefaultSex(offspringForm.species || a.species);
       const rec = {
         id: isEdit ? editingOffspringId : Date.now().toString(),
         motherId: a.id,
         name: offspringForm.name || undefined,
         tag: offspringForm.tag || undefined,
-        sex: offspringForm.sex || undefined,
+        sex: effectiveSex,
         species: offspringForm.species || a.species,
         birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
         dob: offspringForm.dob || undefined,
@@ -1445,7 +1516,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           id: rec.id,
           name: offspringForm.name || undefined,
           tag: offspringForm.tag || undefined,
-          sex: offspringForm.sex || undefined,
+          sex: effectiveSex,
           species: offspringForm.species || a.species,
           dob: offspringForm.dob || undefined,
           breed: a.breed || undefined,
@@ -1462,7 +1533,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         const calfData = {
           name: offspringForm.name || undefined,
           tag: offspringForm.tag || undefined,
-          sex: offspringForm.sex || undefined,
+          sex: effectiveSex,
           birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
           weaningDate: offspringForm.weaningDate || undefined,
           stillborn,
@@ -2361,7 +2432,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                       setOffspringForm({
                         name: "",
                         tag: "",
-                        sex: "",
+                        sex: getOffspringDefaultSex(a.species),
                         species: a.species,
                         birthWeight: "",
                         dob: "",
@@ -2390,7 +2461,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                             </div>
                           </div>
                           <div style={{ display: "flex", gap: "6px" }}>
-                            <Btn size="sm" variant="ghost" onClick={() => { setEditingOffspringId(c.id); setOffspringForm({ name: c.name || "", tag: c.tag || "", sex: c.sex || "", species: c.species || a.species || "", birthWeight: c.birthWeight != null ? String(c.birthWeight) : "", dob: c.dob || "", weaningDate: c.weaningDate || "", stillborn: !!c.stillborn }); setShowOffspringForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { const sp = c.species || a.species || ""; setEditingOffspringId(c.id); setOffspringForm({ name: c.name || "", tag: c.tag || "", sex: (c.sex && String(c.sex).trim()) ? c.sex : getOffspringDefaultSex(sp), species: sp, birthWeight: c.birthWeight != null ? String(c.birthWeight) : "", dob: c.dob || "", weaningDate: c.weaningDate || "", stillborn: !!c.stillborn }); setShowOffspringForm(true); }}>Edit</Btn>
                             <Btn size="sm" variant="ghost" onClick={() => deleteOffspring(c.id)}>Delete</Btn>
                           </div>
                         </div>
@@ -2427,20 +2498,24 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                         onChange={e => setOffspringForm(p => ({ ...p, tag: e.target.value }))}
                         placeholder="e.g. 2043"
                       />
-                      <Select
-                        label="Sex"
-                        value={offspringForm.sex}
-                        onChange={e => setOffspringForm(p => ({ ...p, sex: e.target.value }))}
-                      >
-                        <option value="">— Select —</option>
-                        {(getSexOptions(offspringForm.species || a.species) || []).map(opt => (
-                          <option key={opt} value={opt}>{opt}</option>
-                        ))}
-                      </Select>
+                      <div style={{ borderLeft: (offspringForm.sex || getOffspringDefaultSex(offspringForm.species || a.species)) === getOffspringDefaultSex(offspringForm.species || a.species) ? "4px solid var(--brass)" : "4px solid transparent", borderRadius: "var(--radius)", paddingLeft: "4px", marginLeft: "-4px" }}>
+                        <Select
+                          label="Sex (default is pre-selected)"
+                          value={offspringForm.sex || getOffspringDefaultSex(offspringForm.species || a.species)}
+                          onChange={e => setOffspringForm(p => ({ ...p, sex: e.target.value }))}
+                        >
+                          {(getOffspringSexOptions(offspringForm.species || a.species) || []).map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </Select>
+                      </div>
                       <Select
                         label="Species"
                         value={offspringForm.species || a.species}
-                        onChange={e => setOffspringForm(p => ({ ...p, species: e.target.value }))}
+                        onChange={e => {
+                          const newSpecies = e.target.value;
+                          setOffspringForm(p => ({ ...p, species: newSpecies, sex: getOffspringDefaultSex(newSpecies) }));
+                        }}
                       >
                         {Object.keys(SPECIES).map(s => (
                           <option key={s}>{s}</option>
@@ -2487,8 +2562,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                           setOffspringForm({
                             name: "",
                             tag: "",
-                            sex: "",
-                            species: "",
+                            sex: getOffspringDefaultSex(a.species),
+                            species: a.species,
                             birthWeight: "",
                             dob: "",
                             weaningDate: "",
@@ -5515,6 +5590,144 @@ function Sales({ animals, loadSales, setLoadSales, expenses }) {
   );
 }
 
+// ── Help ───────────────────────────────────────────────────────────────────────
+const HELP_SECTIONS = [
+  {
+    id: "getting-started",
+    title: "Getting Started",
+    content: (
+      <>
+        <p style={{ marginBottom: "12px", lineHeight: 1.65, color: "var(--ink2)" }}>Welcome to Herd Ledger, your free livestock management app.</p>
+        <p style={{ marginBottom: "12px", lineHeight: 1.65, color: "var(--ink2)" }}><strong>How to register your first animal:</strong> tap the Animals tab, tap Register Animals, fill in the details.</p>
+        <p style={{ marginBottom: 0, lineHeight: 1.65, color: "var(--ink2)" }}><strong>How to navigate the tabs:</strong> Dashboard, Animals, Gestation, Pastures, Feeder Program, Expenses, Sales, Journal, Settings.</p>
+      </>
+    ),
+  },
+  {
+    id: "install",
+    title: "Install on Your Phone",
+    content: (
+      <>
+        <p style={{ marginBottom: "10px", lineHeight: 1.65, color: "var(--ink2)" }}><strong>iPhone:</strong> Open app.herdledger.app in Safari → tap the Share button at the bottom of the screen → tap Add to Home Screen → tap Add. The app will appear on your home screen like a native app.</p>
+        <p style={{ marginBottom: 0, lineHeight: 1.65, color: "var(--ink2)" }}><strong>Android:</strong> Open app.herdledger.app in Chrome → tap the three dot menu in the top right → tap Add to Home Screen → tap Add.</p>
+      </>
+    ),
+  },
+  {
+    id: "features",
+    title: "Features Guide",
+    content: (
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {[
+          { label: "Dashboard", text: "Overview of your herd, upcoming events, financials summary." },
+          { label: "Animals", text: "Register, view, and manage all your livestock. Switch between tile and list view. Import animals from Excel or CSV." },
+          { label: "Gestation", text: "Track pregnancies, due dates, and calving history." },
+          { label: "Pastures", text: "Manage pasture assignments and track animal movements." },
+          { label: "Feeder Program", text: "Enroll animals in feeding programs, track days on feed, and calculate profitability." },
+          { label: "Expenses", text: "Log all farm expenses by category, track monthly and annual totals." },
+          { label: "Sales", text: "Record individual and group sales, track net gain, export for taxes." },
+          { label: "Journal", text: "Searchable log of farm notes and animal movement history." },
+        ].map(({ label, text }) => (
+          <li key={label} style={{ marginBottom: "14px", paddingLeft: "0", lineHeight: 1.6 }}>
+            <span style={{ fontWeight: 600, color: "var(--green)", display: "inline-block", marginBottom: "2px" }}>{label}:</span>
+            <span style={{ color: "var(--ink2)" }}> {text}</span>
+          </li>
+        ))}
+      </ul>
+    ),
+  },
+  {
+    id: "faq",
+    title: "Frequently Asked Questions",
+    content: (
+      <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
+        {[
+          { q: "Is Herd Ledger free?", a: "Yes, completely free while in beta. All current users will be grandfathered in when paid plans launch." },
+          { q: "Is my data safe?", a: "Yes, all data is stored securely in the cloud and synced across all your devices." },
+          { q: "Can I use it on multiple devices?", a: "Yes, log in with the same account on any device." },
+          { q: "How do I import existing animals?", a: "Use the Import Animals button on the Animals tab to upload a CSV or Excel file." },
+          { q: "Is there an app store version coming?", a: "Yes, iOS and Android apps are coming soon." },
+          { q: "How do I log a group or load sale?", a: "Go to the Sales tab and use the Group Sale button." },
+          { q: "Can multiple people on my farm use it?", a: "Multi-user support is coming soon." },
+          { q: "What species does Herd Ledger support?", a: "Cattle, Horses, Pigs, Sheep, Goats, Llamas, Alpacas, Rabbits, Dogs, Cats, Chickens, Bison, and Donkeys." },
+        ].map(({ q, a }) => (
+          <li key={q} style={{ marginBottom: "16px" }}>
+            <div style={{ fontWeight: 600, color: "var(--ink)", marginBottom: "4px" }}>{q}</div>
+            <div style={{ color: "var(--ink2)", lineHeight: 1.6, fontSize: "14px" }}>{a}</div>
+          </li>
+        ))}
+      </ul>
+    ),
+  },
+  {
+    id: "contact",
+    title: "Contact & Feedback",
+    content: (
+      <>
+        <p style={{ marginBottom: "16px", lineHeight: 1.65, color: "var(--ink2)" }}>We build features based on your feedback. Every suggestion is read personally.</p>
+        <a href="mailto:support@herdledger.app?subject=Herd%20Ledger%20Feedback" style={{ display: "inline-flex", alignItems: "center", padding: "10px 20px", background: "var(--green)", color: "#fff", borderRadius: "var(--radius)", fontWeight: 600, textDecoration: "none", border: "none", cursor: "pointer" }}>Contact Support</a>
+      </>
+    ),
+  },
+];
+
+function Help({ onBack }) {
+  const [openIds, setOpenIds] = useState(() => new Set(HELP_SECTIONS.map(s => s.id)));
+  const toggle = (id) => {
+    setOpenIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  return (
+    <div className="hl-page hl-fade-in">
+      <div style={{ maxWidth: "640px", margin: "0 auto" }}>
+        <button type="button" onClick={onBack} style={{ background: "none", border: "none", color: "var(--green)", fontWeight: 600, fontSize: "14px", cursor: "pointer", marginBottom: "20px", display: "inline-flex", alignItems: "center", gap: "6px" }}>
+          ← Back to Settings
+        </button>
+        <div style={{ fontFamily: "'Playfair Display'", fontSize: "24px", fontWeight: 700, color: "var(--ink)", marginBottom: "24px" }}>Help & Guide</div>
+        <div className="hl-help-accordion">
+          {HELP_SECTIONS.map(section => {
+            const isOpen = openIds.has(section.id);
+            return (
+              <div key={section.id} className="hl-help-section" style={{ marginBottom: "10px", border: "1px solid var(--cream3)", borderRadius: "var(--radius2)", overflow: "hidden", background: "#fff" }}>
+                <button
+                  type="button"
+                  onClick={() => toggle(section.id)}
+                  style={{
+                    width: "100%",
+                    padding: "16px 20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    background: isOpen ? "var(--green)" : "var(--cream2)",
+                    color: isOpen ? "#fff" : "var(--ink)",
+                    border: "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    fontSize: "15px",
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>{section.title}</span>
+                  <span style={{ fontSize: "18px", color: isOpen ? "var(--brass3)" : "var(--brass2)" }}>{isOpen ? "−" : "+"}</span>
+                </button>
+                {isOpen && (
+                  <div style={{ padding: "20px", borderTop: "1px solid var(--cream3)", fontSize: "14px" }}>
+                    {section.content}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 const TAB_OPTIONS = [
   { id: "dashboard", label: "Dashboard", icon: "⊞" },
@@ -5528,7 +5741,7 @@ const TAB_OPTIONS = [
   { id: "tasks", label: "Tasks", icon: "✓" },
 ];
 
-function Settings({ settings, setSettings, onLogout }) {
+function Settings({ settings, setSettings, onLogout, setTab }) {
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const setVisibility = (id, value) => {
     setSettings(prev => ({
@@ -5540,6 +5753,19 @@ function Settings({ settings, setSettings, onLogout }) {
     <div className="hl-page hl-fade-in">
       <div style={{ maxWidth: "560px", margin: "0 auto" }}>
         <div style={{ fontFamily: "'Playfair Display'", fontSize: "24px", fontWeight: 700, color: "var(--ink)", marginBottom: "24px" }}>Settings</div>
+
+        {setTab && (
+          <Card
+            role="button"
+            tabIndex={0}
+            onClick={() => setTab("help")}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTab("help"); } }}
+            style={{ padding: "16px 20px", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", borderLeft: "4px solid var(--brass)" }}
+          >
+            <span style={{ fontWeight: 600, color: "var(--ink)" }}>Help & Guide</span>
+            <span style={{ color: "var(--brass2)", fontSize: "18px" }}>→</span>
+          </Card>
+        )}
 
         <Card style={{ padding: "24px", marginBottom: "20px" }}>
           <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Farm Profile</div>
@@ -5893,6 +6119,7 @@ export default function App() {
     ...(visibility.sales !== false ? ["sales"] : []),
     ...(visibility.tasks !== false ? ["tasks"] : []),
     "settings",
+    "help", // reachable from Settings → Help & Guide; keep in valid set so we don't redirect to dashboard
   ]);
   useEffect(() => {
     if (!visibleTabIds.has(tab)) setTab("dashboard");
@@ -5924,7 +6151,8 @@ export default function App() {
       {tab === "expenses"  && <Expenses expenses={expenses} setExpenses={setExpenses} animals={animals} pastures={pastures} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
       {tab === "sales"     && <Sales animals={animals} loadSales={loadSales} setLoadSales={setLoadSales} expenses={expenses} />}
       {tab === "tasks"     && <Tasks tasks={tasks} setTasks={setTasks} animals={animals} gestations={gestations} offspring={offspring} pastures={pastures} setTab={setTab} />}
-      {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} />}
+      {tab === "help"      && <Help onBack={() => setTab("settings")} />}
+      {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} setTab={setTab} />}
     </div>
   );
 }

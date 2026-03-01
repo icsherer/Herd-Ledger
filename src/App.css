@@ -485,6 +485,12 @@
   }
 }
 
+/* Help page: accordion focus for accessibility */
+.hl-help-section button:focus-visible {
+  outline: 2px solid var(--brass);
+  outline-offset: 2px;
+}
+
 /* ── Animal profile page ───────────────────────────────────────────────────── */
 
 /* Consistent spacing between profile sections */

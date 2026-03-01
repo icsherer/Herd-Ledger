@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
 import "./App.css";
 import { supabase } from "./supabase";
 import Auth, { ResetPasswordPage } from "./Auth";
@@ -22,7 +23,19 @@ const SPECIES = {
 
 const PASTURE_SPECIES = ["Cattle", "Horse"];
 
+const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Notes"];
+
 const TREATMENT_TYPES = ["Illness", "Injury", "Medication", "Deworming", "Vitamin/Supplement", "Vet Visit", "Other"];
+/** Treatment type → expense category for auto-created expense when cost is entered */
+const TREATMENT_TYPE_TO_EXPENSE_CATEGORY = {
+  "Vet Visit": "Veterinary",
+  "Illness": "Veterinary",
+  "Injury": "Veterinary",
+  "Medication": "Medicine",
+  "Deworming": "Medicine",
+  "Vitamin/Supplement": "Medicine",
+  "Other": "Medicine",
+};
 
 function getHealthStatus(animal) {
   const treatments = animal?.treatments || [];
@@ -479,6 +492,8 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Cattle", icon: "🌾" }] : []),
     ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🟩" }] : []),
     ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
+    ...(visibility.expenses !== false ? [{ id: "expenses", label: "Expenses", icon: "💰" }] : []),
+    ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✓" }] : []),
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
   return (
@@ -525,15 +540,30 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
 }
 
 // ── Dashboard ─────────────────────────────────────────────────────────────────
-function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch }) {
+function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, expenses, tasks }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  const todayStr = today.toISOString().split("T")[0];
+  const upcomingTasks = (tasks || [])
+    .filter(t => !t.completed && t.dueDate && t.dueDate >= todayStr)
+    .sort((a, b) => (a.dueDate !== b.dueDate ? a.dueDate.localeCompare(b.dueDate) : (a.dueTime || "").localeCompare(b.dueTime || "")))
+    .slice(0, 3);
 
   const activeAnimals = animals.filter(a => !a.deceased && !a.sale);
   const deceasedCount = animals.filter(a => a.deceased).length;
   const soldCount = animals.filter(a => a.sale).length;
   const speciesCounts = activeAnimals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
   const activeGestations = gestations.filter(g => g.status !== "Delivered");
+
+  const isCurrentMonth = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr + "T12:00:00");
+    return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+  };
+  const incomeThisMonth = (animals || []).filter(a => a.sale && isCurrentMonth(a.sale.dateSold)).reduce((sum, a) => sum + (Number(a.sale?.pricePerHead) || 0), 0);
+  const expensesThisMonth = (expenses || []).filter(e => isCurrentMonth(e.date)).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
 
   // Next weaning across all offspring
   let nextWeaning = null;
@@ -587,6 +617,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
             sub: nextWeaning ? nextWeaning.name : "none scheduled",
             icon: "🥛",
           },
+          { label: "Financials (this month)", value: (incomeThisMonth - expensesThisMonth) >= 0 ? `+$${(incomeThisMonth - expensesThisMonth).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : `-$${Math.abs(incomeThisMonth - expensesThisMonth).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, sub: `Income $${incomeThisMonth.toLocaleString("en-US", { minimumFractionDigits: 2 })} · Expenses $${expensesThisMonth.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: "💰", onClick: () => setTab?.("expenses"), large: false },
         ].map((s, i) => (
           <Card
             key={i}
@@ -606,7 +637,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
             onMouseLeave={e => { if (s.onClick) { e.currentTarget.style.boxShadow = ""; e.currentTarget.style.transform = ""; } }}
           >
             <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "6px" }}>{s.label}</div>
-            <div className="hl-dash-stat-value" style={{ fontFamily: s.large ? "inherit" : "'Playfair Display'", fontSize: s.large ? "32px" : "30px", fontWeight: 700, color: s.alert ? "var(--danger2)" : "var(--green)", lineHeight: 1, marginBottom: "4px" }}>{s.value}</div>
+            <div className="hl-dash-stat-value" style={{ fontFamily: s.large ? "inherit" : "'Playfair Display'", fontSize: s.large ? "32px" : "30px", fontWeight: 700, color: s.alert ? "var(--danger2)" : "var(--green)", lineHeight: 1, marginBottom: "4px" }}>{s.value != null ? s.value : "—"}</div>
             <div className="hl-dash-stat-sub" style={{ fontSize: "12px", color: s.alert ? "var(--danger2)" : "var(--muted)" }}>{s.sub}</div>
           </Card>
         ))}
@@ -656,6 +687,44 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
                     </Badge>
                   </div>
                   <ProgressBar value={progress(breedingDateForProgress(g), g.gestationDays)} />
+                </div>
+              ))}
+            </Card>
+          )}
+
+          {/* Upcoming Tasks */}
+          {upcomingTasks.length > 0 && (
+            <Card
+              className="hl-card-no-padding"
+              style={{ padding: "0", cursor: "pointer" }}
+              role="button"
+              tabIndex={0}
+              onClick={() => setTab?.("tasks")}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTab?.("tasks"); } }}
+              onMouseEnter={e => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(0,0,0,0.08)"; e.currentTarget.style.transform = "translateY(-1px)"; }}
+              onMouseLeave={e => { e.currentTarget.style.boxShadow = ""; e.currentTarget.style.transform = ""; }}
+            >
+              <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600 }}>Upcoming Tasks</span>
+                <span style={{ fontSize: "12px", color: "var(--muted)" }}>next 3</span>
+              </div>
+              {upcomingTasks.map(t => (
+                <div key={t.id} style={{ padding: "12px 20px", borderBottom: "1px solid var(--cream2)", display: "flex", alignItems: "center", gap: "10px" }}>
+                  <span
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      background: t.priority === "High" ? "var(--danger2)" : t.priority === "Medium" ? "var(--brass)" : "var(--green3)",
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: "14px" }}>{t.name}</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                      {t.dueDate}{t.dueTime ? ` · ${t.dueTime}` : ""}{t.category ? ` · ${t.category}` : ""}
+                    </div>
+                  </div>
                 </div>
               ))}
             </Card>
@@ -767,8 +836,16 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings }) {
   const [showAdd, setShowAdd] = useState(false);
+  const forceList = (animals || []).length > 50;
+  const viewMode = forceList ? "list" : (settings?.animalsViewMode || "tile");
+  useEffect(() => {
+    if (!setSettings || !forceList) return;
+    if ((settings?.animalsViewMode || "tile") !== "list") {
+      setSettings(prev => ({ ...prev, animalsViewMode: "list" }));
+    }
+  }, [forceList, setSettings, settings?.animalsViewMode]);
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
@@ -822,11 +899,139 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [bulkForm, setBulkForm] = useState({});
   const [showSaleForm, setShowSaleForm] = useState(false);
   const [saleForm, setSaleForm] = useState({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" });
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importStep, setImportStep] = useState(1);
+  const [importFile, setImportFile] = useState(null);
+  const [importData, setImportData] = useState(null);
+  const [importMapping, setImportMapping] = useState({});
+  const [importSuccess, setImportSuccess] = useState(null);
+  const [importDragActive, setImportDragActive] = useState(false);
+  const importFileInputRef = useRef(null);
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
     return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "" };
   };
+
+  function parseImportFile(file, onDone) {
+    const isCsv = /\.(csv|txt)$/i.test(file.name);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        let wb;
+        if (isCsv) {
+          wb = XLSX.read(e.target.result, { type: "string", raw: true });
+        } else {
+          const data = new Uint8Array(e.target.result);
+          wb = XLSX.read(data, { type: "array", raw: true });
+        }
+        const firstSheet = wb.SheetNames[0] ? wb.Sheets[wb.SheetNames[0]] : null;
+        if (!firstSheet) {
+          onDone(null, "No sheet found");
+          return;
+        }
+        const arr = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+        if (!arr.length) {
+          onDone(null, "Sheet is empty");
+          return;
+        }
+        const headers = arr[0].map(h => String(h ?? "").trim());
+        const rows = arr.slice(1).map(row => (Array.isArray(row) ? row : []).map(c => (c == null ? "" : String(c)).trim()));
+        const autoMapping = {};
+        IMPORT_HL_FIELDS.forEach(hl => {
+          const key = hl.toLowerCase().replace(/\s+/g, " ");
+          const found = headers.findIndex(h => String(h).toLowerCase().trim() === key || String(h).toLowerCase().replace(/\s+/g, " ") === key);
+          if (found >= 0) autoMapping[hl] = headers[found];
+        });
+        onDone({ headers, rows }, null, autoMapping);
+      } catch (err) {
+        onDone(null, err.message || "Parse error");
+      }
+    };
+    reader.onerror = () => onDone(null, "Failed to read file");
+    if (isCsv) reader.readAsText(file);
+    else reader.readAsArrayBuffer(file);
+  }
+
+  function normalizeSpecies(val) {
+    if (!val || !String(val).trim()) return null;
+    const v = String(val).trim();
+    const key = Object.keys(SPECIES).find(k => k.toLowerCase() === v.toLowerCase());
+    return key || null;
+  }
+
+  function normalizeSexForSpecies(species, val) {
+    if (!species) return null;
+    const opts = getSexOptions(species);
+    if (!val || !String(val).trim()) return opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0];
+    const v = String(val).trim();
+    const match = opts.find(o => o.toLowerCase() === v.toLowerCase());
+    if (match) return match;
+    const gender = SEX_TERM_GENDER[v] || (v.toLowerCase() === "female" ? "Female" : v.toLowerCase() === "male" ? "Male" : null);
+    if (gender) return opts.find(o => SEX_TERM_GENDER[o] === gender) || opts[0];
+    return opts[0];
+  }
+
+  function normalizeDob(val) {
+    if (!val || !String(val).trim()) return "";
+    const s = String(val).trim();
+    const iso = s.match(/^\d{4}-\d{2}-\d{2}$/) ? s : null;
+    if (iso) return iso;
+    const d = new Date(s);
+    if (!isNaN(d.getTime())) return d.toISOString().split("T")[0];
+    return "";
+  }
+
+  function getImportPreview() {
+    if (!importData || !importMapping) return { valid: [], skipped: [], byRow: [] };
+    const { headers, rows } = importData;
+    const colIndex = (hl) => {
+      const mapped = importMapping[hl];
+      if (!mapped) return -1;
+      const i = headers.indexOf(mapped);
+      return i >= 0 ? i : -1;
+    };
+    const speciesCol = colIndex("Species");
+    const valid = [];
+    const skipped = [];
+    rows.forEach((row, idx) => {
+      const rawSpecies = speciesCol >= 0 ? row[speciesCol] : "";
+      const species = normalizeSpecies(rawSpecies);
+      if (!species) {
+        skipped.push({ rowIndex: idx + 2, reason: "Missing or invalid Species", row });
+        return;
+      }
+      const name = colIndex("Name") >= 0 ? (row[colIndex("Name")] || "").trim() : "";
+      const tag = colIndex("Tag") >= 0 ? (row[colIndex("Tag")] || "").trim() : "";
+      const breed = colIndex("Breed") >= 0 ? (row[colIndex("Breed")] || "").trim() : "";
+      const sexVal = colIndex("Sex") >= 0 ? row[colIndex("Sex")] : "";
+      const sex = normalizeSexForSpecies(species, sexVal);
+      const dobVal = colIndex("Date of Birth") >= 0 ? row[colIndex("Date of Birth")] : "";
+      const dob = normalizeDob(dobVal);
+      const notes = colIndex("Notes") >= 0 ? (row[colIndex("Notes")] || "").trim() : "";
+      valid.push({ name: name || undefined, tag: tag || undefined, species, breed: breed || undefined, sex, dob: dob || undefined, notes: notes || undefined });
+    });
+    return { valid, skipped };
+  }
+
+  function runImport() {
+    const { valid, skipped } = getImportPreview();
+    const newAnimals = valid.map(a => ({
+      ...a,
+      id: Date.now().toString() + "-" + Math.random().toString(36).slice(2, 9),
+    }));
+    setAnimals(prev => [...prev, ...newAnimals]);
+    setImportSuccess({ imported: newAnimals.length, skipped: skipped.length });
+  }
+
+  function closeImportModal() {
+    setShowImportModal(false);
+    setImportStep(1);
+    setImportFile(null);
+    setImportData(null);
+    setImportMapping({});
+    setImportSuccess(null);
+  }
 
   function add() {
     if (!form.name) return;
@@ -1151,6 +1356,19 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
       const updated = { ...a, treatments: nextTreatments };
       setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
       setViewing(updated);
+      if (setExpenses && entry.cost != null && entry.cost > 0) {
+        const category = TREATMENT_TYPE_TO_EXPENSE_CATEGORY[entry.type] || "Medicine";
+        const description = `${entry.type} — ${getAnimalName(a)}`;
+        setExpenses(prev => [...(prev || []), {
+          id: entry.id + "-exp",
+          date: entry.date,
+          category,
+          amount: entry.cost,
+          description,
+          animalId: a.id,
+          notes: entry.notes || undefined,
+        }]);
+      }
       setShowTreatmentForm(false);
       setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" });
     }
@@ -2317,9 +2535,72 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   return (
     <div className={`hl-page hl-fade-in${bulkMode && selectedIds.length > 0 ? " hl-page-with-bulk-toolbar" : ""}`}>
       <SectionTitle action={
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <Btn variant="secondary" onClick={() => { setBulkMode(true); setSelectedIds([]); setBulkFormType(null); setViewing(null); }}>Bulk Actions</Btn>
-          <Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setShowAdd(true); }}>+ Register Animal</Btn>
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+          <div style={{ display: "flex", gap: "2px" }} role="group" aria-label="View mode">
+            <button
+              type="button"
+              title="Tile view"
+              aria-pressed={viewMode === "tile"}
+              disabled={forceList}
+              onClick={() => setSettings?.((prev) => ({ ...prev, animalsViewMode: "tile" }))}
+              style={{
+                width: "36px",
+                height: "36px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid var(--cream3)",
+                borderRadius: "var(--radius)",
+                background: viewMode === "tile" ? "var(--cream2)" : "#fff",
+                color: forceList ? "var(--muted)" : "var(--ink2)",
+                cursor: forceList ? "not-allowed" : "pointer",
+                opacity: forceList ? 0.6 : 1,
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </button>
+            <button
+              type="button"
+              title="List view"
+              aria-pressed={viewMode === "list"}
+              onClick={() => setSettings?.((prev) => ({ ...prev, animalsViewMode: "list" }))}
+              style={{
+                width: "36px",
+                height: "36px",
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                border: "1px solid var(--cream3)",
+                borderRadius: "var(--radius)",
+                background: viewMode === "list" ? "var(--cream2)" : "#fff",
+                color: "var(--ink2)",
+                cursor: "pointer",
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
+          </div>
+          <div className="hl-animals-header-actions">
+            <button
+              type="button"
+              className="hl-animals-header-btn hl-animals-header-btn-secondary"
+              onClick={() => { setBulkMode(true); setSelectedIds([]); setBulkFormType(null); setViewing(null); }}
+              title="Bulk Actions"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/><path d="M7 13h4"/></svg>
+              <span className="hl-animals-header-btn-text">Bulk Actions</span>
+            </button>
+            <button
+              type="button"
+              className="hl-animals-header-btn hl-animals-header-btn-secondary"
+              onClick={() => { setImportStep(1); setImportFile(null); setImportData(null); setImportMapping({}); setImportSuccess(null); setShowImportModal(true); }}
+              title="Import Animals"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span className="hl-animals-header-btn-text">Import Animals</span>
+            </button>
+            <Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setShowAdd(true); }}>+ Register Animal</Btn>
+          </div>
         </div>
       }>
         Animal Register
@@ -2339,19 +2620,41 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
       </div>
 
       {bulkMode && selectedIds.length > 0 && (
-        <Card className="hl-bulk-toolbar" style={{ padding: "14px 18px", marginBottom: "16px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", borderLeft: "4px solid var(--brass)" }}>
-          <span style={{ fontWeight: 600, marginRight: "8px" }}>{selectedIds.length} selected</span>
-          <Btn size="sm" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "" }); }}>Apply Vaccination</Btn>
-          <Btn size="sm" onClick={() => { setBulkFormType("breeding"); setBulkForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>Log Breeding</Btn>
-          <Btn size="sm" onClick={() => { setBulkFormType("move"); setBulkForm({ pastureName: "", dateMovedIn: "", notes: "" }); }}>Move to Pasture</Btn>
-          <Btn size="sm" onClick={() => { setBulkFormType("treatment"); setBulkForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Apply Treatment</Btn>
-          {selectedMales.length > 0 && (
-            <Btn size="sm" onClick={() => { setBulkFormType("castration"); setBulkForm({ date: "", method: "Banding", performer: "Owner", notes: "" }); }}>Castrate</Btn>
-          )}
-          {selectedCattleForFeedlot.length > 0 && setTab && setFeederBulkAnimalIds && (
-            <Btn size="sm" onClick={() => { setTab("feeder"); setFeederBulkAnimalIds(selectedCattleForFeedlot.map(a => a.id)); }}>Add to Feedlot</Btn>
-          )}
-          <Btn size="sm" variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
+        <Card className="hl-bulk-toolbar">
+          <div className="hl-bulk-toolbar-header">
+            <span className="hl-bulk-toolbar-count">{selectedIds.length} selected</span>
+            <Btn size="sm" variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
+          </div>
+          <div className="hl-bulk-toolbar-actions">
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "" }); }}>
+              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 2v4M14 2v4"/><path d="M5 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"/><path d="M12 14v4"/><path d="M9 18h6"/></svg></span>
+              <span className="hl-bulk-action-label">Vaccination</span>
+            </button>
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("breeding"); setBulkForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>
+              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
+              <span className="hl-bulk-action-label">Log Breeding</span>
+            </button>
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("move"); setBulkForm({ pastureName: "", dateMovedIn: "", notes: "" }); }}>
+              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
+              <span className="hl-bulk-action-label">Move to Pasture</span>
+            </button>
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("treatment"); setBulkForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>
+              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+              <span className="hl-bulk-action-label">Treatment</span>
+            </button>
+            {selectedMales.length > 0 && (
+              <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("castration"); setBulkForm({ date: "", method: "Banding", performer: "Owner", notes: "" }); }}>
+                <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg></span>
+                <span className="hl-bulk-action-label">Castrate</span>
+              </button>
+            )}
+            {selectedCattleForFeedlot.length > 0 && setTab && setFeederBulkAnimalIds && (
+              <button type="button" className="hl-bulk-action-btn" onClick={() => { setTab("feeder"); setFeederBulkAnimalIds(selectedCattleForFeedlot.map(a => a.id)); }}>
+                <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
+                <span className="hl-bulk-action-label">Add to Feedlot</span>
+              </button>
+            )}
+          </div>
         </Card>
       )}
 
@@ -2502,6 +2805,63 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         </Card>
       )}
 
+      {viewMode === "list" && filtered.length > 0 && (
+        <Card className="hl-card-no-padding hl-animals-list-card" style={{ overflow: "hidden" }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {filtered.map((a, idx) => {
+              const activeGest = isFemale(a) && a.species !== "Mule" ? gestations.find(g => g.animalId === a.id && g.status !== "Delivered") : null;
+              const pastureName = a.movements?.[0]?.pastureName?.trim() || "";
+              const health = getHealthStatus(a);
+              const rowBg = idx % 2 === 0 ? "#fff" : "var(--cream)";
+              return (
+                <div
+                  key={a.id}
+                  className={`hl-animals-list-row${bulkMode ? " hl-animals-list-row-bulk" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { if (bulkMode) { toggleBulkSelect(a.id); } else { setViewing(a); setShowSaleForm(false); } }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (bulkMode) toggleBulkSelect(a.id); else { setViewing(a); setShowSaleForm(false); } } }}
+                  style={{
+                    background: bulkMode && selectedIds.includes(a.id) ? "rgba(201,149,42,0.15)" : rowBg,
+                    borderBottom: idx < filtered.length - 1 ? "1px solid var(--cream2)" : "none",
+                    cursor: "pointer",
+                    transition: "background 0.15s ease",
+                  }}
+                  onMouseEnter={e => { if (!bulkMode) e.currentTarget.style.background = "var(--cream2)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = bulkMode && selectedIds.includes(a.id) ? "rgba(201,149,42,0.15)" : rowBg; }}
+                >
+                  {bulkMode && (
+                    <div className="hl-animals-list-cell hl-animals-list-checkbox" onClick={e => e.stopPropagation()}>
+                      <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleBulkSelect(a.id)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", cursor: "pointer" }} />
+                    </div>
+                  )}
+                  <div className="hl-animals-list-cell hl-animals-list-emoji">{SPECIES[a.species]?.emoji}</div>
+                  <div className="hl-animals-list-cell hl-animals-list-name-dot">
+                    <span className="hl-animals-list-name" style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(a)}</span>
+                    {!a.deceased ? (
+                      <span className="hl-animals-list-health-dot" style={{ width: "8px", height: "8px", borderRadius: "50%", background: health === "red" ? "var(--danger2)" : health === "yellow" ? "var(--brass2)" : "var(--green3)" }} title={health === "red" ? "Recent illness" : health === "yellow" ? "Treatment in last 30 days" : "No recent issues"} />
+                    ) : (
+                      <span style={{ width: "8px", display: "inline-block" }} />
+                    )}
+                  </div>
+                  <div className="hl-animals-list-cell hl-animals-list-species" style={{ fontSize: "13px", color: "var(--muted)" }}>{a.species}</div>
+                  <div className="hl-animals-list-cell hl-animals-list-breed" style={{ fontSize: "13px", color: "var(--muted)" }} title={a.breed || undefined}>{a.breed || "—"}</div>
+                  <div className="hl-animals-list-cell hl-animals-list-age" style={{ fontSize: "13px", color: "var(--muted)" }}>{ageFromDob(a.dob)}</div>
+                  <div className="hl-animals-list-cell hl-animals-list-status" style={{ fontSize: "13px", color: "var(--muted)" }}>
+                    {activeGest ? (
+                      <span style={{ fontWeight: 600, color: "var(--brass)" }} title={`Due ${fmtDueRange(activeGest)}`}>Pregnant</span>
+                    ) : (
+                      displaySex(a, gestations)
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {viewMode === "tile" && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
         {filtered.map(a => (
           <Card key={a.id} style={{
@@ -2567,6 +2927,171 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           </Card>
         ))}
       </div>
+      )}
+
+      {showImportModal && (
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => !importSuccess && closeImportModal()}>
+          <Card style={{ maxWidth: "720px", width: "100%", maxHeight: "90vh", overflow: "auto", margin: "20px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <span style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600 }}>Import Animals</span>
+              {!importSuccess && (
+                <button type="button" onClick={closeImportModal} style={{ background: "none", border: "none", fontSize: "24px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
+              )}
+            </div>
+
+            {importSuccess ? (
+              <div style={{ padding: "20px 0" }}>
+                <div style={{ fontSize: "16px", color: "var(--green)", fontWeight: 600, marginBottom: "12px" }}>Import complete</div>
+                <p style={{ color: "var(--ink2)", marginBottom: "20px" }}>
+                  {importSuccess.imported} animal{importSuccess.imported !== 1 ? "s" : ""} imported successfully.
+                  {importSuccess.skipped > 0 && ` ${importSuccess.skipped} row${importSuccess.skipped !== 1 ? "s" : ""} skipped due to missing or invalid Species.`}
+                </p>
+                <Btn onClick={closeImportModal}>Close</Btn>
+              </div>
+            ) : importStep === 1 ? (
+              <>
+                <div style={{ marginBottom: "20px" }}>
+                  <input
+                    ref={importFileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setImportFile(file);
+                      parseImportFile(file, (data, err, autoMapping) => {
+                        if (err) { alert(err); return; }
+                        setImportData(data);
+                        setImportMapping(autoMapping || {});
+                      });
+                    }}
+                    style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+                    aria-hidden="true"
+                  />
+                  <div
+                    className={`hl-import-dropzone ${importDragActive ? "hl-import-dropzone-active" : ""}`}
+                    onClick={() => importFileInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setImportDragActive(true); }}
+                    onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setImportDragActive(true); }}
+                    onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setImportDragActive(false); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setImportDragActive(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (!file) return;
+                      const ext = (file.name || "").toLowerCase().split(".").pop();
+                      if (!["xlsx", "xls", "csv"].includes(ext)) {
+                        alert("Please drop a .xlsx, .xls, or .csv file.");
+                        return;
+                      }
+                      setImportFile(file);
+                      parseImportFile(file, (data, err, autoMapping) => {
+                        if (err) { alert(err); return; }
+                        setImportData(data);
+                        setImportMapping(autoMapping || {});
+                      });
+                    }}
+                  >
+                    <div style={{ fontSize: "32px", marginBottom: "10px", color: "var(--green)" }}>
+                      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" style={{ margin: "0 auto", display: "block" }}>
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
+                    </div>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink2)", marginBottom: "4px" }}>Drag and drop your CSV or Excel file here, or click to browse</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>Accepts .xlsx, .xls, .csv</div>
+                  </div>
+                  {importFile && (
+                    <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(72, 120, 72, 0.1)", border: "1px solid var(--green3)", borderRadius: "var(--radius)", fontSize: "13px", color: "var(--green)", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{importFile.name}</span>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setImportFile(null); setImportData(null); setImportMapping({}); }} style={{ background: "none", border: "none", color: "var(--brass)", fontWeight: 600, cursor: "pointer", fontSize: "12px" }}>Remove</button>
+                    </div>
+                  )}
+                </div>
+
+                {importData && (
+                  <>
+                    <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Preview (first 5 rows)</div>
+                    <div style={{ overflowX: "auto", marginBottom: "20px", border: "1px solid var(--cream3)", borderRadius: "var(--radius)" }}>
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                        <thead>
+                          <tr style={{ background: "var(--cream2)" }}>
+                            {importData.headers.map((h, i) => (
+                              <th key={i} style={{ padding: "8px 10px", textAlign: "left", borderBottom: "1px solid var(--cream3)" }}>{h || `Column ${i + 1}`}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importData.rows.slice(0, 5).map((row, ri) => (
+                            <tr key={ri} style={{ borderBottom: "1px solid var(--cream2)" }}>
+                              {importData.headers.map((_, ci) => (
+                                <td key={ci} style={{ padding: "8px 10px", color: "var(--ink2)" }}>{row[ci] ?? ""}</td>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "10px" }}>Map columns to Herd Ledger fields</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                      {IMPORT_HL_FIELDS.map(hl => (
+                        <div key={hl}>
+                          <label style={{ display: "block", fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>{hl}{hl === "Species" ? " *" : ""}</label>
+                          <Select value={importMapping[hl] ?? ""} onChange={e => setImportMapping(prev => ({ ...prev, [hl]: e.target.value || undefined }))} style={{ width: "100%" }}>
+                            <option value="">— Don't import —</option>
+                            {importData.headers.filter(Boolean).map(h => (
+                              <option key={h} value={h}>{h}</option>
+                            ))}
+                          </Select>
+                        </div>
+                      ))}
+                    </div>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <Btn onClick={() => { setImportStep(2); }} disabled={!importMapping.Species}>Next: Review</Btn>
+                      <Btn variant="secondary" onClick={closeImportModal}>Cancel</Btn>
+                    </div>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {(() => {
+                  const { valid, skipped } = getImportPreview();
+                  return (
+                    <>
+                      <p style={{ marginBottom: "16px", color: "var(--ink2)" }}>
+                        <strong>{valid.length}</strong> animal{valid.length !== 1 ? "s" : ""} will be imported.
+                        {skipped.length > 0 && <span style={{ color: "var(--muted)" }}> <strong>{skipped.length}</strong> row{skipped.length !== 1 ? "s" : ""} will be skipped (missing or invalid Species).</span>}
+                      </p>
+                      {skipped.length > 0 && skipped.length <= 20 && (
+                        <div style={{ marginBottom: "16px", fontSize: "13px" }}>
+                          <span style={{ fontWeight: 600, color: "var(--muted)" }}>Skipped rows:</span>
+                          <ul style={{ margin: "6px 0 0 20px", color: "var(--muted)" }}>
+                            {skipped.map((s, i) => (
+                              <li key={i}>Row {s.rowIndex}: {s.reason}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {skipped.length > 20 && (
+                        <p style={{ marginBottom: "16px", fontSize: "13px", color: "var(--muted)" }}>Skipped rows: {skipped.map(s => s.rowIndex).join(", ")}</p>
+                      )}
+                      <div className="hl-import-confirm-actions" style={{ display: "flex", gap: "10px" }}>
+                        <Btn onClick={runImport} disabled={valid.length === 0}>Import {valid.length} animal{valid.length !== 1 ? "s" : ""}</Btn>
+                        <Btn variant="secondary" onClick={() => setImportStep(1)}>Back</Btn>
+                        <Btn variant="secondary" onClick={closeImportModal}>Cancel</Btn>
+                      </div>
+                    </>
+                  );
+                })()}
+              </>
+            )}
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -3396,6 +3921,383 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
   );
 }
 
+// ── Expenses ───────────────────────────────────────────────────────────────────
+function Expenses({ expenses, setExpenses, animals, pastures, setTab, setViewingAnimal }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [form, setForm] = useState({
+    date: new Date().toISOString().split("T")[0],
+    category: "Feed",
+    amount: "",
+    description: "",
+    vendorPayee: "",
+    notes: "",
+    animalId: "",
+    pastureName: "",
+  });
+
+  const sortedExpenses = [...(expenses || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const isCurrentMonth = (dateStr) => {
+    if (!dateStr) return false;
+    const d = new Date(dateStr + "T12:00:00");
+    return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+  };
+  const expensesThisMonth = (expenses || []).filter(e => isCurrentMonth(e.date));
+  const byCategoryThisMonth = EXPENSE_CATEGORIES.reduce((acc, cat) => {
+    acc[cat] = expensesThisMonth.filter(e => e.category === cat).reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+    return acc;
+  }, {});
+
+  function addExpense() {
+    const amount = form.amount?.trim() ? parseFloat(form.amount) : 0;
+    if (!form.date || amount < 0) return;
+    setExpenses(prev => [...prev, {
+      id: Date.now().toString(),
+      date: form.date,
+      category: form.category || "Other",
+      amount,
+      description: (form.description || "").trim() || undefined,
+      vendorPayee: (form.vendorPayee || "").trim() || undefined,
+      notes: (form.notes || "").trim() || undefined,
+      animalId: (form.animalId || "").trim() || undefined,
+      pastureName: (form.pastureName || "").trim() || undefined,
+    }]);
+    setForm({ date: new Date().toISOString().split("T")[0], category: "Feed", amount: "", description: "", vendorPayee: "", notes: "", animalId: "", pastureName: "" });
+    setShowAdd(false);
+  }
+
+  function deleteExpense(id) {
+    if (!confirm("Delete this expense?")) return;
+    setExpenses(prev => prev.filter(e => e.id !== id));
+  }
+
+  const pastureNames = [...new Set([...(pastures || []), ...(animals || []).flatMap(a => (a.movements || []).map(m => m.pastureName)).filter(Boolean)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+
+  return (
+    <div className="hl-page hl-fade-in">
+      <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ Add Expense</Btn>}>
+        Expenses
+      </SectionTitle>
+
+      {/* Summary by category for current month/year */}
+      <Card style={{ padding: "18px 20px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "12px" }}>
+          This month ({now.toLocaleDateString("en-US", { month: "long", year: "numeric" })}) by category
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "10px 20px", fontSize: "13px" }}>
+          {EXPENSE_CATEGORIES.map(cat => {
+            const tot = byCategoryThisMonth[cat] || 0;
+            if (tot === 0) return null;
+            return (
+              <div key={cat} style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
+                <span style={{ color: "var(--ink2)" }}>{cat}</span>
+                <span style={{ fontWeight: 600 }}>${tot.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--cream2)", display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "15px" }}>
+          <span>Total this month</span>
+          <span>${expensesThisMonth.reduce((s, e) => s + (Number(e.amount) || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+        </div>
+      </Card>
+
+      {showAdd && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add Expense</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Input label="Date *" type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+            <Select label="Category *" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
+              {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </Select>
+            <Input label="Amount ($) *" type="number" min="0" step="0.01" value={form.amount} onChange={e => setForm(p => ({ ...p, amount: e.target.value }))} placeholder="0.00" />
+            <Input label="Description" value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="e.g. Hay delivery" />
+            <Input label="Vendor / Payee" value={form.vendorPayee} onChange={e => setForm(p => ({ ...p, vendorPayee: e.target.value }))} placeholder="e.g. Smith Feed Co." />
+            <Select label="Link to animal (optional)" value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}>
+              <option value="">— None —</option>
+              {(animals || []).map(a => <option key={a.id} value={a.id}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</option>)}
+            </Select>
+            <Select label="Link to pasture (optional)" value={form.pastureName} onChange={e => setForm(p => ({ ...p, pastureName: e.target.value }))}>
+              <option value="">— None —</option>
+              {pastureNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </Select>
+          </div>
+          <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} placeholder="Optional" />
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={addExpense}>Save Expense</Btn>
+            <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {sortedExpenses.length === 0 && !showAdd ? (
+        <Card style={{ padding: "60px", textAlign: "center" }}>
+          <div style={{ fontSize: "40px", marginBottom: "10px" }}>💰</div>
+          <div style={{ color: "var(--muted)", fontSize: "15px" }}>No expenses logged yet.</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginTop: "8px" }}>Track feed, vet, supplies, and more to see spending by category.</p>
+        </Card>
+      ) : (
+        <Card style={{ padding: "0", overflow: "hidden" }} className="hl-card-no-padding">
+          <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>All expenses (newest first) · Running total</div>
+          <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
+            {sortedExpenses.map((e, i) => {
+              const runningTotal = sortedExpenses.slice(0, i + 1).reduce((s, x) => s + (Number(x.amount) || 0), 0);
+              const animal = e.animalId ? (animals || []).find(a => a.id === e.animalId) : null;
+              return (
+                <div key={e.id} style={{ display: "flex", alignItems: "center", gap: "12px", padding: "12px 20px", borderBottom: "1px solid var(--cream2)", background: i % 2 === 0 ? "#fff" : "var(--cream)" }}>
+                  <div style={{ flex: "0 0 100px", fontSize: "13px", color: "var(--muted)" }}>{e.date ? fmt(e.date) : "—"}</div>
+                  <div style={{ flex: "0 0 100px" }}>
+                    <Badge color="var(--brass2)">{e.category || "Other"}</Badge>
+                  </div>
+                  <div style={{ flex: "1 1 auto", minWidth: 0 }}>
+                    <div style={{ fontWeight: 600, fontSize: "14px" }}>{e.description || "—"}</div>
+                    {(e.vendorPayee || animal || e.pastureName) && (
+                      <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>
+                        {e.vendorPayee && <span>{e.vendorPayee}</span>}
+                        {animal && <span>{e.vendorPayee ? " · " : ""}{getAnimalName(animal)}</span>}
+                        {e.pastureName && <span>{e.vendorPayee || animal ? " · " : ""}{e.pastureName}</span>}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ flex: "0 0 90px", textAlign: "right", fontWeight: 600 }}>${(Number(e.amount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+                  <div style={{ flex: "0 0 80px", textAlign: "right", fontSize: "12px", color: "var(--muted)" }}>${runningTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+                  <Btn size="sm" variant="ghost" onClick={() => deleteExpense(e.id)} style={{ padding: "4px 8px", minWidth: 0 }} title="Delete">×</Btn>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+// ── Tasks ─────────────────────────────────────────────────────────────────────
+function Tasks({ tasks, setTasks, animals, gestations, offspring, pastures, setTab }) {
+  const [showAdd, setShowAdd] = useState(false);
+  const todayStr = new Date().toISOString().split("T")[0];
+  const [form, setForm] = useState({
+    name: "",
+    dueDate: todayStr,
+    dueTime: "",
+    category: "General",
+    priority: "Medium",
+    animalId: "",
+    pastureName: "",
+    notes: "",
+    recurring: "One time",
+  });
+
+  useEffect(() => {
+    if (!setTasks || !animals || !gestations) return;
+    const existingSourceIds = new Set((tasks || []).filter(t => t.sourceId).map(t => t.sourceId));
+    const toAdd = [];
+    const activeGestations = (gestations || []).filter(g => g.status !== "Delivered");
+    activeGestations.forEach(g => {
+      const dueStr = g.dueDateStart || g.dueDate;
+      if (!dueStr) return;
+      const d = daysUntil(dueStr);
+      if (d < 0 || d > 7) return;
+      const sourceId = `gestation-${g.id}`;
+      if (existingSourceIds.has(sourceId)) return;
+      const animal = (animals || []).find(a => a.id === g.animalId);
+      toAdd.push({
+        id: `auto-${sourceId}-${Date.now()}`,
+        name: `Gestation due: ${getAnimalName(animal) || "Animal"}`,
+        dueDate: dueStr,
+        category: "Breeding",
+        priority: "High",
+        sourceId,
+        autoGenerated: true,
+      });
+      existingSourceIds.add(sourceId);
+    });
+    (animals || []).forEach(a => {
+      (a.vaccinations || []).forEach(v => {
+        const nextDue = v.nextDueDate || v.dateGiven;
+        if (!nextDue) return;
+        const d = daysUntil(nextDue);
+        if (d < 0 || d > 7) return;
+        const sourceId = `vaccination-${a.id}-${v.id}`;
+        if (existingSourceIds.has(sourceId)) return;
+        toAdd.push({
+          id: `auto-${sourceId}-${Date.now()}`,
+          name: `Vaccination due: ${(v.vaccineName || "Vaccine")} — ${getAnimalName(a)}`,
+          dueDate: nextDue,
+          category: "Vaccination",
+          priority: "Medium",
+          animalId: a.id,
+          sourceId,
+          autoGenerated: true,
+        });
+        existingSourceIds.add(sourceId);
+      });
+    });
+    Object.values(offspring || {}).forEach(list => {
+      (list || []).forEach(c => {
+        if (!c.weaningDate) return;
+        const d = daysUntil(c.weaningDate);
+        if (d < 0 || d > 7) return;
+        const sourceId = `weaning-${c.id || c.name || Math.random()}`;
+        if (existingSourceIds.has(sourceId)) return;
+        toAdd.push({
+          id: `auto-${sourceId}-${Date.now()}`,
+          name: `Weaning due: ${c.name || "Offspring"}`,
+          dueDate: c.weaningDate,
+          category: "Weaning",
+          priority: "Medium",
+          sourceId,
+          autoGenerated: true,
+        });
+        existingSourceIds.add(sourceId);
+      });
+    });
+    if (toAdd.length > 0) setTasks(prev => [...(prev || []), ...toAdd]);
+  }, [setTasks, animals, gestations, offspring, tasks]);
+
+  const allTasks = (tasks || []).filter(t => !t.completed);
+  const completedTasks = (tasks || []).filter(t => t.completed);
+  const todayTasks = allTasks.filter(t => t.dueDate === todayStr);
+  const overdueTasks = allTasks.filter(t => t.dueDate && t.dueDate < todayStr);
+  const upcomingTasks = allTasks.filter(t => t.dueDate && t.dueDate > todayStr).sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
+
+  function addTask() {
+    if (!form.name?.trim() || !form.dueDate) return;
+    setTasks(prev => [...(prev || []), {
+      id: Date.now().toString(),
+      name: form.name.trim(),
+      dueDate: form.dueDate,
+      dueTime: (form.dueTime || "").trim() || undefined,
+      category: form.category || "General",
+      priority: form.priority || "Medium",
+      animalId: (form.animalId || "").trim() || undefined,
+      pastureName: (form.pastureName || "").trim() || undefined,
+      notes: (form.notes || "").trim() || undefined,
+      recurring: form.recurring || "One time",
+    }]);
+    setForm({ name: "", dueDate: todayStr, dueTime: "", category: "General", priority: "Medium", animalId: "", pastureName: "", notes: "", recurring: "One time" });
+    setShowAdd(false);
+  }
+
+  function toggleComplete(task) {
+    setTasks(prev => prev.map(t => t.id === task.id ? { ...t, completed: !t.completed, completedAt: !t.completed ? new Date().toISOString() : undefined } : t));
+  }
+
+  function deleteTask(id) {
+    if (!confirm("Delete this task?")) return;
+    setTasks(prev => prev.filter(t => t.id !== id));
+  }
+
+  const priorityColor = { High: "var(--danger2)", Medium: "var(--brass)", Low: "var(--green3)" };
+  const pastureNames = [...new Set([...(pastures || []), ...(animals || []).flatMap(a => (a.movements || []).map(m => m.pastureName)).filter(Boolean)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+
+  function renderTaskList(list, title, titleColor, rowHighlight) {
+    if (list.length === 0) return null;
+    return (
+      <div style={{ marginBottom: "20px" }}>
+        <div style={{ fontSize: "12px", fontWeight: 600, color: titleColor || "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>{title}</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {list.map(t => {
+            const animal = t.animalId ? (animals || []).find(a => a.id === t.animalId) : null;
+            return (
+              <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px", background: rowHighlight?.background || "#fff", border: "1px solid var(--cream3)", borderRadius: "var(--radius)", borderLeft: `4px solid ${priorityColor[t.priority] || "var(--green3)"}`, color: rowHighlight?.color }}>
+                <input type="checkbox" checked={!!t.completed} onChange={() => toggleComplete(t)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", flexShrink: 0 }} />
+                <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: priorityColor[t.priority] || "var(--green3)", flexShrink: 0 }} title={t.priority} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: "14px" }}>{t.name}</div>
+                  <div style={{ fontSize: "12px", color: rowHighlight?.color || "var(--muted)", marginTop: "2px" }}>
+                    {t.dueDate ? fmt(t.dueDate) : ""}{t.dueTime ? ` ${t.dueTime}` : ""}
+                    {t.category && ` · ${t.category}`}
+                    {animal && ` · ${getAnimalName(animal)}`}
+                    {t.pastureName && ` · ${t.pastureName}`}
+                  </div>
+                </div>
+                <Btn size="sm" variant="ghost" onClick={() => deleteTask(t.id)} style={{ padding: "4px 8px", minWidth: 0 }}>×</Btn>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="hl-page hl-fade-in">
+      <SectionTitle action={<Btn onClick={() => setShowAdd(true)}>+ Add Task</Btn>}>
+        Tasks
+      </SectionTitle>
+
+      {showAdd && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add Task</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Input label="Task name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Feed hay" />
+            <Input label="Due date *" type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} />
+            <Input label="Due time (optional)" type="time" value={form.dueTime} onChange={e => setForm(p => ({ ...p, dueTime: e.target.value }))} />
+            <Select label="Category" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
+              {TASK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </Select>
+            <Select label="Priority" value={form.priority} onChange={e => setForm(p => ({ ...p, priority: e.target.value }))}>
+              {TASK_PRIORITIES.map(p => <option key={p} value={p}>{p}</option>)}
+            </Select>
+            <Select label="Assign to animal (optional)" value={form.animalId} onChange={e => setForm(p => ({ ...p, animalId: e.target.value }))}>
+              <option value="">— None —</option>
+              {(animals || []).map(a => <option key={a.id} value={a.id}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</option>)}
+            </Select>
+            <Select label="Assign to pasture (optional)" value={form.pastureName} onChange={e => setForm(p => ({ ...p, pastureName: e.target.value }))}>
+              <option value="">— None —</option>
+              {pastureNames.map(n => <option key={n} value={n}>{n}</option>)}
+            </Select>
+            <Select label="Recurring" value={form.recurring} onChange={e => setForm(p => ({ ...p, recurring: e.target.value }))}>
+              {RECURRING_OPTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+            </Select>
+          </div>
+          <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} placeholder="Optional" />
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={addTask}>Save Task</Btn>
+            <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {renderTaskList(overdueTasks, "Overdue", "var(--danger2)", { color: "var(--danger2)", background: "rgba(180, 60, 50, 0.08)" })}
+      {renderTaskList(todayTasks, "Today")}
+      {renderTaskList(upcomingTasks, "Upcoming")}
+
+      {completedTasks.length > 0 && (
+        <div style={{ marginTop: "24px", paddingTop: "20px", borderTop: "1px solid var(--cream2)" }}>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "8px" }}>Done</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {completedTasks.sort((a, b) => (b.completedAt || "").localeCompare(a.completedAt || "")).map(t => {
+              const animal = t.animalId ? (animals || []).find(a => a.id === t.animalId) : null;
+              return (
+                <div key={t.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 14px", background: "var(--cream)", border: "1px solid var(--cream2)", borderRadius: "var(--radius)", opacity: 0.85 }}>
+                  <input type="checkbox" checked onChange={() => toggleComplete(t)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 500, fontSize: "14px", textDecoration: "line-through", color: "var(--muted)" }}>{t.name}</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>{t.dueDate ? fmt(t.dueDate) : ""}{animal && ` · ${getAnimalName(animal)}`}</div>
+                  </div>
+                  <Btn size="sm" variant="ghost" onClick={() => deleteTask(t.id)} style={{ padding: "4px 8px", minWidth: 0 }}>×</Btn>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!showAdd && (tasks || []).length === 0 && (
+        <Card style={{ padding: "60px", textAlign: "center" }}>
+          <div style={{ fontSize: "40px", marginBottom: "10px" }}>✓</div>
+          <div style={{ color: "var(--muted)", fontSize: "15px" }}>No tasks yet.</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginTop: "8px" }}>Add a task or open the Tasks tab — gestation, vaccination, and weaning due soon will appear here automatically.</p>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 const TAB_OPTIONS = [
   { id: "dashboard", label: "Dashboard", icon: "⊞" },
@@ -3404,6 +4306,8 @@ const TAB_OPTIONS = [
   { id: "feeder", label: "Feeder Cattle", icon: "🌾" },
   { id: "pastures", label: "Pastures", icon: "🟩" },
   { id: "notes", label: "Journal", icon: "📖" },
+  { id: "expenses", label: "Expenses", icon: "💰" },
+  { id: "tasks", label: "Tasks", icon: "✓" },
 ];
 
 function Settings({ settings, setSettings, onLogout, animals = [] }) {
@@ -3549,16 +4453,21 @@ function Settings({ settings, setSettings, onLogout, animals = [] }) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
-const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures"];
+const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures", "expenses", "tasks"];
 const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 const GUEST_USER = { id: "guest", isGuest: true };
 
-const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: true, pastures: true };
+const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: true, pastures: true, expenses: true, tasks: true };
+const TASK_CATEGORIES = ["Feeding", "Vaccination", "Breeding", "Castration", "Pasture Move", "Weaning", "Vet Visit", "Treatment", "General", "Other"];
+const TASK_PRIORITIES = ["High", "Medium", "Low"];
+const RECURRING_OPTIONS = ["One time", "Daily", "Weekly", "Monthly"];
+const EXPENSE_CATEGORIES = ["Feed", "Veterinary", "Medicine", "Equipment", "Supplies", "Labor", "Fuel", "Land/Lease", "Other"];
 const DEFAULT_SETTINGS = {
   farmName: "",
   ownerName: "",
   defaultSpecies: "Cattle",
   tabVisibility: { ...DEFAULT_TAB_VISIBILITY },
+  animalsViewMode: "tile",
 };
 
 function cleanupOrphanedRecords(animals, gestations, offspring) {
@@ -3591,6 +4500,8 @@ export default function App() {
   const [settings, setSettings] = useState(() => ({ ...DEFAULT_SETTINGS }));
   const [feederPrograms, setFeederPrograms] = useState([]);
   const [pastures, setPastures] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [feederPreselectAnimalId, setFeederPreselectAnimalId] = useState(null);
   const [feederBulkAnimalIds, setFeederBulkAnimalIds] = useState([]);
   const initialLoadDone = useRef(false);
@@ -3629,6 +4540,8 @@ export default function App() {
       setSettings({ ...DEFAULT_SETTINGS });
       setFeederPrograms([]);
       setPastures([]);
+      setExpenses([]);
+      setTasks([]);
       initialLoadDone.current = false;
       return;
     }
@@ -3651,6 +4564,8 @@ export default function App() {
         setSettings(settingsData);
         setFeederPrograms(feederData);
         setPastures(Array.isArray(data.pastures) ? data.pastures : []);
+        setExpenses(Array.isArray(data.expenses) ? data.expenses : []);
+        setTasks(Array.isArray(data.tasks) ? data.tasks : []);
       } catch (_) {
         setAnimals([]);
         setGestations([]);
@@ -3686,6 +4601,8 @@ export default function App() {
         setSettings(settingsData);
         setFeederPrograms(feederData);
         setPastures(Array.isArray(byKey.pastures) ? byKey.pastures : []);
+        setExpenses(Array.isArray(byKey.expenses) ? byKey.expenses : []);
+        setTasks(Array.isArray(byKey.tasks) ? byKey.tasks : []);
         initialLoadDone.current = true;
       });
   }, [user]);
@@ -3694,7 +4611,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
       } catch (_) {}
       return;
     }
@@ -3704,7 +4621,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
       } catch (_) {}
       return;
     }
@@ -3714,7 +4631,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
       } catch (_) {}
       return;
     }
@@ -3724,7 +4641,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
       } catch (_) {}
       return;
     }
@@ -3734,7 +4651,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
       } catch (_) {}
       return;
     }
@@ -3744,7 +4661,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
       } catch (_) {}
       return;
     }
@@ -3754,12 +4671,32 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
       } catch (_) {}
       return;
     }
     supabase.from("user_data").upsert({ user_id: user.id, key: "pastures", data: pastures }, { onConflict: "user_id,key" }).then(() => {});
   }, [user, pastures]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+      } catch (_) {}
+      return;
+    }
+    supabase.from("user_data").upsert({ user_id: user.id, key: "expenses", data: expenses }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, expenses]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+      } catch (_) {}
+      return;
+    }
+    supabase.from("user_data").upsert({ user_id: user.id, key: "tasks", data: tasks }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, tasks]);
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([
@@ -3769,11 +4706,13 @@ export default function App() {
     ...(visibility.feeder !== false ? ["feeder"] : []),
     ...(visibility.pastures !== false ? ["pastures"] : []),
     ...(visibility.notes !== false ? ["notes"] : []),
+    ...(visibility.expenses !== false ? ["expenses"] : []),
+    ...(visibility.tasks !== false ? ["tasks"] : []),
     "settings",
   ]);
   useEffect(() => {
     if (!visibleTabIds.has(tab)) setTab(visibility.dashboard !== false ? "dashboard" : "settings");
-  }, [tab, visibility.dashboard, visibility.animals, visibility.gestation, visibility.feeder, visibility.pastures, visibility.notes]);
+  }, [tab, visibility.dashboard, visibility.animals, visibility.gestation, visibility.feeder, visibility.pastures, visibility.notes, visibility.expenses, visibility.tasks]);
 
   if (user === null) {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
@@ -3792,12 +4731,14 @@ export default function App() {
         </div>
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
-      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} />}
+      {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} expenses={expenses} tasks={tasks} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "feeder"    && <FeederCattle animals={animals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} />}
       {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
+      {tab === "expenses"  && <Expenses expenses={expenses} setExpenses={setExpenses} animals={animals} pastures={pastures} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
+      {tab === "tasks"     && <Tasks tasks={tasks} setTasks={setTasks} animals={animals} gestations={gestations} offspring={offspring} pastures={pastures} setTab={setTab} />}
       {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} animals={animals} />}
     </div>
   );

@@ -1017,7 +1017,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [importSuccess, setImportSuccess] = useState(null);
   const [importDragActive, setImportDragActive] = useState(false);
   const importFileInputRef = useRef(null);
-  const [showBulkRegister, setShowBulkRegister] = useState(false);
+  const [registerMode, setRegisterMode] = useState("single"); // "single" | "bulk"
   const [bulkRegisterForm, setBulkRegisterForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
     return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: "", count: "1", notes: "" };
@@ -1244,7 +1244,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
       });
     }
     setAnimals(p => [...p, ...newAnimals]);
-    setShowBulkRegister(false);
+    setShowAdd(false);
     setBulkRegisterForm(() => {
       const sp = defaultSpecies || "Cattle";
       return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: String(base + count), count: "1", notes: "" };
@@ -2836,8 +2836,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span className="hl-animals-header-btn-text">Import Animals</span>
             </button>
-            <Btn variant="secondary" onClick={() => setShowBulkRegister(true)}>Bulk Register Animals</Btn>
-            <Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setShowAdd(true); }}>+ Register Animal</Btn>
+            <Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setRegisterMode("single"); setShowAdd(true); }}>+ Register Animals</Btn>
           </div>
         </div>
       }>
@@ -2856,34 +2855,6 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           <Input placeholder="Search by name, species, or tag..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
-
-      {showBulkRegister && (
-        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Register Animals</div>
-          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>Create multiple animals with the same species, breed, sex, and optional DOB. Tag numbers will auto-increment from the starting tag.</p>
-          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-            <Select label="Species" value={bulkRegisterForm.species} onChange={e => {
-              const newSpecies = e.target.value;
-              const opts = getSexOptions(newSpecies);
-              setBulkRegisterForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
-            }}>
-              {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
-            </Select>
-            <Select label="Sex" value={bulkRegisterForm.sex} onChange={e => setBulkRegisterForm(p => ({ ...p, sex: e.target.value }))}>
-              {getSexOptions(bulkRegisterForm.species).map(opt => <option key={opt}>{opt}</option>)}
-            </Select>
-            <Input label="Breed" value={bulkRegisterForm.breed} onChange={e => setBulkRegisterForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
-            <Input label="Date of birth (optional)" type="date" value={bulkRegisterForm.dob} onChange={e => setBulkRegisterForm(p => ({ ...p, dob: e.target.value }))} />
-            <Input label="Starting tag number" value={bulkRegisterForm.startingTag} onChange={e => setBulkRegisterForm(p => ({ ...p, startingTag: e.target.value }))} placeholder="e.g. 1001" />
-            <Input label="Number of animals" type="number" min={1} value={bulkRegisterForm.count} onChange={e => setBulkRegisterForm(p => ({ ...p, count: e.target.value }))} placeholder="e.g. 10" />
-          </div>
-          <Textarea label="Notes" value={bulkRegisterForm.notes} onChange={e => setBulkRegisterForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Applied to all animals (optional)" style={{ marginBottom: "14px" }} />
-          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
-            <Btn onClick={submitBulkRegister} disabled={!bulkRegisterForm.startingTag?.trim() || parseInt(bulkRegisterForm.count, 10) < 1}>Register {Math.max(0, parseInt(bulkRegisterForm.count, 10) || 0)} animals</Btn>
-            <Btn variant="secondary" onClick={() => setShowBulkRegister(false)}>Cancel</Btn>
-          </div>
-        </Card>
-      )}
 
       {bulkMode && selectedIds.length > 0 && (
         <Card className="hl-bulk-toolbar">
@@ -3078,31 +3049,65 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
       {showAdd && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>New Animal</div>
-          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-            <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
-            <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
-            <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
-            <Select label="Species" value={form.species} onChange={e => {
-              const newSpecies = e.target.value;
-              const opts = getSexOptions(newSpecies);
-              setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
-            }}>
-              {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
-            </Select>
-            <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
-              {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
-            </Select>
-            <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
-            {PASTURE_SPECIES.includes(form.species) && (
-              <PastureCombo label="Current Pasture (optional)" value={form.currentPasture} onChange={v => setForm(p => ({ ...p, currentPasture: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-add-animal" />
-            )}
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Register Animals</div>
+          <div style={{ display: "flex", gap: "4px", marginBottom: "20px" }}>
+            <Btn variant={registerMode === "single" ? undefined : "ghost"} size="sm" onClick={() => setRegisterMode("single")} style={registerMode === "single" ? { background: "var(--green3)", color: "var(--green)" } : {}}>Single Animal</Btn>
+            <Btn variant={registerMode === "bulk" ? undefined : "ghost"} size="sm" onClick={() => setRegisterMode("bulk")} style={registerMode === "bulk" ? { background: "var(--green3)", color: "var(--green)" } : {}}>Bulk Register</Btn>
           </div>
-          <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
-          <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-            <Btn onClick={add}>Register</Btn>
-            <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
-          </div>
+
+          {registerMode === "single" ? (
+            <>
+              <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+                <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
+                <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
+                <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
+                <Select label="Species" value={form.species} onChange={e => {
+                  const newSpecies = e.target.value;
+                  const opts = getSexOptions(newSpecies);
+                  setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+                }}>
+                  {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
+                </Select>
+                <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
+                  {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
+                </Select>
+                <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+                {PASTURE_SPECIES.includes(form.species) && (
+                  <PastureCombo label="Current Pasture (optional)" value={form.currentPasture} onChange={v => setForm(p => ({ ...p, currentPasture: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-add-animal" />
+                )}
+              </div>
+              <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
+              <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                <Btn onClick={add}>Register</Btn>
+                <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
+              </div>
+            </>
+          ) : (
+            <>
+              <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>Create multiple animals with the same species, breed, sex, and optional DOB. Tag numbers will auto-increment from the starting tag.</p>
+              <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+                <Select label="Species" value={bulkRegisterForm.species} onChange={e => {
+                  const newSpecies = e.target.value;
+                  const opts = getSexOptions(newSpecies);
+                  setBulkRegisterForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+                }}>
+                  {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
+                </Select>
+                <Select label="Sex" value={bulkRegisterForm.sex} onChange={e => setBulkRegisterForm(p => ({ ...p, sex: e.target.value }))}>
+                  {getSexOptions(bulkRegisterForm.species).map(opt => <option key={opt}>{opt}</option>)}
+                </Select>
+                <Input label="Breed" value={bulkRegisterForm.breed} onChange={e => setBulkRegisterForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+                <Input label="Date of birth (optional)" type="date" value={bulkRegisterForm.dob} onChange={e => setBulkRegisterForm(p => ({ ...p, dob: e.target.value }))} />
+                <Input label="Starting tag number" value={bulkRegisterForm.startingTag} onChange={e => setBulkRegisterForm(p => ({ ...p, startingTag: e.target.value }))} placeholder="e.g. 1001" />
+                <Input label="Number of animals" type="number" min={1} value={bulkRegisterForm.count} onChange={e => setBulkRegisterForm(p => ({ ...p, count: e.target.value }))} placeholder="e.g. 10" />
+              </div>
+              <Textarea label="Notes" value={bulkRegisterForm.notes} onChange={e => setBulkRegisterForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Applied to all animals (optional)" style={{ marginBottom: "14px" }} />
+              <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+                <Btn onClick={submitBulkRegister} disabled={!bulkRegisterForm.startingTag?.trim() || parseInt(bulkRegisterForm.count, 10) < 1}>Register {Math.max(0, parseInt(bulkRegisterForm.count, 10) || 0)} animals</Btn>
+                <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
+              </div>
+            </>
+          )}
         </Card>
       )}
 

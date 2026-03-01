@@ -4995,10 +4995,18 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        const ts = new Date().toISOString();
+        supabase.from("user_data").upsert({ user_id: session.user.id, key: "last_seen", data: ts, updated_at: ts }, { onConflict: "user_id,key" }).then(() => {});
+      }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(prev => {
-        if (session?.user) return session.user;
+        if (session?.user) {
+          const ts = new Date().toISOString();
+          supabase.from("user_data").upsert({ user_id: session.user.id, key: "last_seen", data: ts, updated_at: ts }, { onConflict: "user_id,key" }).then(() => {});
+          return session.user;
+        }
         if (prev?.isGuest) return prev;
         return null;
       });

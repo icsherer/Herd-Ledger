@@ -688,6 +688,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🟩" }] : []),
     ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
     ...(visibility.expenses !== false ? [{ id: "expenses", label: "Expenses", icon: "💰" }] : []),
+    ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "📋" }] : []),
     ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✓" }] : []),
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
@@ -1051,7 +1052,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
   });
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
@@ -1087,6 +1088,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     notes: "",
   });
   const [showDeceasedAnimals, setShowDeceasedAnimals] = useState(false);
+  const [showArchivedAnimals, setShowArchivedAnimals] = useState(false);
   const [showBreedingForm, setShowBreedingForm] = useState(false);
   const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
@@ -1114,7 +1116,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [registerMode, setRegisterMode] = useState("single"); // "single" | "bulk"
   const [bulkRegisterForm, setBulkRegisterForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
-    return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: "", count: "1", notes: "" };
+    return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: "", count: "1", notes: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
   });
   const [runningWithBullPrompt, setRunningWithBullPrompt] = useState(null);
   const [runningWithBullStep, setRunningWithBullStep] = useState("ask");
@@ -1168,7 +1170,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
   };
 
   function parseImportFile(file, onDone) {
@@ -1293,8 +1295,15 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
   function add() {
     if (!form.name) return;
-    const { currentPasture, ...rest } = form;
-    const newAnimal = { ...rest, id: Date.now().toString() };
+    const { currentPasture, purchasePrice: _pp, ...rest } = form;
+    const newAnimal = {
+      ...rest,
+      id: Date.now().toString(),
+      acquisitionType: form.acquisitionType || "Home Raised",
+      purchasePrice: form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined,
+      purchaseDate: form.purchaseDate?.trim() || undefined,
+      purchasedFrom: form.purchasedFrom?.trim() || undefined,
+    };
     if (currentPasture?.trim() && PASTURE_SPECIES.includes(form.species)) {
       const canonical = getCanonicalPastureNames(animals, pastures);
       const resolved = resolvePastureName(currentPasture.trim(), canonical);
@@ -1335,19 +1344,24 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         tag,
         notes,
         name: undefined,
+        acquisitionType: bulkRegisterForm.acquisitionType || "Home Raised",
+        purchasePrice: bulkRegisterForm.purchasePrice?.trim() ? parseFloat(bulkRegisterForm.purchasePrice) : undefined,
+        purchaseDate: bulkRegisterForm.purchaseDate?.trim() || undefined,
+        purchasedFrom: bulkRegisterForm.purchasedFrom?.trim() || undefined,
       });
     }
     setAnimals(p => [...p, ...newAnimals]);
     setShowAdd(false);
     setBulkRegisterForm(() => {
       const sp = defaultSpecies || "Cattle";
-      return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: String(base + count), count: "1", notes: "" };
+      return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: String(base + count), count: "1", notes: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
     });
   }
 
   function saveEdit() {
     if (!editingId) return;
-    const updated = { ...viewing, name: form.name || undefined, species: form.species, sex: form.sex, dob: form.dob || undefined, breed: form.breed || undefined, tag: form.tag || undefined, notes: form.notes || undefined };
+    const purchasePriceNum = form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined;
+      const updated = { ...viewing, name: form.name || undefined, species: form.species, sex: form.sex, dob: form.dob || undefined, breed: form.breed || undefined, tag: form.tag || undefined, notes: form.notes || undefined, acquisitionType: form.acquisitionType || "Home Raised", purchasePrice: purchasePriceNum, purchaseDate: form.purchaseDate?.trim() || undefined, purchasedFrom: form.purchasedFrom?.trim() || undefined };
     setAnimals(p => p.map(x => x.id === editingId ? updated : x));
     setViewing(updated);
     setEditingId(null);
@@ -1377,7 +1391,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const filtered = animals.filter(a => {
     const matchesSearch = getAnimalName(a).toLowerCase().includes(search.toLowerCase()) || a.species.toLowerCase().includes(search.toLowerCase());
     const showByDeceased = showDeceasedAnimals ? true : !a.deceased;
-    return matchesSearch && showByDeceased;
+    const showByArchived = showArchivedAnimals ? true : !a.sale;
+    return matchesSearch && showByDeceased && showByArchived;
   });
 
   if (viewing) {
@@ -1747,7 +1762,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 const opts = getSexOptions(species);
                 const sex = opts.includes(a.sex) ? a.sex : (SEX_TERM_GENDER[a.sex] === "Female" ? opts.find(o => SEX_TERM_GENDER[o] === "Female") : opts.find(o => SEX_TERM_GENDER[o] === "Male")) || opts[0];
                 setEditingId(a.id);
-                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "" });
+                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "", acquisitionType: a.acquisitionType || "Home Raised", purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "", purchaseDate: a.purchaseDate || "", purchasedFrom: a.purchasedFrom || "" });
               }}>Edit</Btn>
           )}
         </div>
@@ -1770,6 +1785,24 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
               </Select>
               <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                  <input type="radio" name="acquisitionType" checked={form.acquisitionType === "Home Raised"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
+                  Home Raised
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                  <input type="radio" name="acquisitionType" checked={form.acquisitionType === "Purchased"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
+                  Purchased
+                </label>
+              </div>
+              {form.acquisitionType === "Purchased" && (
+                <>
+                  <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
+                  <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                  <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                </>
+              )}
             </div>
             <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
             <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
@@ -1857,6 +1890,20 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             </div>
 
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Acquisition</div>
+              <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", fontSize: "14px", color: "var(--ink2)" }}>
+                <div style={{ fontWeight: 600, marginBottom: "4px" }}>{a.acquisitionType === "Purchased" ? "Purchased" : "Home Raised"}</div>
+                {a.acquisitionType === "Purchased" && (
+                  <>
+                    {a.purchasePrice != null && <div>Purchase price: ${Number(a.purchasePrice).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>}
+                    {a.purchaseDate && <div>Purchase date: {fmt(a.purchaseDate)}</div>}
+                    {a.purchasedFrom && <div>Purchased from: {a.purchasedFrom}</div>}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Weight Tracking</div>
                 <Btn size="sm" variant="secondary" onClick={() => { setShowWeightForm(true); setWeightForm({ weight: "", date: "", notes: "" }); }}>Add Weight</Btn>
@@ -1920,20 +1967,28 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     );
                   }
                   const daysOnFeed = feederDaysOnFeed(fp.startDate);
-                  const targetDays = fp.targetDaysOnFeed ?? 0;
-                  const daysRemaining = Math.max(0, targetDays - daysOnFeed);
-                  const finishDate = fp.startDate && targetDays ? (() => { const d = new Date(fp.startDate); d.setDate(d.getDate() + targetDays); return d.toISOString().split("T")[0]; })() : null;
-                  const progressPct = targetDays > 0 ? Math.min(100, (daysOnFeed / targetDays) * 100) : 0;
                   const totalFeedConsumed = daysOnFeed * (fp.dailyFeedLbs ?? 0);
                   const costToDate = totalFeedConsumed * (fp.costPerLb ?? 0);
                   const estWeight = estimatedWeightFromADG(a, fp.startDate);
+                  const currentWeight = estWeight ?? (() => { const w = getLatestWeightForAnimal(animals, a.id); return w ? parseFloat(w) : null; })() ?? fp.startingWeight;
+                  const targetWeight = fp.targetWeight ?? (currentWeight != null ? currentWeight + 200 : null);
+                  const adg = (fp.adg != null && fp.adg > 0) ? fp.adg : getADGDefault(a.species);
+                  const lbsToGo = (targetWeight != null && currentWeight != null && targetWeight > currentWeight) ? targetWeight - currentWeight : 0;
+                  const estimatedDaysToFinish = (lbsToGo > 0 && adg > 0) ? Math.max(0, Math.ceil(lbsToGo / adg)) : null;
+                  const estimatedFinishDate = estimatedDaysToFinish != null ? (() => { const d = new Date(); d.setDate(d.getDate() + estimatedDaysToFinish); return d.toISOString().split("T")[0]; })() : null;
+                  const daysRemaining = estimatedDaysToFinish != null ? Math.max(0, estimatedDaysToFinish - daysOnFeed) : null;
+                  const progressPct = (estimatedDaysToFinish != null && estimatedDaysToFinish > 0) ? Math.min(100, (daysOnFeed / estimatedDaysToFinish) * 100) : 0;
                   return (
                     <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)" }}>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: "13px", marginBottom: "12px" }}>
                         <span style={{ color: "var(--muted)" }}>Days on feed</span>
                         <span style={{ fontWeight: 600 }}>{daysOnFeed}</span>
-                        <span style={{ color: "var(--muted)" }}>Days remaining</span>
-                        <span style={{ fontWeight: 600 }}>{targetDays ? daysRemaining : "—"}</span>
+                        {estimatedDaysToFinish != null && (
+                          <>
+                            <span style={{ color: "var(--muted)" }}>Est. days to finish</span>
+                            <span style={{ fontWeight: 600 }}>{estimatedDaysToFinish} · {estimatedFinishDate ? fmt(estimatedFinishDate) : ""}</span>
+                          </>
+                        )}
                         <span style={{ color: "var(--muted)" }}>Est. weight</span>
                         <span style={{ fontWeight: 600 }}>{estWeight != null ? `${Math.round(estWeight)} lb` : (fp.startingWeight != null ? `${fp.startingWeight} lb (start)` : "—")}</span>
                         <span style={{ color: "var(--muted)" }}>Feed consumed</span>
@@ -1943,9 +1998,9 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                         <span style={{ color: "var(--muted)" }}>Feed type</span>
                         <span style={{ fontWeight: 600 }}>{fp.feedType || "—"}</span>
                       </div>
-                      {targetDays > 0 && (
+                      {estimatedDaysToFinish != null && estimatedDaysToFinish > 0 && (
                         <div style={{ marginBottom: "12px" }}>
-                          <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Progress to target{finishDate ? ` · ${fmt(finishDate)}` : ""}</div>
+                          <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Progress · {daysOnFeed} of ~{estimatedDaysToFinish} days</div>
                           <div style={{ height: "6px", background: "var(--cream2)", borderRadius: "3px", overflow: "hidden" }}>
                             <div style={{ height: "100%", width: `${progressPct}%`, background: "var(--brass)", borderRadius: "3px", transition: "width 0.2s" }} />
                           </div>
@@ -2983,12 +3038,18 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         Animal Register
       </SectionTitle>
 
-      {/* Show/hide deceased + Search */}
+      {/* Show/hide deceased + archived (sold) + Search */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
         {deceasedCount > 0 && (
           <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--muted)", cursor: "pointer" }}>
             <input type="checkbox" checked={showDeceasedAnimals} onChange={e => setShowDeceasedAnimals(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
             Show deceased animals ({deceasedCount})
+          </label>
+        )}
+        {(animals || []).filter(a => a.sale).length > 0 && (
+          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--muted)", cursor: "pointer" }}>
+            <input type="checkbox" checked={showArchivedAnimals} onChange={e => setShowArchivedAnimals(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+            Show archived (sold) animals ({(animals || []).filter(a => a.sale).length})
           </label>
         )}
         <div style={{ flex: "1 1 200px", minWidth: 0 }}>
@@ -3215,6 +3276,24 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 {PASTURE_SPECIES.includes(form.species) && (
                   <PastureCombo label="Current Pasture (optional)" value={form.currentPasture} onChange={v => setForm(p => ({ ...p, currentPasture: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-add-animal" />
                 )}
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", gridColumn: "1 / -1" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                    <input type="radio" name="addAcquisitionType" checked={form.acquisitionType === "Home Raised"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
+                    Home Raised
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                    <input type="radio" name="addAcquisitionType" checked={form.acquisitionType === "Purchased"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
+                    Purchased
+                  </label>
+                </div>
+                {form.acquisitionType === "Purchased" && (
+                  <>
+                    <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
+                    <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                    <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                  </>
+                )}
               </div>
               <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
               <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
@@ -3240,6 +3319,24 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                 <Input label="Date of birth (optional)" type="date" value={bulkRegisterForm.dob} onChange={e => setBulkRegisterForm(p => ({ ...p, dob: e.target.value }))} />
                 <Input label="Starting tag number" value={bulkRegisterForm.startingTag} onChange={e => setBulkRegisterForm(p => ({ ...p, startingTag: e.target.value }))} placeholder="e.g. 1001" />
                 <Input label="Number of animals" type="number" min={1} value={bulkRegisterForm.count} onChange={e => setBulkRegisterForm(p => ({ ...p, count: e.target.value }))} placeholder="e.g. 10" />
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", gridColumn: "1 / -1" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                    <input type="radio" name="bulkAcquisitionType" checked={bulkRegisterForm.acquisitionType === "Home Raised"} onChange={() => setBulkRegisterForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
+                    Home Raised
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                    <input type="radio" name="bulkAcquisitionType" checked={bulkRegisterForm.acquisitionType === "Purchased"} onChange={() => setBulkRegisterForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
+                    Purchased
+                  </label>
+                </div>
+                {bulkRegisterForm.acquisitionType === "Purchased" && (
+                  <>
+                    <Input label="Purchase price per head ($)" type="number" min="0" step="0.01" value={bulkRegisterForm.purchasePrice} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
+                    <Input label="Purchase date" type="date" value={bulkRegisterForm.purchaseDate} onChange={e => setBulkRegisterForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                    <Input label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                  </>
+                )}
               </div>
               <Textarea label="Notes" value={bulkRegisterForm.notes} onChange={e => setBulkRegisterForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Applied to all animals (optional)" style={{ marginBottom: "14px" }} />
               <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
@@ -4272,6 +4369,25 @@ function Notes({ notes, setNotes, user, animals = [] }) {
 
 // ── Feeder Program ─────────────────────────────────────────────────────────────
 const FEED_TYPES = ["Corn", "Silage", "Hay", "Mixed Ration", "Custom"];
+// Industry FCR defaults (lbs feed per lb gain): Cattle grain/feedlot 6.0, forage/backgrounding 7.5; Pig 2.8; Sheep 4.5; Goat 4.5; Chicken 1.9; Rabbit 3.0
+function getFCRDefault(species, feedType) {
+  if (species === "Cattle") return (feedType === "Hay" || feedType === "Silage") ? 7.5 : 6.0;
+  if (species === "Pig") return 2.8;
+  if (species === "Sheep" || species === "Goat") return 4.5;
+  if (species === "Chicken") return 1.9;
+  if (species === "Rabbit") return 3.0;
+  return 6.0;
+}
+// ADG defaults (lbs/day): Cattle 3.0, Pig 1.8, Sheep 0.5, Goat 0.4, Chicken 0.1
+function getADGDefault(species) {
+  if (species === "Cattle") return 3.0;
+  if (species === "Pig") return 1.8;
+  if (species === "Sheep") return 0.5;
+  if (species === "Goat") return 0.4;
+  if (species === "Chicken") return 0.1;
+  if (species === "Rabbit") return 0.15;
+  return 1.0;
+}
 
 function feederDaysOnFeed(startDateStr) {
   if (!startDateStr) return 0;
@@ -4301,21 +4417,51 @@ function getLatestWeightForAnimal(animals, animalId) {
   return w != null ? String(w) : "";
 }
 
+function profitColor(projectedNet, totalAllIn) {
+  if (totalAllIn <= 0) return "var(--muted)";
+  const pct = projectedNet / totalAllIn;
+  if (projectedNet > 0) return "var(--green)";
+  if (pct >= -0.1) return "var(--brass2)"; // within 10% of breakeven
+  return "var(--danger2)";
+}
+
 function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setViewingAnimal, feederPreselectAnimalId, setFeederPreselectAnimalId, feederBulkAnimalIds, setFeederBulkAnimalIds }) {
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({
     animalId: "",
     startDate: "",
     startingWeight: "",
-    targetDaysOnFeed: "",
     dailyFeedLbs: "",
     feedType: "Corn",
     costPerLb: "",
     penName: "",
+    adg: "",
   });
   const [showBulkAdd, setShowBulkAdd] = useState(false);
-  const [bulkFormShared, setBulkFormShared] = useState({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" });
+  const [bulkFormShared, setBulkFormShared] = useState({ startDate: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "", adg: "3" });
   const [bulkAddAnimals, setBulkAddAnimals] = useState([]);
+  const [showBulkCalculator, setShowBulkCalculator] = useState(false);
+  const [bulkCalcForm, setBulkCalcForm] = useState({
+    headCount: "",
+    avgStartWeight: "",
+    avgTargetWeight: "",
+    avgPurchasePricePerHead: "",
+    species: "Cattle",
+    feedType: "Corn",
+    feedConversionRatio: "6",
+    adg: "3",
+    costPerLbFeed: "",
+    vetPerHead: "",
+    medicinePerHead: "",
+    beddingPerHead: "",
+    laborPerHead: "",
+    otherPerHead: "",
+    marketPricePerLb: "",
+  });
+
+  function updateFeederCalculator(fpId, updates) {
+    setFeederPrograms(prev => prev.map(f => f.id === fpId ? { ...f, ...updates } : f));
+  }
 
   const cattle = (animals || []).filter(a => a.species === "Cattle" && !a.deceased && !a.sale);
   const inProgramIds = new Set((feederPrograms || []).map(f => f.animalId));
@@ -4339,7 +4485,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
     if (toAdd.length === 0) return;
     setShowAdd(false);
     setShowBulkAdd(true);
-    setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" });
+    setBulkFormShared({ startDate: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "", adg: "3" });
     setBulkAddAnimals(toAdd);
   }, [feederBulkAnimalIds, setFeederBulkAnimalIds, animals, feederPrograms]);
 
@@ -4352,22 +4498,26 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
 
   function addToProgram() {
     if (!form.animalId || !form.startDate) return;
+    const an = (animals || []).find(a => a.id === form.animalId);
     const startWeight = form.startingWeight?.trim() ? parseFloat(form.startingWeight) : undefined;
-    const targetDays = form.targetDaysOnFeed?.trim() ? parseInt(form.targetDaysOnFeed, 10) : undefined;
+    const adgVal = form.adg?.trim() ? parseFloat(form.adg) : (an ? getADGDefault(an.species) : 3);
     const dailyLbs = form.dailyFeedLbs?.trim() ? parseFloat(form.dailyFeedLbs) : undefined;
     const costPerLb = form.costPerLb?.trim() ? parseFloat(form.costPerLb) : undefined;
+    const feedType = form.feedType || "Corn";
+    const fcr = an ? getFCRDefault(an.species, feedType) : 6;
     setFeederPrograms(prev => [...prev, {
       id: Date.now().toString(),
       animalId: form.animalId,
       startDate: form.startDate,
       startingWeight: startWeight,
-      targetDaysOnFeed: targetDays,
+      adg: adgVal,
       dailyFeedLbs: dailyLbs,
-      feedType: form.feedType || "Corn",
+      feedType,
       costPerLb: costPerLb,
       penName: form.penName?.trim() || undefined,
+      feedConversionRatio: fcr,
     }]);
-    setForm({ animalId: "", startDate: "", startingWeight: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" });
+    setForm({ animalId: "", startDate: "", startingWeight: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "", adg: "" });
     setShowAdd(false);
   }
 
@@ -4377,25 +4527,28 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
 
   function submitBulkAdd() {
     if (!bulkFormShared.startDate || bulkAddAnimals.length === 0) return;
-    const targetDays = bulkFormShared.targetDaysOnFeed?.trim() ? parseInt(bulkFormShared.targetDaysOnFeed, 10) : undefined;
+    const adgVal = bulkFormShared.adg?.trim() ? parseFloat(bulkFormShared.adg) : 3;
     const dailyLbs = bulkFormShared.dailyFeedLbs?.trim() ? parseFloat(bulkFormShared.dailyFeedLbs) : undefined;
     const costPerLb = bulkFormShared.costPerLb?.trim() ? parseFloat(bulkFormShared.costPerLb) : undefined;
     const penName = bulkFormShared.penName?.trim() || undefined;
+    const feedType = bulkFormShared.feedType || "Corn";
+    const fcr = getFCRDefault("Cattle", feedType);
     const newRecords = bulkAddAnimals.map((row, i) => ({
       id: Date.now().toString() + "-" + i,
       animalId: row.animalId,
       startDate: bulkFormShared.startDate,
       startingWeight: row.startingWeight?.trim() ? parseFloat(row.startingWeight) : undefined,
-      targetDaysOnFeed: targetDays,
+      adg: adgVal,
       dailyFeedLbs: dailyLbs,
-      feedType: bulkFormShared.feedType || "Corn",
+      feedType,
       costPerLb: costPerLb,
       penName,
+      feedConversionRatio: fcr,
     }));
     setFeederPrograms(prev => [...prev, ...newRecords]);
     setShowBulkAdd(false);
     setBulkAddAnimals([]);
-    setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" });
+    setBulkFormShared({ startDate: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "", adg: "3" });
   }
 
   function setBulkAnimalStartingWeight(animalId, value) {
@@ -4404,9 +4557,104 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
 
   return (
     <div className="hl-page hl-fade-in">
-      <SectionTitle action={<Btn onClick={() => setShowAdd(true)} disabled={availableCattle.length === 0}>+ Add to Feeder Program</Btn>}>
+      <SectionTitle action={
+        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+          <Btn variant="secondary" onClick={() => setShowBulkCalculator(true)}>Bulk Calculator</Btn>
+          <Btn onClick={() => setShowAdd(true)} disabled={availableCattle.length === 0}>+ Add to Feeder Program</Btn>
+        </div>
+      }>
         Feeder Program
       </SectionTitle>
+
+      {showBulkCalculator && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)", maxWidth: "900px" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600 }}>Bulk Profitability Calculator</div>
+            <Btn size="sm" variant="ghost" onClick={() => setShowBulkCalculator(false)}>Close</Btn>
+          </div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "18px" }}>Standalone what-if calculator. No animals need to be registered.</p>
+          <div className="hl-form-grid-3" style={{ marginBottom: "18px" }}>
+            <Input label="Number of head" type="number" min="1" value={bulkCalcForm.headCount} onChange={e => setBulkCalcForm(p => ({ ...p, headCount: e.target.value }))} placeholder="e.g. 50" />
+            <Input label="Avg starting weight (lbs)" type="number" min="0" step="0.1" value={bulkCalcForm.avgStartWeight} onChange={e => setBulkCalcForm(p => ({ ...p, avgStartWeight: e.target.value }))} placeholder="e.g. 650" />
+            <Input label="Avg target weight (lbs)" type="number" min="0" step="0.1" value={bulkCalcForm.avgTargetWeight} onChange={e => setBulkCalcForm(p => ({ ...p, avgTargetWeight: e.target.value }))} placeholder="e.g. 1400" />
+            <Input label="Avg purchase price per head ($)" type="number" min="0" step="0.01" value={bulkCalcForm.avgPurchasePricePerHead} onChange={e => setBulkCalcForm(p => ({ ...p, avgPurchasePricePerHead: e.target.value }))} placeholder="e.g. 950" />
+            <Select label="Species" value={bulkCalcForm.species} onChange={e => {
+              const sp = e.target.value;
+              setBulkCalcForm(p => ({ ...p, species: sp, feedConversionRatio: String(getFCRDefault(sp, p.feedType)), adg: String(getADGDefault(sp)) }));
+            }}>
+              {Object.keys(SPECIES).map(s => <option key={s} value={s}>{s}</option>)}
+            </Select>
+            <Select label="Feed type" value={bulkCalcForm.feedType} onChange={e => {
+              const ft = e.target.value;
+              setBulkCalcForm(p => ({ ...p, feedType: ft, feedConversionRatio: String(getFCRDefault(p.species, ft)) }));
+            }}>
+              {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            </Select>
+            <Input label="Feed conversion ratio" type="number" min="0.1" step="0.1" value={bulkCalcForm.feedConversionRatio} onChange={e => setBulkCalcForm(p => ({ ...p, feedConversionRatio: e.target.value }))} placeholder="By species/feed" />
+            <Input label="ADG (lbs/day)" type="number" min="0.01" step="0.1" value={bulkCalcForm.adg} onChange={e => setBulkCalcForm(p => ({ ...p, adg: e.target.value }))} placeholder="By species" />
+            <Input label="Cost per lb of feed ($)" type="number" min="0" step="0.01" value={bulkCalcForm.costPerLbFeed} onChange={e => setBulkCalcForm(p => ({ ...p, costPerLbFeed: e.target.value }))} placeholder="e.g. 0.08" />
+            <Input label="Additional: Vet ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.vetPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, vetPerHead: e.target.value }))} placeholder="0" />
+            <Input label="Medicine ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.medicinePerHead} onChange={e => setBulkCalcForm(p => ({ ...p, medicinePerHead: e.target.value }))} placeholder="0" />
+            <Input label="Bedding ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.beddingPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, beddingPerHead: e.target.value }))} placeholder="0" />
+            <Input label="Labor ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.laborPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, laborPerHead: e.target.value }))} placeholder="0" />
+            <Input label="Other ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.otherPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, otherPerHead: e.target.value }))} placeholder="0" />
+            <Input label="Current market price per lb ($)" type="number" min="0" step="0.01" value={bulkCalcForm.marketPricePerLb} onChange={e => setBulkCalcForm(p => ({ ...p, marketPricePerLb: e.target.value }))} placeholder="e.g. 1.85" />
+          </div>
+          {(() => {
+            const head = parseInt(bulkCalcForm.headCount, 10) || 0;
+            const startWt = parseFloat(bulkCalcForm.avgStartWeight) || 0;
+            const targetWt = parseFloat(bulkCalcForm.avgTargetWeight) || 0;
+            const purchasePerHead = parseFloat(bulkCalcForm.avgPurchasePricePerHead) || 0;
+            const conversion = parseFloat(bulkCalcForm.feedConversionRatio) || getFCRDefault(bulkCalcForm.species, bulkCalcForm.feedType);
+            const adg = parseFloat(bulkCalcForm.adg) || getADGDefault(bulkCalcForm.species);
+            const costPerLb = parseFloat(bulkCalcForm.costPerLbFeed) || 0;
+            const addV = parseFloat(bulkCalcForm.vetPerHead) || 0; const addM = parseFloat(bulkCalcForm.medicinePerHead) || 0; const addB = parseFloat(bulkCalcForm.beddingPerHead) || 0; const addL = parseFloat(bulkCalcForm.laborPerHead) || 0; const addO = parseFloat(bulkCalcForm.otherPerHead) || 0;
+            const addPerHead = addV + addM + addB + addL + addO;
+            const marketPrice = parseFloat(bulkCalcForm.marketPricePerLb) || 0;
+            const gainPerHead = targetWt > startWt ? targetWt - startWt : 0;
+            const estimatedDaysToFinish = (gainPerHead > 0 && adg > 0) ? Math.max(0, Math.ceil(gainPerHead / adg)) : null;
+            const estimatedFinishDate = estimatedDaysToFinish != null ? (() => { const d = new Date(); d.setDate(d.getDate() + estimatedDaysToFinish); return d.toISOString().split("T")[0]; })() : null;
+            const totalGainGroup = head * gainPerHead;
+            const totalFeedConsumed = totalGainGroup * conversion;
+            const totalFeedCost = totalFeedConsumed * costPerLb;
+            const totalAddExpenses = head * addPerHead;
+            const totalPurchase = head * purchasePerHead;
+            const totalAllIn = totalFeedCost + totalAddExpenses + totalPurchase;
+            const totalAllInPerHead = head > 0 ? totalAllIn / head : 0;
+            const costOfGainPerLb = totalGainGroup > 0 ? totalAllIn / totalGainGroup : 0;
+            const breakevenPricePerLb = head > 0 && targetWt > 0 ? totalAllIn / (head * targetWt) : 0;
+            const projectedGrossRevenue = head * targetWt * marketPrice;
+            const projectedNet = projectedGrossRevenue - totalAllIn;
+            const profitPerHead = head > 0 ? projectedNet / head : 0;
+            const profitPerDay = (estimatedDaysToFinish != null && estimatedDaysToFinish > 0) ? projectedNet / estimatedDaysToFinish : 0;
+            const color = profitColor(projectedNet, totalAllIn);
+            return (
+              <div style={{ padding: "16px 20px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
+                {estimatedDaysToFinish != null && (
+                  <div style={{ marginBottom: "16px", padding: "12px 14px", background: "#fff", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Estimated days to finish</div>
+                    <div style={{ fontSize: "22px", fontWeight: 700, color: "var(--green)", marginBottom: "4px" }}>{estimatedDaysToFinish} days</div>
+                    <div style={{ fontSize: "13px", color: "var(--ink2)" }}>Estimated finish date · {estimatedFinishDate ? fmt(estimatedFinishDate) : "—"}</div>
+                  </div>
+                )}
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "12px" }}>Real-time results</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px 20px", fontSize: "14px" }}>
+                  <div><span style={{ color: "var(--muted)" }}>Total feed consumed</span><div style={{ fontWeight: 600 }}>{totalFeedConsumed.toLocaleString("en-US", { maximumFractionDigits: 0 })} lb</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Total feed cost</span><div style={{ fontWeight: 600 }}>${totalFeedCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Total all-in cost per head</span><div style={{ fontWeight: 600 }}>${totalAllInPerHead.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Total all-in cost (group)</span><div style={{ fontWeight: 600 }}>${totalAllIn.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Cost of gain per lb</span><div style={{ fontWeight: 600 }}>${costOfGainPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Breakeven price per lb</span><div style={{ fontWeight: 600 }}>${breakevenPricePerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Projected gross revenue</span><div style={{ fontWeight: 600 }}>${projectedGrossRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Projected net (group)</span><div style={{ fontWeight: 600, color }}>${projectedNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Profit/loss per head</span><div style={{ fontWeight: 600, color }}>${profitPerHead.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                  <div><span style={{ color: "var(--muted)" }}>Projected profit per day</span><div style={{ fontWeight: 600, color }}>${profitPerDay.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                </div>
+              </div>
+            );
+          })()}
+        </Card>
+      )}
 
       {totalHead > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
@@ -4426,7 +4674,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add to Feeder Program ({bulkAddAnimals.length} animals)</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Input label="Start date *" type="date" value={bulkFormShared.startDate} onChange={e => setBulkFormShared(p => ({ ...p, startDate: e.target.value }))} />
-            <Input label="Target days on feed" type="number" min="1" value={bulkFormShared.targetDaysOnFeed} onChange={e => setBulkFormShared(p => ({ ...p, targetDaysOnFeed: e.target.value }))} placeholder="e.g. 120" />
+            <Input label="ADG (lbs/day)" type="number" min="0.01" step="0.1" value={bulkFormShared.adg} onChange={e => setBulkFormShared(p => ({ ...p, adg: e.target.value }))} placeholder="e.g. 3 (Cattle default)" />
             <Input label="Daily feed amount (lbs)" type="number" min="0" step="0.1" value={bulkFormShared.dailyFeedLbs} onChange={e => setBulkFormShared(p => ({ ...p, dailyFeedLbs: e.target.value }))} placeholder="e.g. 25" />
             <Select label="Feed type" value={bulkFormShared.feedType} onChange={e => setBulkFormShared(p => ({ ...p, feedType: e.target.value }))}>
               {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -4450,7 +4698,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
           </div>
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={submitBulkAdd}>Add all to Program</Btn>
-            <Btn variant="secondary" onClick={() => { setShowBulkAdd(false); setBulkAddAnimals([]); setBulkFormShared({ startDate: "", targetDaysOnFeed: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "" }); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={() => { setShowBulkAdd(false); setBulkAddAnimals([]); setBulkFormShared({ startDate: "", dailyFeedLbs: "", feedType: "Corn", costPerLb: "", penName: "", adg: "3" }); }}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -4464,7 +4712,8 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
               const an = (animals || []).find(a => a.id === id);
               const weightsSorted = [...(an?.weights || [])].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
               const lastWeight = weightsSorted[0]?.weight;
-              setForm(p => ({ ...p, animalId: id, startingWeight: lastWeight != null ? String(lastWeight) : "" }));
+              const adgDefault = an ? getADGDefault(an.species) : 3;
+              setForm(p => ({ ...p, animalId: id, startingWeight: lastWeight != null ? String(lastWeight) : "", adg: p.adg || String(adgDefault) }));
             }}>
               <option value="">— Select —</option>
               {availableCattle.map(a => (
@@ -4473,7 +4722,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
             </Select>
             <Input label="Start date *" type="date" value={form.startDate} onChange={e => setForm(p => ({ ...p, startDate: e.target.value }))} />
             <Input label="Starting weight (lbs)" type="number" min="0" step="0.1" value={form.startingWeight} onChange={e => setForm(p => ({ ...p, startingWeight: e.target.value }))} placeholder="e.g. 650" />
-            <Input label="Target days on feed" type="number" min="1" value={form.targetDaysOnFeed} onChange={e => setForm(p => ({ ...p, targetDaysOnFeed: e.target.value }))} placeholder="e.g. 120" />
+            <Input label="ADG (lbs/day)" type="number" min="0.01" step="0.1" value={form.adg} onChange={e => setForm(p => ({ ...p, adg: e.target.value }))} placeholder={form.animalId ? String(getADGDefault((animals || []).find(a => a.id === form.animalId)?.species) ?? 3) : "e.g. 3"} />
             <Input label="Daily feed amount (lbs)" type="number" min="0" step="0.1" value={form.dailyFeedLbs} onChange={e => setForm(p => ({ ...p, dailyFeedLbs: e.target.value }))} placeholder="e.g. 25" />
             <Select label="Feed type" value={form.feedType} onChange={e => setForm(p => ({ ...p, feedType: e.target.value }))}>
               {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -4501,13 +4750,33 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
           const animal = (animals || []).find(a => a.id === fp.animalId);
           if (!animal) return null;
           const daysOnFeed = feederDaysOnFeed(fp.startDate);
-          const targetDays = fp.targetDaysOnFeed ?? 0;
-          const daysRemaining = Math.max(0, targetDays - daysOnFeed);
-          const finishDate = fp.startDate && targetDays ? (() => { const d = new Date(fp.startDate); d.setDate(d.getDate() + targetDays); return d.toISOString().split("T")[0]; })() : null;
-          const progressPct = targetDays > 0 ? Math.min(100, (daysOnFeed / targetDays) * 100) : 0;
           const totalFeedConsumed = daysOnFeed * (fp.dailyFeedLbs ?? 0);
           const costToDate = totalFeedConsumed * (fp.costPerLb ?? 0);
           const estWeight = estimatedWeightFromADG(animal, fp.startDate);
+          const currentWeight = estWeight ?? (() => { const w = getLatestWeightForAnimal(animals, fp.animalId); return w ? parseFloat(w) : null; })() ?? fp.startingWeight;
+          const startWeight = fp.startingWeight ?? 0;
+          const targetWeight = fp.targetWeight != null ? fp.targetWeight : (currentWeight != null ? currentWeight + 200 : 0);
+          const adg = (fp.adg != null && fp.adg > 0) ? fp.adg : getADGDefault(animal.species);
+          const conversion = fp.feedConversionRatio != null ? fp.feedConversionRatio : getFCRDefault(animal.species, fp.feedType || "Corn");
+          const lbsToGo = (targetWeight != null && currentWeight != null && targetWeight > currentWeight) ? targetWeight - currentWeight : 0;
+          const estimatedDaysToFinish = (lbsToGo > 0 && adg > 0) ? Math.max(0, Math.ceil(lbsToGo / adg)) : null;
+          const estimatedFinishDate = estimatedDaysToFinish != null ? (() => { const d = new Date(); d.setDate(d.getDate() + estimatedDaysToFinish); return d.toISOString().split("T")[0]; })() : null;
+          const daysRemaining = estimatedDaysToFinish != null ? Math.max(0, estimatedDaysToFinish - daysOnFeed) : 0;
+          const progressPct = (estimatedDaysToFinish != null && estimatedDaysToFinish > 0) ? Math.min(100, (daysOnFeed / estimatedDaysToFinish) * 100) : 0;
+          const additionalExp = fp.additionalExpenses ?? 0;
+          const purchasePrice = animal.acquisitionType === "Purchased" && animal.purchasePrice != null ? Number(animal.purchasePrice) : 0;
+          const marketPricePerLb = fp.marketPricePerLb ?? 0;
+          const lbsGainSoFar = currentWeight != null && startWeight > 0 ? Math.max(0, currentWeight - startWeight) : 0;
+          const lbsGainRemaining = (targetWeight != null && currentWeight != null && targetWeight > currentWeight) ? targetWeight - currentWeight : null;
+          const totalFeedForGain = lbsGainSoFar * conversion;
+          const totalFeedCostCalc = totalFeedForGain * (fp.costPerLb ?? 0);
+          const totalAllIn = totalFeedCostCalc + additionalExp + purchasePrice;
+          const costOfGainPerLb = lbsGainSoFar > 0 ? totalAllIn / lbsGainSoFar : 0;
+          const breakevenPerLb = currentWeight > 0 ? totalAllIn / currentWeight : 0;
+          const projectedRevenue = (marketPricePerLb && currentWeight) ? marketPricePerLb * currentWeight : 0;
+          const projectedNet = projectedRevenue - totalAllIn;
+          const profitPerDayRemaining = daysRemaining > 0 ? projectedNet / daysRemaining : 0;
+          const calcColor = profitColor(projectedNet, totalAllIn);
           return (
             <Card key={fp.id} style={{ padding: "18px 20px", borderLeft: "4px solid var(--brass)", position: "relative" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
@@ -4520,8 +4789,6 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px", fontSize: "13px", marginBottom: "12px" }}>
                 <span style={{ color: "var(--muted)" }}>Days on feed</span>
                 <span style={{ fontWeight: 600 }}>{daysOnFeed}</span>
-                <span style={{ color: "var(--muted)" }}>Days remaining</span>
-                <span style={{ fontWeight: 600 }}>{targetDays ? daysRemaining : "—"}</span>
                 <span style={{ color: "var(--muted)" }}>Est. weight</span>
                 <span style={{ fontWeight: 600 }}>{estWeight != null ? `${Math.round(estWeight)} lb` : (fp.startingWeight != null ? `${fp.startingWeight} lb (start)` : "—")}</span>
                 <span style={{ color: "var(--muted)" }}>Feed consumed</span>
@@ -4529,15 +4796,60 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
                 <span style={{ color: "var(--muted)" }}>Feed cost to date</span>
                 <span style={{ fontWeight: 600 }}>${costToDate.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
               </div>
-              {targetDays > 0 && (
+              {estimatedDaysToFinish != null && (
+                <div style={{ marginBottom: "12px", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)", borderLeft: "3px solid var(--brass)" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--ink2)", marginBottom: "4px" }}>Estimated days to finish</div>
+                  <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--green)", marginBottom: "4px" }}>{estimatedDaysToFinish} days</div>
+                  <div style={{ fontSize: "12px", color: "var(--muted)" }}>Estimated finish date · {estimatedFinishDate ? fmt(estimatedFinishDate) : "—"}</div>
+                </div>
+              )}
+              {estimatedDaysToFinish != null && estimatedDaysToFinish > 0 && (
                 <div style={{ marginBottom: "12px" }}>
-                  <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Progress to target · {finishDate ? fmt(finishDate) : ""}</div>
+                  <div style={{ fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>Progress · {daysOnFeed} of ~{estimatedDaysToFinish} days</div>
                   <div style={{ height: "6px", background: "var(--cream2)", borderRadius: "3px", overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${progressPct}%`, background: "var(--brass)", borderRadius: "3px", transition: "width 0.2s" }} />
                   </div>
                 </div>
               )}
-              <Btn size="sm" variant="secondary" onClick={() => { setTab("animals"); setViewingAnimal(animal); }} style={{ width: "100%" }}>Record Weight</Btn>
+
+              <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid var(--cream2)" }}>
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px" }}>Profitability Calculator</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", marginBottom: "10px" }}>
+                  <Input label="Target weight (lb)" type="number" min="0" step="0.1" value={fp.targetWeight != null ? String(fp.targetWeight) : ""} onChange={e => updateFeederCalculator(fp.id, { targetWeight: e.target.value.trim() ? parseFloat(e.target.value) : undefined })} placeholder={targetWeight ? String(targetWeight) : "e.g. 1400"} style={{ fontSize: "12px" }} />
+                  <Input label="ADG (lbs/day)" type="number" min="0.01" step="0.1" value={fp.adg != null ? String(fp.adg) : ""} onChange={e => updateFeederCalculator(fp.id, { adg: e.target.value.trim() ? parseFloat(e.target.value) : undefined })} placeholder={String(getADGDefault(animal.species))} style={{ fontSize: "12px" }} />
+                  <Input label="Feed conversion" type="number" min="0.1" step="0.1" value={fp.feedConversionRatio != null ? String(fp.feedConversionRatio) : String(getFCRDefault(animal.species, fp.feedType || "Corn"))} onChange={e => updateFeederCalculator(fp.id, { feedConversionRatio: e.target.value.trim() ? parseFloat(e.target.value) : getFCRDefault(animal.species, fp.feedType || "Corn") })} style={{ fontSize: "12px" }} />
+                  <Input label="Add'l expenses ($)" type="number" min="0" step="0.01" value={fp.additionalExpenses != null ? String(fp.additionalExpenses) : ""} onChange={e => updateFeederCalculator(fp.id, { additionalExpenses: e.target.value.trim() ? parseFloat(e.target.value) : undefined })} placeholder="0" style={{ fontSize: "12px" }} />
+                  <Input label="Market $/lb" type="number" min="0" step="0.01" value={fp.marketPricePerLb != null ? String(fp.marketPricePerLb) : ""} onChange={e => updateFeederCalculator(fp.id, { marketPricePerLb: e.target.value.trim() ? parseFloat(e.target.value) : undefined })} placeholder="e.g. 1.85" style={{ fontSize: "12px", gridColumn: "1 / -1" }} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px 12px", fontSize: "12px", marginBottom: "8px" }}>
+                  <span style={{ color: "var(--muted)" }}>Lbs gain so far</span>
+                  <span style={{ fontWeight: 600 }}>{lbsGainSoFar.toLocaleString("en-US", { maximumFractionDigits: 1 })}</span>
+                  {lbsGainRemaining != null && (
+                    <>
+                      <span style={{ color: "var(--muted)" }}>Lbs gain remaining</span>
+                      <span style={{ fontWeight: 600 }}>{lbsGainRemaining.toLocaleString("en-US", { maximumFractionDigits: 1 })}</span>
+                    </>
+                  )}
+                  <span style={{ color: "var(--muted)" }}>Total feed (gain)</span>
+                  <span style={{ fontWeight: 600 }}>{totalFeedForGain.toLocaleString("en-US", { maximumFractionDigits: 0 })} lb</span>
+                  <span style={{ color: "var(--muted)" }}>Total feed cost</span>
+                  <span style={{ fontWeight: 600 }}>${totalFeedCostCalc.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span style={{ color: "var(--muted)" }}>Total all-in cost</span>
+                  <span style={{ fontWeight: 600 }}>${totalAllIn.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span style={{ color: "var(--muted)" }}>Cost of gain/lb</span>
+                  <span style={{ fontWeight: 600 }}>${costOfGainPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span style={{ color: "var(--muted)" }}>Breakeven $/lb</span>
+                  <span style={{ fontWeight: 600 }}>${breakevenPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span style={{ color: "var(--muted)" }}>Projected revenue</span>
+                  <span style={{ fontWeight: 600 }}>${projectedRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span style={{ color: "var(--muted)" }}>Projected net</span>
+                  <span style={{ fontWeight: 600, color: calcColor }}>${projectedNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                  <span style={{ color: "var(--muted)" }}>Profit/day remain.</span>
+                  <span style={{ fontWeight: 600, color: calcColor }}>${profitPerDayRemaining.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                </div>
+              </div>
+
+              <Btn size="sm" variant="secondary" onClick={() => { setTab("animals"); setViewingAnimal(animal); }} style={{ width: "100%", marginTop: "12px" }}>Record Weight</Btn>
             </Card>
           );
         })}
@@ -4931,6 +5243,281 @@ function Tasks({ tasks, setTasks, animals, gestations, offspring, pastures, setT
   );
 }
 
+// ── Sales ─────────────────────────────────────────────────────────────────────
+function Sales({ animals, loadSales, setLoadSales, expenses }) {
+  const currentYear = new Date().getFullYear();
+  const [year, setYear] = useState(currentYear);
+  const [showLoadForm, setShowLoadForm] = useState(false);
+  const [loadForm, setLoadForm] = useState({
+    date: new Date().toISOString().split("T")[0],
+    headCount: "",
+    species: "Cattle",
+    averageWeight: "",
+    priceType: "perHead",
+    priceValue: "",
+    totalAmount: "",
+    buyerName: "",
+    notes: "",
+  });
+
+  const soldAnimals = (animals || []).filter(a => a.sale).sort((x, y) => (y.sale?.dateSold || "").localeCompare(x.sale?.dateSold || ""));
+  const individualSalesYTD = soldAnimals
+    .filter(a => a.sale?.dateSold && a.sale.dateSold.startsWith(String(year)))
+    .reduce((sum, a) => sum + (Number(a.sale?.pricePerHead) || 0), 0);
+  const loadSalesYTD = (loadSales || [])
+    .filter(l => l.date && l.date.startsWith(String(year)))
+    .reduce((sum, l) => sum + (Number(l.totalAmount) || 0), 0);
+  const totalCombinedYTD = individualSalesYTD + loadSalesYTD;
+
+  function saveLoadSale() {
+    const headCount = parseInt(loadForm.headCount, 10);
+    const avgWt = loadForm.averageWeight?.trim() ? parseFloat(loadForm.averageWeight) : null;
+    const priceVal = loadForm.priceValue?.trim() ? parseFloat(loadForm.priceValue) : null;
+    let total = loadForm.totalAmount?.trim() ? parseFloat(loadForm.totalAmount) : null;
+    if (total == null && priceVal != null && headCount >= 1) {
+      if (loadForm.priceType === "perHead") total = headCount * priceVal;
+      else if (loadForm.priceType === "perLb" && avgWt != null) total = headCount * avgWt * priceVal;
+    }
+    setLoadSales(prev => [...(prev || []), {
+      id: Date.now().toString(),
+      date: loadForm.date || undefined,
+      headCount: headCount >= 1 ? headCount : undefined,
+      species: loadForm.species || undefined,
+      averageWeight: avgWt ?? undefined,
+      priceType: loadForm.priceType,
+      priceValue: priceVal ?? undefined,
+      totalAmount: total ?? undefined,
+      buyerName: loadForm.buyerName?.trim() || undefined,
+      notes: loadForm.notes?.trim() || undefined,
+    }]);
+    setLoadForm({ date: new Date().toISOString().split("T")[0], headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" });
+    setShowLoadForm(false);
+  }
+
+  function removeLoadSale(id) {
+    setLoadSales(prev => (prev || []).filter(l => l.id !== id));
+  }
+
+  function exportScheduleF() {
+    const rows = [];
+    soldAnimals.forEach(a => {
+      if (!a.sale?.dateSold) return;
+      const amt = Number(a.sale?.pricePerHead) || 0;
+      if (amt === 0) return;
+      rows.push({
+        date: a.sale.dateSold,
+        description: `Livestock sale — ${getAnimalName(a)}${a.species ? ` ${a.species}` : ""}`,
+        category: "Livestock Sales",
+        amount: amt,
+        animalTag: a.tag || "",
+        notes: a.sale?.notes || "",
+      });
+    });
+    (loadSales || []).forEach(l => {
+      const amt = Number(l.totalAmount) || 0;
+      if (!l.date || amt === 0) return;
+      rows.push({
+        date: l.date,
+        description: `Load sale — ${l.headCount || 0} head ${l.species || ""}${l.buyerName ? ` to ${l.buyerName}` : ""}`,
+        category: "Livestock Sales",
+        amount: amt,
+        animalTag: "",
+        notes: l.notes || "",
+      });
+    });
+    (animals || []).filter(a => a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchasePrice > 0).forEach(a => {
+      rows.push({
+        date: a.purchaseDate || "",
+        description: `Purchase — ${getAnimalName(a)}${a.species ? ` ${a.species}` : ""}${a.purchasedFrom ? ` from ${a.purchasedFrom}` : ""}`,
+        category: "Livestock Purchased",
+        amount: -(Number(a.purchasePrice) || 0),
+        animalTag: a.tag || "",
+        notes: "",
+      });
+    });
+    (expenses || []).forEach(e => {
+      const amt = -(Number(e.amount) || 0);
+      if (amt === 0) return;
+      let category = "Other Farm Expense";
+      const cat = (e.category || "").toLowerCase();
+      if (cat.includes("feed")) category = "Feed Expense";
+      else if (cat.includes("vet") || cat.includes("medic")) category = "Veterinary";
+      rows.push({
+        date: e.date || "",
+        description: (e.description || e.category || "Expense").slice(0, 200),
+        category,
+        amount: amt,
+        animalTag: e.animalId ? ((animals || []).find(a => a.id === e.animalId)?.tag || "") : "",
+        notes: e.notes || "",
+      });
+    });
+    rows.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+    const headers = ["Date", "Description", "Category", "Amount", "Animal Tag", "Notes"];
+    const csv = [headers.join(","), ...rows.map(r => [
+      r.date,
+      `"${String(r.description).replace(/"/g, '""')}"`,
+      r.category,
+      r.amount,
+      r.animalTag,
+      `"${String(r.notes || "").replace(/"/g, '""')}"`,
+    ].join(","))].join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `schedule-f-${year}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const loadsInYear = (loadSales || []).filter(l => l.date && l.date.startsWith(String(year)));
+
+  return (
+    <div className="hl-page hl-fade-in">
+      <SectionTitle action={<Btn onClick={exportScheduleF}>Export Schedule F CSV</Btn>}>
+        Sales
+      </SectionTitle>
+
+      {/* Annual Summary */}
+      <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+        <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "14px" }}>Annual Summary</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+          <label style={{ fontSize: "14px", color: "var(--ink2)" }}>Year</label>
+          <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", fontSize: "14px", background: "#fff" }}>
+            {[currentYear, currentYear - 1, currentYear - 2].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px" }}>
+          <div>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Individual sales</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "22px", fontWeight: 700, color: "var(--green)" }}>${individualSalesYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Load sales</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "22px", fontWeight: 700, color: "var(--green)" }}>${loadSalesYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Total income ({year})</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "22px", fontWeight: 700, color: "var(--green)" }}>${totalCombinedYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          </div>
+        </div>
+      </Card>
+
+      {/* Individual Sales */}
+      <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Individual Sales</div>
+        {soldAnimals.length === 0 ? (
+          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>No sold animals recorded yet.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Name / Tag</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Species</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Sale date</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Buyer</th>
+                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Sale price</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Acquisition</th>
+                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Purchase price</th>
+                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Net gain</th>
+                </tr>
+              </thead>
+              <tbody>
+                {soldAnimals.map(a => {
+                  const salePrice = Number(a.sale?.pricePerHead) || 0;
+                  const purchasePrice = a.acquisitionType === "Purchased" && a.purchasePrice != null ? Number(a.purchasePrice) : 0;
+                  const netGain = salePrice - purchasePrice;
+                  return (
+                    <tr key={a.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
+                      <td style={{ padding: "10px 12px" }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{a.species || "—"}</td>
+                      <td style={{ padding: "10px 12px" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
+                      <td style={{ padding: "10px 12px" }}>{a.sale?.buyerName || "—"}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right" }}>${salePrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: "10px 12px" }}>{a.acquisitionType === "Purchased" ? "Purchased" : "Home Raised"}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right" }}>{a.acquisitionType === "Purchased" && a.purchasePrice != null ? `$${Number(a.purchasePrice).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600, color: netGain >= 0 ? "var(--green)" : "var(--danger2)" }}>{a.acquisitionType === "Purchased" || purchasePrice !== 0 ? `$${netGain.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* Group / Load Sales */}
+      <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
+          <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Group / Load Sales</span>
+          <Btn size="sm" onClick={() => setShowLoadForm(true)}>+ Log sale barn load</Btn>
+        </div>
+        {showLoadForm && (
+          <div style={{ padding: "20px", background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Log sale barn load</div>
+            <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+              <Input label="Date" type="date" value={loadForm.date} onChange={e => setLoadForm(p => ({ ...p, date: e.target.value }))} />
+              <Input label="Number of head" type="number" min="1" value={loadForm.headCount} onChange={e => setLoadForm(p => ({ ...p, headCount: e.target.value }))} placeholder="e.g. 12" />
+              <Select label="Species" value={loadForm.species} onChange={e => setLoadForm(p => ({ ...p, species: e.target.value }))}>
+                {Object.keys(SPECIES).map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+              <Input label="Average weight (lbs)" type="number" min="0" step="0.1" value={loadForm.averageWeight} onChange={e => setLoadForm(p => ({ ...p, averageWeight: e.target.value }))} placeholder="Optional" />
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Pricing</label>
+                <select value={loadForm.priceType} onChange={e => setLoadForm(p => ({ ...p, priceType: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", fontSize: "14px" }}>
+                  <option value="perHead">Price per head</option>
+                  <option value="perLb">Price per lb</option>
+                </select>
+              </div>
+              <Input label={loadForm.priceType === "perHead" ? "Price per head ($)" : "Price per lb ($)"} type="number" min="0" step="0.01" value={loadForm.priceValue} onChange={e => setLoadForm(p => ({ ...p, priceValue: e.target.value }))} placeholder="e.g. 1.25" />
+              <Input label="Total sale amount ($) — optional" type="number" min="0" step="0.01" value={loadForm.totalAmount} onChange={e => setLoadForm(p => ({ ...p, totalAmount: e.target.value }))} placeholder="Override calculated total" />
+              <Input label="Buyer / sale barn name" value={loadForm.buyerName} onChange={e => setLoadForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Sale Barn" style={{ gridColumn: "1 / -1" }} />
+            </div>
+            <Textarea label="Notes" value={loadForm.notes} onChange={e => setLoadForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
+            <div style={{ display: "flex", gap: "10px" }}>
+              <Btn size="sm" onClick={saveLoadSale} disabled={!loadForm.date || !loadForm.headCount || parseInt(loadForm.headCount, 10) < 1}>Save load sale</Btn>
+              <Btn size="sm" variant="ghost" onClick={() => { setShowLoadForm(false); setLoadForm({ date: new Date().toISOString().split("T")[0], headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" }); }}>Cancel</Btn>
+            </div>
+          </div>
+        )}
+        {loadsInYear.length === 0 ? (
+          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>No load sales recorded yet. Use the button above to log a sale barn load.</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Date</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Head</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Species</th>
+                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Total</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Buyer</th>
+                  <th style={{ width: "40px" }} />
+                </tr>
+              </thead>
+              <tbody>
+                {[...(loadSales || [])].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
+                  <tr key={l.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
+                    <td style={{ padding: "10px 12px" }}>{l.date ? fmt(l.date) : "—"}</td>
+                    <td style={{ padding: "10px 12px" }}>{l.headCount ?? "—"}</td>
+                    <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{l.species || "—"}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: "10px 12px" }}>{l.buyerName || "—"}</td>
+                    <td style={{ padding: "8px" }}>
+                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }} aria-label="Remove">×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
 // ── Settings ──────────────────────────────────────────────────────────────────
 const TAB_OPTIONS = [
   { id: "dashboard", label: "Dashboard", icon: "⊞" },
@@ -4940,10 +5527,11 @@ const TAB_OPTIONS = [
   { id: "pastures", label: "Pastures", icon: "🟩" },
   { id: "notes", label: "Journal", icon: "📖" },
   { id: "expenses", label: "Expenses", icon: "💰" },
+  { id: "sales", label: "Sales", icon: "📋" },
   { id: "tasks", label: "Tasks", icon: "✓" },
 ];
 
-function Settings({ settings, setSettings, onLogout, animals = [] }) {
+function Settings({ settings, setSettings, onLogout }) {
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const setVisibility = (id, value) => {
     setSettings(prev => ({
@@ -4951,29 +5539,6 @@ function Settings({ settings, setSettings, onLogout, animals = [] }) {
       tabVisibility: { ...(prev?.tabVisibility ?? DEFAULT_TAB_VISIBILITY), [id]: value },
     }));
   };
-  const soldAnimals = (animals || []).filter(a => a.sale).sort((x, y) => (y.sale?.dateSold || "").localeCompare(x.sale?.dateSold || ""));
-  function exportSalesReport() {
-    const headers = ["Name", "Species", "Tag", "Date Sold", "Price", "Buyer", "Buyer Contact", "Sale Location", "Notes"];
-    const rows = soldAnimals.map(a => [
-      getAnimalName(a),
-      a.species || "",
-      a.tag || "",
-      a.sale?.dateSold ? fmt(a.sale.dateSold) : "",
-      a.sale?.pricePerHead != null ? String(a.sale.pricePerHead) : "",
-      a.sale?.buyerName || "",
-      a.sale?.buyerContact || "",
-      a.sale?.saleLocation || "",
-      a.sale?.notes || "",
-    ]);
-    const csv = [headers.join(","), ...rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(","))].join("\r\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `sales-report-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
   return (
     <div className="hl-page hl-fade-in">
       <div style={{ maxWidth: "560px", margin: "0 auto" }}>
@@ -5028,40 +5593,6 @@ function Settings({ settings, setSettings, onLogout, animals = [] }) {
           </div>
         </Card>
 
-        <Card style={{ padding: "24px", marginBottom: "20px" }}>
-          <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Sales Report</div>
-          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>All sold animals with sale date, price, and buyer — for tax and records.</p>
-          {soldAnimals.length === 0 ? (
-            <p style={{ fontSize: "13px", color: "var(--muted)" }}>No sales recorded yet.</p>
-          ) : (
-            <>
-              <div style={{ maxHeight: "280px", overflowY: "auto", marginBottom: "14px", border: "1px solid var(--cream2)", borderRadius: "var(--radius)" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                  <thead>
-                    <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Animal</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Date Sold</th>
-                      <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Price</th>
-                      <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Buyer</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {soldAnimals.map(a => (
-                      <tr key={a.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
-                        <td style={{ padding: "10px 12px" }}>{getAnimalName(a)}{a.species ? ` · ${a.species}` : ""}</td>
-                        <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
-                        <td style={{ padding: "10px 12px", textAlign: "right" }}>{a.sale?.pricePerHead != null ? `$${Number(a.sale.pricePerHead).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}</td>
-                        <td style={{ padding: "10px 12px" }}>{a.sale?.buyerName || "—"}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <Btn size="sm" onClick={exportSalesReport}>Export as CSV (for taxes)</Btn>
-            </>
-          )}
-        </Card>
-
         <Card
           role="button"
           tabIndex={0}
@@ -5086,11 +5617,11 @@ function Settings({ settings, setSettings, onLogout, animals = [] }) {
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
-const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures", "expenses", "tasks"];
+const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures", "expenses", "loadSales", "tasks"];
 const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 const GUEST_USER = { id: "guest", isGuest: true };
 
-const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: false, pastures: true, expenses: true, tasks: true };
+const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: false, pastures: true, expenses: true, sales: false, tasks: true };
 const TASK_CATEGORIES = ["Feeding", "Vaccination", "Breeding", "Castration", "Pasture Move", "Weaning", "Vet Visit", "Treatment", "General", "Other"];
 const TASK_PRIORITIES = ["High", "Medium", "Low"];
 const RECURRING_OPTIONS = ["One time", "Daily", "Weekly", "Monthly"];
@@ -5134,6 +5665,7 @@ export default function App() {
   const [feederPrograms, setFeederPrograms] = useState([]);
   const [pastures, setPastures] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [loadSales, setLoadSales] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [feederPreselectAnimalId, setFeederPreselectAnimalId] = useState(null);
   const [feederBulkAnimalIds, setFeederBulkAnimalIds] = useState([]);
@@ -5182,6 +5714,7 @@ export default function App() {
       setFeederPrograms([]);
       setPastures([]);
       setExpenses([]);
+      setLoadSales([]);
       setTasks([]);
       initialLoadDone.current = false;
       return;
@@ -5206,6 +5739,7 @@ export default function App() {
         setFeederPrograms(feederData);
         setPastures(Array.isArray(data.pastures) ? data.pastures : []);
         setExpenses(Array.isArray(data.expenses) ? data.expenses : []);
+        setLoadSales(Array.isArray(data.loadSales) ? data.loadSales : []);
         setTasks(Array.isArray(data.tasks) ? data.tasks : []);
       } catch (_) {
         setAnimals([]);
@@ -5243,6 +5777,7 @@ export default function App() {
         setFeederPrograms(feederData);
         setPastures(Array.isArray(byKey.pastures) ? byKey.pastures : []);
         setExpenses(Array.isArray(byKey.expenses) ? byKey.expenses : []);
+        setLoadSales(Array.isArray(byKey.loadSales) ? byKey.loadSales : []);
         setTasks(Array.isArray(byKey.tasks) ? byKey.tasks : []);
         initialLoadDone.current = true;
       });
@@ -5252,7 +5787,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5262,7 +5797,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5272,7 +5807,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5282,7 +5817,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5292,7 +5827,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5302,7 +5837,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5312,7 +5847,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5322,7 +5857,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5332,7 +5867,17 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+      } catch (_) {}
+      return;
+    }
+    supabase.from("user_data").upsert({ user_id: user.id, key: "loadSales", data: loadSales }, { onConflict: "user_id,key" }).then(() => {});
+  }, [user, loadSales]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
       } catch (_) {}
       return;
     }
@@ -5348,12 +5893,13 @@ export default function App() {
     ...(visibility.pastures !== false ? ["pastures"] : []),
     ...(visibility.notes !== false ? ["notes"] : []),
     ...(visibility.expenses !== false ? ["expenses"] : []),
+    ...(visibility.sales !== false ? ["sales"] : []),
     ...(visibility.tasks !== false ? ["tasks"] : []),
     "settings",
   ]);
   useEffect(() => {
     if (!visibleTabIds.has(tab)) setTab("dashboard");
-  }, [tab, visibility.gestation, visibility.feeder, visibility.pastures, visibility.notes, visibility.expenses, visibility.tasks]);
+  }, [tab, visibility.gestation, visibility.feeder, visibility.pastures, visibility.notes, visibility.expenses, visibility.sales, visibility.tasks]);
 
   if (user === null) {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
@@ -5379,8 +5925,9 @@ export default function App() {
       {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} gestations={gestations} setGestations={setGestations} notes={notes} setNotes={setNotes} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} animals={animals} />}
       {tab === "expenses"  && <Expenses expenses={expenses} setExpenses={setExpenses} animals={animals} pastures={pastures} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
+      {tab === "sales"     && <Sales animals={animals} loadSales={loadSales} setLoadSales={setLoadSales} expenses={expenses} />}
       {tab === "tasks"     && <Tasks tasks={tasks} setTasks={setTasks} animals={animals} gestations={gestations} offspring={offspring} pastures={pastures} setTab={setTab} />}
-      {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} animals={animals} />}
+      {tab === "settings"  && <Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} />}
     </div>
   );
 }

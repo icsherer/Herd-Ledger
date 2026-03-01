@@ -448,7 +448,7 @@
   }
 }
 
-/* Pastures and Feedlot tab cards: single column on mobile */
+/* Pastures and Feeder Program tab cards: single column on mobile */
 @media (max-width: 480px) {
   .hl-pastures-grid,
   .hl-feedlot-grid {

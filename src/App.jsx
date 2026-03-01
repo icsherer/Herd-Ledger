@@ -107,6 +107,58 @@ function isMale(animal) {
   return animal && SEX_TERM_GENDER[animal.sex] === "Male";
 }
 
+const BREEDING_MALE_SEX_TERMS = ["Bull", "Stallion", "Boar", "Ram", "Buck", "Rooster"];
+const BREEDING_MALE_TO_SPECIES = { Bull: "Cattle", Stallion: "Horse", Boar: "Pig", Ram: "Sheep", Buck: "Goat", Rooster: "Chicken" };
+function isBreedingMale(animal) {
+  return animal && !animal.deceased && BREEDING_MALE_SEX_TERMS.includes(animal.sex);
+}
+function getEligibleFemalesForRunningWithBull(animals, gestations, pastureName, maleAnimal) {
+  if (!maleAnimal || !pastureName?.trim() || !isBreedingMale(maleAnimal)) return [];
+  const species = BREEDING_MALE_TO_SPECIES[maleAnimal.sex];
+  if (!species) return [];
+  const activeGestationAnimalIds = new Set((gestations || []).filter(g => g.status !== "Delivered").map(g => g.animalId));
+  return (animals || []).filter(a => {
+    if (a.deceased || a.sale) return false;
+    if (a.species !== species) return false;
+    if (SEX_TERM_GENDER[a.sex] !== "Female") return false;
+    if (activeGestationAnimalIds.has(a.id)) return false;
+    const inPasture = pastureNameEq(a.movements?.[0]?.pastureName, pastureName);
+    return inPasture;
+  });
+}
+
+function getBreedingMaleInPasture(animals, pastureName) {
+  if (!pastureName?.trim()) return null;
+  return (animals || []).find(a => isBreedingMale(a) && pastureNameEq(a.movements?.[0]?.pastureName, pastureName)) || null;
+}
+
+function getRunningWithMaleForFemale(animal, animals) {
+  if (!animal || SEX_TERM_GENDER[animal.sex] !== "Female") return null;
+  const pasture = (animal.movements?.[0]?.pastureName || "").trim();
+  if (!pasture) return null;
+  const male = getBreedingMaleInPasture(animals, pasture);
+  if (!male || BREEDING_MALE_TO_SPECIES[male.sex] !== animal.species) return null;
+  return male;
+}
+
+function pastureNameEq(a, b) {
+  return (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
+}
+function getCanonicalPastureNames(animals, pastures) {
+  const byLower = new Map();
+  [...(pastures || []), ...(animals || []).flatMap(a => (a.movements || []).map(m => m.pastureName)).filter(Boolean)].forEach(n => {
+    const key = (n || "").trim().toLowerCase();
+    if (key && !byLower.has(key)) byLower.set(key, (n || "").trim());
+  });
+  return [...byLower.values()].sort((a, b) => a.localeCompare(b));
+}
+function resolvePastureName(typed, canonicalList) {
+  const t = (typed || "").trim();
+  if (!t) return t;
+  const found = (canonicalList || []).find(c => pastureNameEq(c, t));
+  return found != null ? found : t;
+}
+
 const MOON_ICONS  = ["🌑","🌒","🌓","🌔","🌕","🌖","🌗","🌘"];
 const MOON_NAMES  = ["New Moon","Waxing Crescent","First Quarter","Waxing Gibbous","Full Moon","Waning Gibbous","Last Quarter","Waning Crescent"];
 
@@ -442,6 +494,42 @@ function Input({ label, type, style = {}, ...props }) {
   );
 }
 
+function PastureCombo({ label, value, onChange, options = [], placeholder, id: listId, style = {}, ...props }) {
+  const lid = listId || "pasture-list-" + Math.random().toString(36).slice(2);
+  return (
+    <div>
+      {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
+      <input
+        type="text"
+        list={lid}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="hl-input"
+        style={{
+          width: "100%",
+          padding: "9px 12px",
+          border: "1.5px solid var(--cream3)",
+          borderRadius: "var(--radius)",
+          fontSize: "14px",
+          color: "var(--ink)",
+          background: "#fff",
+          outline: "none",
+          transition: "border-color 0.15s",
+          minHeight: "44px",
+          ...style,
+        }}
+        onFocus={e => e.target.style.borderColor = "var(--green3)"}
+        onBlur={e => e.target.style.borderColor = "var(--cream3)"}
+        {...props}
+      />
+      <datalist id={lid}>
+        {options.map(n => <option key={n} value={n} />)}
+      </datalist>
+    </div>
+  );
+}
+
 function Select({ label, children, ...props }) {
   return (
     <div>
@@ -489,7 +577,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.dashboard !== false ? [{ id: "dashboard", label: "Dashboard", icon: "⊞" }] : []),
     ...(visibility.animals !== false ? [{ id: "animals", label: "Animals", icon: "🐄" }] : []),
     ...(visibility.gestation !== false && !hideGestationTab ? [{ id: "gestation", label: "Gestation", icon: "📅" }] : []),
-    ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Cattle", icon: "🌾" }] : []),
+    ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾" }] : []),
     ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🟩" }] : []),
     ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
     ...(visibility.expenses !== false ? [{ id: "expenses", label: "Expenses", icon: "💰" }] : []),
@@ -770,20 +858,27 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
             const hasCattleOrHorse = activeAnimals.some(a => PASTURE_SPECIES.includes(a.species));
             if (!hasCattleOrHorse) return null;
             const pastureAnimals = activeAnimals.filter(a => PASTURE_SPECIES.includes(a.species));
-            const byPasture = {};
+            const byLower = {};
+            const canonicalName = {};
             pastureAnimals.forEach(a => {
-              const p = a.movements?.[0]?.pastureName?.trim() || "—";
-              byPasture[p] = (byPasture[p] || 0) + 1;
+              const p = (a.movements?.[0]?.pastureName || "").trim();
+              const key = p || "—";
+              const lower = key === "—" ? "—" : key.toLowerCase();
+              if (!byLower[lower]) {
+                byLower[lower] = 0;
+                canonicalName[lower] = key === "—" ? "—" : p;
+              }
+              byLower[lower]++;
             });
             return (
               <Card style={{ padding: "20px" }}>
-                <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Pasture Summary</div>
+                <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: "600", marginBottom: "14px" }}>Pasture Summary</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {Object.entries(byPasture)
-                    .sort(([a], [b]) => (a === "—" ? 1 : b === "—" ? -1 : a.localeCompare(b)))
-                    .map(([pastureName, n]) => (
-                      <div key={pastureName} style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
-                        <span style={{ fontSize: "14px", color: pastureName === "—" ? "var(--muted)" : "var(--ink2)" }}>{pastureName === "—" ? "Not in pasture" : pastureName}</span>
+                  {Object.entries(byLower)
+                    .sort(([a], [b]) => (a === "—" ? 1 : b === "—" ? -1 : (canonicalName[a] || "").localeCompare(canonicalName[b] || "")))
+                    .map(([lower, n]) => (
+                      <div key={lower} style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                        <span style={{ fontSize: "14px", color: lower === "—" ? "var(--muted)" : "var(--ink2)" }}>{lower === "—" ? "Not in pasture" : canonicalName[lower]}</span>
                         <span style={{ fontWeight: 600, color: "var(--green)" }}>{n}</span>
                       </div>
                     ))}
@@ -836,7 +931,7 @@ function Dashboard({ animals, gestations, offspring, moon, season, user, setTab,
 }
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings }) {
+function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures }) {
   const [showAdd, setShowAdd] = useState(false);
   const forceList = (animals || []).length > 50;
   const viewMode = forceList ? "list" : (settings?.animalsViewMode || "tile");
@@ -907,6 +1002,60 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   const [importSuccess, setImportSuccess] = useState(null);
   const [importDragActive, setImportDragActive] = useState(false);
   const importFileInputRef = useRef(null);
+  const [showBulkRegister, setShowBulkRegister] = useState(false);
+  const [bulkRegisterForm, setBulkRegisterForm] = useState(() => {
+    const sp = defaultSpecies || "Cattle";
+    return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: "", count: "1", notes: "" };
+  });
+  const [runningWithBullPrompt, setRunningWithBullPrompt] = useState(null);
+  const [runningWithBullStep, setRunningWithBullStep] = useState("ask");
+  const [runningWithBullForm, setRunningWithBullForm] = useState({ startDate: "", endDate: "" });
+  const [runningWithBullCheckPending, setRunningWithBullCheckPending] = useState(null);
+
+  useEffect(() => {
+    if (!runningWithBullCheckPending || !animals) return;
+    const { pastureName } = runningWithBullCheckPending;
+    setRunningWithBullCheckPending(null);
+    const male = getBreedingMaleInPasture(animals, pastureName);
+    if (!male) return;
+    const eligible = getEligibleFemalesForRunningWithBull(animals, gestations, pastureName, male);
+    if (eligible.length > 0) {
+      setRunningWithBullPrompt({ pastureName, maleAnimal: male, eligibleFemales: eligible });
+      setRunningWithBullStep("ask");
+      setRunningWithBullForm({ startDate: "", endDate: "" });
+    }
+  }, [runningWithBullCheckPending, animals, gestations]);
+
+  function confirmRunningWithBull() {
+    if (!runningWithBullPrompt || !runningWithBullForm.startDate || !runningWithBullForm.endDate) return;
+    const { maleAnimal, eligibleFemales } = runningWithBullPrompt;
+    const start = runningWithBullForm.startDate;
+    const end = runningWithBullForm.endDate;
+    const newRecords = eligibleFemales.map(an => {
+      const totalDays = SPECIES[an.species]?.days || 150;
+      const dueStart = dueDate(start, totalDays);
+      const dueEnd = dueDate(end, totalDays);
+      return {
+        animalId: an.id,
+        breedingDate: start,
+        breedingDateEnd: end,
+        runningWithBull: true,
+        dueDate: dueStart,
+        dueDateStart: dueStart,
+        dueDateEnd: dueEnd,
+        sire: getAnimalName(maleAnimal),
+        notes: "Running with bull",
+        id: Date.now().toString() + "-" + an.id,
+        gestationDays: totalDays,
+        status: "Active",
+        createdAt: new Date().toISOString(),
+      };
+    });
+    setGestations(p => [...p, ...newRecords]);
+    setRunningWithBullPrompt(null);
+    setRunningWithBullStep("ask");
+    setRunningWithBullForm({ startDate: "", endDate: "" });
+  }
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
@@ -1038,11 +1187,47 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     const { currentPasture, ...rest } = form;
     const newAnimal = { ...rest, id: Date.now().toString() };
     if (currentPasture?.trim() && PASTURE_SPECIES.includes(form.species)) {
-      newAnimal.movements = [{ pastureName: currentPasture.trim(), dateMovedIn: new Date().toISOString().split("T")[0] }];
+      const canonical = getCanonicalPastureNames(animals, pastures);
+      const resolved = resolvePastureName(currentPasture.trim(), canonical);
+      newAnimal.movements = [{ pastureName: resolved, dateMovedIn: new Date().toISOString().split("T")[0] }];
     }
     setAnimals(p => [...p, newAnimal]);
     setForm(emptyForm());
     setShowAdd(false);
+  }
+
+  function submitBulkRegister() {
+    const startTag = String(bulkRegisterForm.startingTag || "").trim();
+    const count = parseInt(bulkRegisterForm.count, 10);
+    if (!startTag || !Number.isInteger(count) || count < 1) return;
+    const base = parseInt(startTag, 10);
+    if (isNaN(base)) return;
+    const sp = bulkRegisterForm.species || "Cattle";
+    const opts = getSexOptions(sp);
+    const sex = opts.includes(bulkRegisterForm.sex) ? bulkRegisterForm.sex : opts[0];
+    const dob = bulkRegisterForm.dob?.trim() || undefined;
+    const notes = bulkRegisterForm.notes?.trim() || undefined;
+    const breed = bulkRegisterForm.breed?.trim() || undefined;
+    const newAnimals = [];
+    for (let i = 0; i < count; i++) {
+      const tag = String(base + i);
+      newAnimals.push({
+        id: Date.now().toString() + "-" + i,
+        species: sp,
+        sex,
+        dob,
+        breed,
+        tag,
+        notes,
+        name: undefined,
+      });
+    }
+    setAnimals(p => [...p, ...newAnimals]);
+    setShowBulkRegister(false);
+    setBulkRegisterForm(() => {
+      const sp = defaultSpecies || "Cattle";
+      return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: String(base + count), count: "1", notes: "" };
+    });
   }
 
   function saveEdit() {
@@ -1298,8 +1483,10 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     }
 
     function saveMove() {
+      const canonical = getCanonicalPastureNames(animals, pastures);
+      const resolvedName = resolvePastureName(moveForm.pastureName?.trim(), canonical) || undefined;
       const move = {
-        pastureName: moveForm.pastureName?.trim() || undefined,
+        pastureName: resolvedName,
         dateMovedIn: moveForm.dateMovedIn || undefined,
         notes: moveForm.notes?.trim() || undefined,
       };
@@ -1309,6 +1496,18 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
       setViewing(updated);
       setShowMoveForm(false);
       setMoveForm({ pastureName: "", dateMovedIn: "", notes: "" });
+      if (move.pastureName) {
+        const nextAnimals = animals.map(an => (an.id === a.id ? updated : an));
+        const male = getBreedingMaleInPasture(nextAnimals, move.pastureName);
+        if (male) {
+          const eligible = getEligibleFemalesForRunningWithBull(nextAnimals, gestations, move.pastureName, male);
+          if (eligible.length > 0) {
+            setRunningWithBullPrompt({ pastureName: move.pastureName, maleAnimal: male, eligibleFemales: eligible });
+            setRunningWithBullStep("ask");
+            setRunningWithBullForm({ startDate: "", endDate: "" });
+          }
+        }
+      }
     }
 
     function saveWeight() {
@@ -1463,9 +1662,10 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             <div style={{ fontSize: "52px", flexShrink: 0 }}>{SPECIES[a.species]?.emoji}</div>
             <div style={{ minWidth: 0, flex: "1 1 auto" }}>
               <div className="hl-detail-name" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#fff" }}>{getAnimalName(a)}</div>
-              <div className="hl-detail-meta" style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a, gestations)}</div>
+              <div className="hl-detail-meta" style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{(() => { const runningWith = getRunningWithMaleForFemale(a, animals); return runningWith ? ` · Running with ${getAnimalName(runningWith)}` : ""; })()}</div>
             </div>
             <div className="hl-detail-badges" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              {getRunningWithMaleForFemale(a, animals) && <Badge color="var(--brass2)" style={{ background: "rgba(201,149,42,0.2)", color: "var(--brass)" }}>Running with {getAnimalName(getRunningWithMaleForFemale(a, animals))}</Badge>}
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
               {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
               {a.tag && a.name && !a.deceased && <Badge color="var(--brass2)">#{a.tag}</Badge>}
@@ -1541,14 +1741,14 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
             {a.species === "Cattle" && !a.deceased && !a.sale && (
               <div className="hl-profile-section" style={{ marginTop: "24px" }}>
-                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Feedlot</div>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Feeder Program</div>
                 {(() => {
                   const fp = (feederPrograms || []).find(f => f.animalId === a.id);
                   if (!fp) {
                     return setTab && setFeederPreselectAnimalId ? (
-                      <Btn variant="secondary" onClick={() => { setTab("feeder"); setFeederPreselectAnimalId(a.id); }}>Add to Feedlot</Btn>
+                      <Btn variant="secondary" onClick={() => { setTab("feeder"); setFeederPreselectAnimalId(a.id); }}>Add to Feeder Program</Btn>
                     ) : (
-                      <p style={{ fontSize: "13px", color: "var(--muted)" }}>Add this animal to the feeder program from the Feeder Cattle tab.</p>
+                      <p style={{ fontSize: "13px", color: "var(--muted)" }}>Add this animal from the Feeder Program tab.</p>
                     );
                   }
                   const daysOnFeed = feederDaysOnFeed(fp.startDate);
@@ -1583,7 +1783,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                           </div>
                         </div>
                       )}
-                      {setTab && <Btn size="sm" variant="secondary" onClick={() => setTab("feeder")} style={{ width: "100%" }}>Open Feeder tab</Btn>}
+                      {setTab && <Btn size="sm" variant="secondary" onClick={() => setTab("feeder")} style={{ width: "100%" }}>Open Feeder Program</Btn>}
                     </div>
                   );
                 })()}
@@ -1691,6 +1891,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                     <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
                       <span style={{ fontSize: "15px", color: "var(--ink2)" }}>{a.movements[0].pastureName}</span>
                       <Btn size="sm" variant="secondary" onClick={() => setShowMoveForm(true)}>Move Animal</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => { const next = (a.movements || []).slice(1); const updated = { ...a, movements: next }; setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an))); setViewing(updated); }} style={{ color: "var(--muted)" }}>Remove from Pasture</Btn>
                     </div>
                   ) : (
                     <Btn size="sm" onClick={() => setShowMoveForm(true)} style={{ background: "var(--green3)", color: "var(--green)" }}>Assign to Pasture</Btn>
@@ -1699,7 +1900,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                   <Card style={{ padding: "18px 20px", borderLeft: "3px solid var(--green3)" }}>
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Move Animal</div>
                     <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                      <Input label="Pasture name" value={moveForm.pastureName} onChange={e => setMoveForm(p => ({ ...p, pastureName: e.target.value }))} placeholder="e.g. North Paddock" />
+                      <PastureCombo label="Pasture name" value={moveForm.pastureName} onChange={v => setMoveForm(p => ({ ...p, pastureName: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-profile" />
                       <Input label="Move date" type="date" value={moveForm.dateMovedIn} onChange={e => setMoveForm(p => ({ ...p, dateMovedIn: e.target.value }))} />
                     </div>
                     <Textarea label="Notes (e.g. reason for move)" value={moveForm.notes} onChange={e => setMoveForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="e.g. Rotating to fresh grass, weaning" />
@@ -2255,7 +2456,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.7)", letterSpacing: "2px", textTransform: "uppercase", marginTop: "4px" }}>Livestock Management</div>
         </div>
         <h1 style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#141A14", marginBottom: "8px" }}>{getAnimalName(a)}</h1>
-        <p style={{ color: "#7A8C7A", fontSize: "14px", marginBottom: "24px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{a.tag ? ` · #${a.tag}` : ""}</p>
+        <p style={{ color: "#7A8C7A", fontSize: "14px", marginBottom: "24px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{(() => { const rw = getRunningWithMaleForFemale(a, animals); return rw ? ` · Running with ${getAnimalName(rw)}` : ""; })()}{a.tag ? ` · #${a.tag}` : ""}</p>
 
         <section style={{ marginBottom: "20px" }}>
           <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Basic Information</h2>
@@ -2263,6 +2464,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             <div><strong>Species</strong> {a.species}</div>
             <div><strong>Breed</strong> {a.breed || "—"}</div>
             <div><strong>Sex</strong> {displaySex(a, gestations)}</div>
+            {getRunningWithMaleForFemale(a, animals) && <div><strong>Running with</strong> {getAnimalName(getRunningWithMaleForFemale(a, animals))}</div>}
             <div><strong>Tag / ID</strong> {a.tag || "—"}</div>
             <div><strong>Date of Birth</strong> {fmt(a.dob)}</div>
             <div><strong>Age</strong> {ageFromDob(a.dob)}</div>
@@ -2470,8 +2672,10 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   }
 
   function saveBulkMove() {
+    const canonical = getCanonicalPastureNames(animals, pastures);
+    const pastureName = resolvePastureName(bulkForm.pastureName?.trim(), canonical) || undefined;
     const movePayload = {
-      pastureName: bulkForm.pastureName?.trim() || undefined,
+      pastureName,
       dateMovedIn: bulkForm.dateMovedIn || undefined,
       notes: bulkForm.notes?.trim() || undefined,
     };
@@ -2483,6 +2687,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     );
     setBulkFormType(null);
     setBulkForm({});
+    if (pastureName) setRunningWithBullCheckPending({ pastureName });
   }
 
   function saveBulkTreatment() {
@@ -2599,6 +2804,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span className="hl-animals-header-btn-text">Import Animals</span>
             </button>
+            <Btn variant="secondary" onClick={() => setShowBulkRegister(true)}>Bulk Register Animals</Btn>
             <Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setShowAdd(true); }}>+ Register Animal</Btn>
           </div>
         </div>
@@ -2618,6 +2824,34 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
           <Input placeholder="Search by name, species, or tag..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
       </div>
+
+      {showBulkRegister && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Register Animals</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>Create multiple animals with the same species, breed, sex, and optional DOB. Tag numbers will auto-increment from the starting tag.</p>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Select label="Species" value={bulkRegisterForm.species} onChange={e => {
+              const newSpecies = e.target.value;
+              const opts = getSexOptions(newSpecies);
+              setBulkRegisterForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+            }}>
+              {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
+            </Select>
+            <Select label="Sex" value={bulkRegisterForm.sex} onChange={e => setBulkRegisterForm(p => ({ ...p, sex: e.target.value }))}>
+              {getSexOptions(bulkRegisterForm.species).map(opt => <option key={opt}>{opt}</option>)}
+            </Select>
+            <Input label="Breed" value={bulkRegisterForm.breed} onChange={e => setBulkRegisterForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+            <Input label="Date of birth (optional)" type="date" value={bulkRegisterForm.dob} onChange={e => setBulkRegisterForm(p => ({ ...p, dob: e.target.value }))} />
+            <Input label="Starting tag number" value={bulkRegisterForm.startingTag} onChange={e => setBulkRegisterForm(p => ({ ...p, startingTag: e.target.value }))} placeholder="e.g. 1001" />
+            <Input label="Number of animals" type="number" min={1} value={bulkRegisterForm.count} onChange={e => setBulkRegisterForm(p => ({ ...p, count: e.target.value }))} placeholder="e.g. 10" />
+          </div>
+          <Textarea label="Notes" value={bulkRegisterForm.notes} onChange={e => setBulkRegisterForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Applied to all animals (optional)" style={{ marginBottom: "14px" }} />
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={submitBulkRegister} disabled={!bulkRegisterForm.startingTag?.trim() || parseInt(bulkRegisterForm.count, 10) < 1}>Register {Math.max(0, parseInt(bulkRegisterForm.count, 10) || 0)} animals</Btn>
+            <Btn variant="secondary" onClick={() => setShowBulkRegister(false)}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
 
       {bulkMode && selectedIds.length > 0 && (
         <Card className="hl-bulk-toolbar">
@@ -2651,11 +2885,53 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             {selectedCattleForFeedlot.length > 0 && setTab && setFeederBulkAnimalIds && (
               <button type="button" className="hl-bulk-action-btn" onClick={() => { setTab("feeder"); setFeederBulkAnimalIds(selectedCattleForFeedlot.map(a => a.id)); }}>
                 <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
-                <span className="hl-bulk-action-label">Add to Feedlot</span>
+                <span className="hl-bulk-action-label">Add to Feeder Program</span>
               </button>
             )}
           </div>
         </Card>
+      )}
+
+      {runningWithBullPrompt && (
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => { setRunningWithBullPrompt(null); setRunningWithBullStep("ask"); setRunningWithBullForm({ startDate: "", endDate: "" }); }}>
+          <Card style={{ maxWidth: "440px", width: "100%", margin: "20px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>Running with Bull</span>
+              <button type="button" onClick={() => { setRunningWithBullPrompt(null); setRunningWithBullStep("ask"); setRunningWithBullForm({ startDate: "", endDate: "" }); }} style={{ background: "none", border: "none", fontSize: "22px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
+            </div>
+            {runningWithBullStep === "ask" ? (
+              <>
+                <p style={{ color: "var(--ink2)", marginBottom: "16px", fontSize: "14px" }}>
+                  <strong>{getAnimalName(runningWithBullPrompt.maleAnimal)}</strong> was assigned to <strong>{runningWithBullPrompt.pastureName}</strong>. Log a &quot;Running with Bull&quot; breeding record for all {runningWithBullPrompt.eligibleFemales.length} eligible female{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""} in this pasture?
+                </p>
+                <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
+                  This will create a gestation record (exposure window) for each eligible female. Males, castrated animals, and already bred females are excluded.
+                </p>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <Btn onClick={() => { setRunningWithBullStep("form"); const today = new Date().toISOString().split("T")[0]; setRunningWithBullForm({ startDate: today, endDate: today }); }}>Yes</Btn>
+                  <Btn variant="secondary" onClick={() => { setRunningWithBullPrompt(null); setRunningWithBullStep("ask"); setRunningWithBullForm({ startDate: "", endDate: "" }); }}>No</Btn>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="hl-form-grid-3" style={{ marginBottom: "16px" }}>
+                  <Input label="Exposure start date *" type="date" value={runningWithBullForm.startDate} onChange={e => setRunningWithBullForm(p => ({ ...p, startDate: e.target.value }))} />
+                  <Input label="Exposure end date *" type="date" value={runningWithBullForm.endDate} onChange={e => setRunningWithBullForm(p => ({ ...p, endDate: e.target.value }))} />
+                </div>
+                <p style={{ fontSize: "14px", color: "var(--ink2)", marginBottom: "20px", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)" }}>
+                  <strong>{runningWithBullPrompt.eligibleFemales.length}</strong> female{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""} will receive breeding records{runningWithBullPrompt.eligibleFemales.length > 0 ? ": " : ""}
+                  {runningWithBullPrompt.eligibleFemales.length <= 5
+                    ? runningWithBullPrompt.eligibleFemales.map(f => getAnimalName(f)).join(", ")
+                    : runningWithBullPrompt.eligibleFemales.slice(0, 5).map(f => getAnimalName(f)).join(", ") + ` and ${runningWithBullPrompt.eligibleFemales.length - 5} more`}
+                </p>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <Btn onClick={confirmRunningWithBull} disabled={!runningWithBullForm.startDate || !runningWithBullForm.endDate}>Confirm — Log {runningWithBullPrompt.eligibleFemales.length} record{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""}</Btn>
+                  <Btn variant="secondary" onClick={() => setRunningWithBullStep("ask")}>Back</Btn>
+                </div>
+              </>
+            )}
+          </Card>
+        </div>
       )}
 
       {bulkFormType === "vaccination" && (
@@ -2708,7 +2984,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Move to Pasture ({selectedPastureEligible.length} Cattle/Horses)</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-            <Input label="Pasture name" value={bulkForm.pastureName} onChange={e => setBulkForm(p => ({ ...p, pastureName: e.target.value }))} placeholder="e.g. North Paddock" />
+            <PastureCombo label="Pasture name" value={bulkForm.pastureName} onChange={v => setBulkForm(p => ({ ...p, pastureName: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-bulk" />
             <Input label="Move date" type="date" value={bulkForm.dateMovedIn} onChange={e => setBulkForm(p => ({ ...p, dateMovedIn: e.target.value }))} />
           </div>
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
@@ -2787,7 +3063,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             </Select>
             <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
             {PASTURE_SPECIES.includes(form.species) && (
-              <Input label="Current Pasture (optional)" value={form.currentPasture} onChange={e => setForm(p => ({ ...p, currentPasture: e.target.value }))} placeholder="e.g. North Paddock" />
+              <PastureCombo label="Current Pasture (optional)" value={form.currentPasture} onChange={v => setForm(p => ({ ...p, currentPasture: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-add-animal" />
             )}
           </div>
           <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
@@ -2850,9 +3126,10 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                   <div className="hl-animals-list-cell hl-animals-list-status" style={{ fontSize: "13px", color: "var(--muted)" }}>
                     {activeGest ? (
                       <span style={{ fontWeight: 600, color: "var(--brass)" }} title={`Due ${fmtDueRange(activeGest)}`}>Pregnant</span>
-                    ) : (
-                      displaySex(a, gestations)
-                    )}
+                    ) : (() => {
+                      const runningWith = getRunningWithMaleForFemale(a, animals);
+                      return runningWith ? <span style={{ color: "var(--brass2)" }}>Running with {getAnimalName(runningWith)}</span> : displaySex(a, gestations);
+                    })()}
                   </div>
                 </div>
               );
@@ -2901,6 +3178,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             </div>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{getAnimalName(a)}</div>
             <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {displaySex(a, gestations)}</div>
+            {(() => { const runningWith = getRunningWithMaleForFemale(a, animals); return runningWith ? <div style={{ fontSize: "12px", color: "var(--brass2)", marginTop: "4px" }}>Running with {getAnimalName(runningWith)}</div> : null; })()}
             {isFemale(a) && a.species !== "Mule" && (() => {
               const activeGest = gestations.find(g => g.animalId === a.id && g.status !== "Delivered");
               if (!activeGest) return null;
@@ -3425,16 +3703,51 @@ function Gestation({ animals, setAnimals, gestations, setGestations, user }) {
 }
 
 // ── Pastures ───────────────────────────────────────────────────────────────────
-function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewingAnimal, feederPrograms }) {
+function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewingAnimal, feederPrograms, gestations, setGestations }) {
   const [showAddPasture, setShowAddPasture] = useState(false);
   const [newPastureName, setNewPastureName] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkMoveTo, setBulkMoveTo] = useState("");
   const [bulkMoveNotes, setBulkMoveNotes] = useState("");
+  const [runningWithBullPrompt, setRunningWithBullPrompt] = useState(null);
+  const [runningWithBullStep, setRunningWithBullStep] = useState("ask");
+  const [runningWithBullForm, setRunningWithBullForm] = useState({ startDate: "", endDate: "" });
+  const [runningWithBullCheckPending, setRunningWithBullCheckPending] = useState(null);
+  const runningWithBullDismissedPasturesRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!runningWithBullCheckPending || !animals) return;
+    const { pastureName } = runningWithBullCheckPending;
+    setRunningWithBullCheckPending(null);
+    const male = getBreedingMaleInPasture(animals, pastureName);
+    if (!male) return;
+    const eligible = getEligibleFemalesForRunningWithBull(animals, gestations, pastureName, male);
+    if (eligible.length > 0) {
+      setRunningWithBullPrompt({ pastureName, maleAnimal: male, eligibleFemales: eligible });
+      setRunningWithBullStep("ask");
+      setRunningWithBullForm({ startDate: "", endDate: "" });
+    }
+  }, [runningWithBullCheckPending, animals, gestations]);
+
+  useEffect(() => {
+    if (!animals || !gestations || runningWithBullPrompt || runningWithBullCheckPending) return;
+    const pastureNames = getCanonicalPastureNames(animals, pastures);
+    for (const p of pastureNames) {
+      if (runningWithBullDismissedPasturesRef.current.has(p.toLowerCase())) continue;
+      const male = getBreedingMaleInPasture(animals, p);
+      if (!male) continue;
+      const eligible = getEligibleFemalesForRunningWithBull(animals, gestations, p, male);
+      if (eligible.length > 0) {
+        setRunningWithBullPrompt({ pastureName: p, maleAnimal: male, eligibleFemales: eligible });
+        setRunningWithBullStep("ask");
+        setRunningWithBullForm({ startDate: "", endDate: "" });
+        break;
+      }
+    }
+  }, [animals, gestations, runningWithBullPrompt, runningWithBullCheckPending]);
 
   const pastureEligible = (animals || []).filter(a => PASTURE_SPECIES.includes(a.species) && !a.deceased && !a.sale);
-  const namesFromAnimals = new Set(pastureEligible.map(a => a.movements?.[0]?.pastureName).filter(Boolean));
-  const sortedNames = [...new Set([...(pastures || []), ...namesFromAnimals])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const sortedNames = getCanonicalPastureNames(animals, pastures);
   const allPastureNames = pastureEligible.some(a => !(a.movements?.[0]?.pastureName || "").trim()) ? ["— Not assigned —", ...sortedNames] : sortedNames;
 
   const animalsByPasture = {};
@@ -3442,7 +3755,7 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
     if (name === "— Not assigned —") {
       animalsByPasture[name] = pastureEligible.filter(a => !(a.movements?.[0]?.pastureName || "").trim());
     } else {
-      animalsByPasture[name] = pastureEligible.filter(a => (a.movements?.[0]?.pastureName || "").trim() === name);
+      animalsByPasture[name] = pastureEligible.filter(a => pastureNameEq(a.movements?.[0]?.pastureName, name));
     }
   });
   const selectedAnimals = pastureEligible.filter(a => selectedIds.includes(a.id));
@@ -3450,7 +3763,9 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
   function addPasture() {
     const name = newPastureName?.trim();
     if (!name) return;
-    if (!(pastures || []).includes(name)) setPastures(prev => [...(prev || []), name].sort((a, b) => a.localeCompare(b)));
+    const canonical = getCanonicalPastureNames(animals, pastures);
+    if (canonical.some(c => pastureNameEq(c, name))) return;
+    setPastures(prev => [...(prev || []), name].sort((a, b) => a.localeCompare(b)));
     setNewPastureName("");
     setShowAddPasture(false);
   }
@@ -3460,8 +3775,9 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
   }
 
   function doBulkMove() {
-    const toPasture = bulkMoveTo?.trim();
-    if (!toPasture || selectedIds.length === 0) return;
+    const raw = bulkMoveTo?.trim();
+    if (!raw || selectedIds.length === 0) return;
+    const toPasture = resolvePastureName(raw, sortedNames);
     const movePayload = { pastureName: toPasture, dateMovedIn: new Date().toISOString().split("T")[0], notes: bulkMoveNotes?.trim() || undefined };
     setAnimals(prev =>
       prev.map(an => {
@@ -3469,13 +3785,94 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
         return { ...an, movements: [{ ...movePayload }, ...(an.movements || [])] };
       })
     );
+    setRunningWithBullCheckPending({ pastureName: toPasture });
     setSelectedIds([]);
     setBulkMoveTo("");
     setBulkMoveNotes("");
   }
 
+  function confirmRunningWithBull() {
+    if (!runningWithBullPrompt || !setGestations || !runningWithBullForm.startDate || !runningWithBullForm.endDate) return;
+    const { maleAnimal, eligibleFemales } = runningWithBullPrompt;
+    const start = runningWithBullForm.startDate;
+    const end = runningWithBullForm.endDate;
+    const newRecords = eligibleFemales.map(an => {
+      const totalDays = SPECIES[an.species]?.days || 150;
+      const dueStart = dueDate(start, totalDays);
+      const dueEnd = dueDate(end, totalDays);
+      return {
+        animalId: an.id,
+        breedingDate: start,
+        breedingDateEnd: end,
+        runningWithBull: true,
+        dueDate: dueStart,
+        dueDateStart: dueStart,
+        dueDateEnd: dueEnd,
+        sire: getAnimalName(maleAnimal),
+        notes: "Running with bull",
+        id: Date.now().toString() + "-" + an.id,
+        gestationDays: totalDays,
+        status: "Active",
+        createdAt: new Date().toISOString(),
+      };
+    });
+    setGestations(p => [...p, ...newRecords]);
+    setRunningWithBullPrompt(null);
+    setRunningWithBullStep("ask");
+    setRunningWithBullForm({ startDate: "", endDate: "" });
+  }
+
+  const dismissRunningWithBullPrompt = () => {
+    if (runningWithBullPrompt?.pastureName) runningWithBullDismissedPasturesRef.current.add((runningWithBullPrompt.pastureName || "").trim().toLowerCase());
+    setRunningWithBullPrompt(null);
+    setRunningWithBullStep("ask");
+    setRunningWithBullForm({ startDate: "", endDate: "" });
+  };
+
   return (
     <div className="hl-page hl-fade-in">
+      {runningWithBullPrompt && (
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={dismissRunningWithBullPrompt}>
+          <Card style={{ maxWidth: "440px", width: "100%", margin: "20px" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>Running with Bull</span>
+              <button type="button" onClick={dismissRunningWithBullPrompt} style={{ background: "none", border: "none", fontSize: "22px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
+            </div>
+            {runningWithBullStep === "ask" ? (
+              <>
+                <p style={{ color: "var(--ink2)", marginBottom: "16px", fontSize: "14px" }}>
+                  <strong>{getAnimalName(runningWithBullPrompt.maleAnimal)}</strong> was assigned to <strong>{runningWithBullPrompt.pastureName}</strong>. Log a &quot;Running with Bull&quot; breeding record for all {runningWithBullPrompt.eligibleFemales.length} eligible female{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""} in this pasture?
+                </p>
+                <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
+                  This will create a gestation record (exposure window) for each eligible female. Males, castrated animals, and already bred females are excluded.
+                </p>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <Btn onClick={() => { setRunningWithBullStep("form"); const today = new Date().toISOString().split("T")[0]; setRunningWithBullForm({ startDate: today, endDate: today }); }}>Yes</Btn>
+                  <Btn variant="secondary" onClick={dismissRunningWithBullPrompt}>No</Btn>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="hl-form-grid-3" style={{ marginBottom: "16px" }}>
+                  <Input label="Exposure start date *" type="date" value={runningWithBullForm.startDate} onChange={e => setRunningWithBullForm(p => ({ ...p, startDate: e.target.value }))} />
+                  <Input label="Exposure end date *" type="date" value={runningWithBullForm.endDate} onChange={e => setRunningWithBullForm(p => ({ ...p, endDate: e.target.value }))} />
+                </div>
+                <p style={{ fontSize: "14px", color: "var(--ink2)", marginBottom: "20px", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)" }}>
+                  <strong>{runningWithBullPrompt.eligibleFemales.length}</strong> female{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""} will receive breeding records{runningWithBullPrompt.eligibleFemales.length > 0 ? ": " : ""}
+                  {runningWithBullPrompt.eligibleFemales.length <= 5
+                    ? runningWithBullPrompt.eligibleFemales.map(f => getAnimalName(f)).join(", ")
+                    : runningWithBullPrompt.eligibleFemales.slice(0, 5).map(f => getAnimalName(f)).join(", ") + ` and ${runningWithBullPrompt.eligibleFemales.length - 5} more`}
+                </p>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <Btn onClick={confirmRunningWithBull} disabled={!runningWithBullForm.startDate || !runningWithBullForm.endDate}>Confirm — Log {runningWithBullPrompt.eligibleFemales.length} record{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""}</Btn>
+                  <Btn variant="secondary" onClick={() => setRunningWithBullStep("ask")}>Back</Btn>
+                </div>
+              </>
+            )}
+          </Card>
+        </div>
+      )}
+
       <SectionTitle action={<Btn onClick={() => setShowAddPasture(true)}>+ New Pasture</Btn>}>
         Pastures
       </SectionTitle>
@@ -3484,7 +3881,7 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
         <Card style={{ padding: "20px 24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "12px" }}>Create new pasture</div>
           <div style={{ display: "flex", gap: "10px", alignItems: "flex-end", flexWrap: "wrap" }}>
-            <Input label="Pasture name" value={newPastureName} onChange={e => setNewPastureName(e.target.value)} placeholder="e.g. North Paddock" style={{ minWidth: "200px" }} />
+            <PastureCombo label="Pasture name" value={newPastureName} onChange={v => setNewPastureName(v)} options={sortedNames} placeholder="Select existing or type new name" id="pasture-list-new-pasture" style={{ minWidth: "200px" }} />
             <Btn onClick={addPasture}>Add Pasture</Btn>
             <Btn variant="secondary" onClick={() => { setShowAddPasture(false); setNewPastureName(""); }}>Cancel</Btn>
           </div>
@@ -3494,10 +3891,7 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
       {selectedIds.length > 0 && (
         <Card style={{ padding: "14px 18px", marginBottom: "16px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", borderLeft: "4px solid var(--green3)" }}>
           <span style={{ fontWeight: 600 }}>{selectedIds.length} selected</span>
-          <Select label="Move to" value={bulkMoveTo} onChange={e => setBulkMoveTo(e.target.value)}>
-            <option value="">— Select pasture —</option>
-            {allPastureNames.filter(n => n !== "— Not assigned —").map(n => <option key={n} value={n}>{n}</option>)}
-          </Select>
+          <PastureCombo label="Move to" value={bulkMoveTo} onChange={v => setBulkMoveTo(v)} options={sortedNames} placeholder="Select or type new pasture" id="pasture-list-pastures-bulk" style={{ minWidth: "180px" }} />
           <Input value={bulkMoveNotes} onChange={e => setBulkMoveNotes(e.target.value)} placeholder="Notes (optional)" style={{ minWidth: "180px" }} />
           <Btn size="sm" onClick={doBulkMove} disabled={!bulkMoveTo?.trim()}>Move</Btn>
           <Btn size="sm" variant="secondary" onClick={() => { setSelectedIds([]); setBulkMoveTo(""); setBulkMoveNotes(""); }}>Clear</Btn>
@@ -3539,6 +3933,7 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
                         {getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}
                       </button>
                       <span style={{ fontSize: "12px", color: "var(--muted)" }}>{a.species}</span>
+                      <button type="button" onClick={e => { e.stopPropagation(); const next = (a.movements || []).slice(1); setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, movements: next } : an))); }} style={{ fontSize: "12px", color: "var(--muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }} title="Remove from pasture (no movement record)">Remove</button>
                     </div>
                   ))
                 )}
@@ -3554,7 +3949,7 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
         if (feedlotPenNames.length === 0) return null;
         return (
           <>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600, marginTop: "28px", marginBottom: "14px" }}>Feedlot Pens</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600, marginTop: "28px", marginBottom: "14px" }}>Feeder Program Pens</div>
             <div className="hl-pastures-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
               {feedlotPenNames.map(penName => {
                 const entries = withPen.filter(f => (f.penName || "").trim() === penName);
@@ -3570,7 +3965,7 @@ function Pastures({ animals, setAnimals, pastures, setPastures, setTab, setViewi
                         const daysOnFeed = feederDaysOnFeed(fp.startDate);
                         return (
                           <div key={fp.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                            <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--brass2)", background: "rgba(201,149,42,0.15)", padding: "2px 6px", borderRadius: "4px", flexShrink: 0 }}>Feedlot</span>
+                            <span style={{ fontSize: "10px", fontWeight: 600, color: "var(--brass2)", background: "rgba(201,149,42,0.15)", padding: "2px 6px", borderRadius: "4px", flexShrink: 0 }}>Feeder Program</span>
                             <button type="button" onClick={() => { setTab("animals"); setViewingAnimal(animal); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: "14px", color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>
                               {animal ? getAnimalName(animal) : "—"}{animal?.tag ? ` #${animal.tag}` : ""}
                             </button>
@@ -3645,7 +4040,7 @@ function Notes({ notes, setNotes, user }) {
   );
 }
 
-// ── Feeder Cattle ─────────────────────────────────────────────────────────────
+// ── Feeder Program ─────────────────────────────────────────────────────────────
 const FEED_TYPES = ["Corn", "Silage", "Hay", "Mixed Ration", "Custom"];
 
 function feederDaysOnFeed(startDateStr) {
@@ -3780,7 +4175,7 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
   return (
     <div className="hl-page hl-fade-in">
       <SectionTitle action={<Btn onClick={() => setShowAdd(true)} disabled={availableCattle.length === 0}>+ Add to Feeder Program</Btn>}>
-        Feeder Cattle
+        Feeder Program
       </SectionTitle>
 
       {totalHead > 0 && (
@@ -3866,8 +4261,8 @@ function FeederCattle({ animals, feederPrograms, setFeederPrograms, setTab, setV
       {feederPrograms.length === 0 && !showAdd && (
         <Card style={{ padding: "60px", textAlign: "center" }}>
           <div style={{ fontSize: "40px", marginBottom: "10px" }}>🌾</div>
-          <div style={{ color: "var(--muted)", fontSize: "15px" }}>No animals in the feeder program yet.</div>
-          <p style={{ fontSize: "13px", color: "var(--muted)", marginTop: "8px" }}>Add Cattle from your herd to track feed and growth.</p>
+          <div style={{ color: "var(--muted)", fontSize: "15px" }}>No animals in the Feeder Program yet.</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginTop: "8px" }}>Add livestock from your herd to track feed and growth.</p>
         </Card>
       )}
 
@@ -3973,7 +4368,7 @@ function Expenses({ expenses, setExpenses, animals, pastures, setTab, setViewing
     setExpenses(prev => prev.filter(e => e.id !== id));
   }
 
-  const pastureNames = [...new Set([...(pastures || []), ...(animals || []).flatMap(a => (a.movements || []).map(m => m.pastureName)).filter(Boolean)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const pastureNames = getCanonicalPastureNames(animals, pastures);
 
   return (
     <div className="hl-page hl-fade-in">
@@ -4191,7 +4586,7 @@ function Tasks({ tasks, setTasks, animals, gestations, offspring, pastures, setT
   }
 
   const priorityColor = { High: "var(--danger2)", Medium: "var(--brass)", Low: "var(--green3)" };
-  const pastureNames = [...new Set([...(pastures || []), ...(animals || []).flatMap(a => (a.movements || []).map(m => m.pastureName)).filter(Boolean)])].filter(Boolean).sort((a, b) => a.localeCompare(b));
+  const pastureNames = getCanonicalPastureNames(animals, pastures);
 
   function renderTaskList(list, title, titleColor, rowHighlight) {
     if (list.length === 0) return null;
@@ -4303,7 +4698,7 @@ const TAB_OPTIONS = [
   { id: "dashboard", label: "Dashboard", icon: "⊞" },
   { id: "animals", label: "Animals", icon: "🐄" },
   { id: "gestation", label: "Gestation", icon: "📅" },
-  { id: "feeder", label: "Feeder Cattle", icon: "🌾" },
+  { id: "feeder", label: "Feeder Program", icon: "🌾" },
   { id: "pastures", label: "Pastures", icon: "🟩" },
   { id: "notes", label: "Journal", icon: "📖" },
   { id: "expenses", label: "Expenses", icon: "💰" },
@@ -4457,7 +4852,7 @@ const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings
 const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 const GUEST_USER = { id: "guest", isGuest: true };
 
-const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: true, pastures: true, expenses: true, tasks: true };
+const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: false, pastures: true, expenses: true, tasks: true };
 const TASK_CATEGORIES = ["Feeding", "Vaccination", "Breeding", "Castration", "Pasture Move", "Weaning", "Vet Visit", "Treatment", "General", "Other"];
 const TASK_PRIORITIES = ["High", "Medium", "Low"];
 const RECURRING_OPTIONS = ["One time", "Daily", "Weekly", "Monthly"];
@@ -4732,10 +5127,10 @@ export default function App() {
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
       {tab === "dashboard" && <Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} expenses={expenses} tasks={tasks} />}
-      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} />}
+      {tab === "animals"   && <Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} />}
       {tab === "gestation" && <Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} />}
       {tab === "feeder"    && <FeederCattle animals={animals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} />}
-      {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} />}
+      {tab === "pastures"  && <Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} gestations={gestations} setGestations={setGestations} />}
       {tab === "notes"     && <Notes notes={notes} setNotes={setNotes} user={user} />}
       {tab === "expenses"  && <Expenses expenses={expenses} setExpenses={setExpenses} animals={animals} pastures={pastures} setTab={setTab} setViewingAnimal={setViewingAnimal} />}
       {tab === "tasks"     && <Tasks tasks={tasks} setTasks={setTasks} animals={animals} gestations={gestations} offspring={offspring} pastures={pastures} setTab={setTab} />}

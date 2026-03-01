@@ -4988,26 +4988,23 @@ function Expenses({ expenses, setExpenses, animals, pastures, setTab, setViewing
                 ? `${baseDesc} — ${animalName}`
                 : baseDesc;
               return (
-                <div key={e.id} className="hl-expense-row" style={{ padding: "12px 20px", borderBottom: "1px solid var(--cream2)", background: i % 2 === 0 ? "#fff" : "var(--cream)" }}>
-                  <div className="hl-expense-meta" style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
-                    <div className="hl-expense-date" style={{ flex: "0 0 100px", fontSize: "13px", color: "var(--muted)" }}>{e.date ? fmt(e.date) : "—"}</div>
-                    <div style={{ flex: "0 0 auto" }}>
-                      <Badge color="var(--brass2)">{e.category || "Other"}</Badge>
-                    </div>
+                <div key={e.id} className="hl-expense-row" style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", background: i % 2 === 0 ? "#fff" : "var(--cream)" }}>
+                  {/* Line 1: date left, category badge right */}
+                  <div className="hl-expense-line-1" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+                    <div className="hl-expense-date" style={{ fontSize: "13px", color: "var(--muted)" }}>{e.date ? fmt(e.date) : "—"}</div>
+                    <Badge color="var(--brass2)">{e.category || "Other"}</Badge>
                   </div>
-                  <div className="hl-expense-desc" style={{ flex: "1 1 auto", minWidth: 0 }}>
-                    <div style={{ fontWeight: 600, fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{descLine}</div>
+                  {/* Line 2: description full width */}
+                  <div className="hl-expense-line-2" style={{ fontWeight: 600, fontSize: "14px", wordBreak: "break-word", minWidth: 0 }}>
+                    {descLine}
                   </div>
-                  <div className="hl-expense-amount-line">
-                    <div className="hl-expense-amount-block" style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
-                      <div style={{ flex: "0 0 90px", textAlign: "right", fontWeight: 600 }}>${(Number(e.amount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-                      <div className="hl-expense-total" style={{ flex: "0 0 80px", textAlign: "right", fontSize: "12px", color: "var(--muted)" }}>${runningTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-                    </div>
-                    <div className="hl-expense-delete" style={{ flexShrink: 0 }}>
-                      <button type="button" onClick={() => deleteExpense(e.id)} title="Delete" className="hl-expense-trash-btn" style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "var(--muted)", display: "inline-flex", alignItems: "center", justifyContent: "center" }} aria-label="Delete expense">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
-                      </button>
-                    </div>
+                  {/* Line 3: amount on the right, trash to the right of amount */}
+                  <div className="hl-expense-line-3" style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                    <div className="hl-expense-total hl-expense-total-desktop" style={{ marginRight: "4px", fontSize: "12px", color: "var(--muted)" }}>${runningTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+                    <div style={{ fontWeight: 600 }}>${(Number(e.amount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+                    <button type="button" onClick={() => deleteExpense(e.id)} title="Delete" className="hl-expense-trash-btn" style={{ background: "none", border: "none", padding: "6px", cursor: "pointer", color: "var(--muted)", display: "inline-flex", alignItems: "center", justifyContent: "center" }} aria-label="Delete expense">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                    </button>
                   </div>
                 </div>
               );

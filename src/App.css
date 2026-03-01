@@ -456,47 +456,31 @@
   }
 }
 
-/* Expenses list: flex row, description ellipsis; mobile: 3-line layout */
+/* Expenses list: strict 3-line layout (date+badge, description, amount+trash), no overlap */
 .hl-expense-row {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.hl-expense-desc {
+.hl-expense-line-1,
+.hl-expense-line-2,
+.hl-expense-line-3 {
   min-width: 0;
 }
 
-/* Desktop: amount + delete grouped on the right */
-.hl-expense-amount-line {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-left: auto;
+/* Running total: visible on desktop only */
+.hl-expense-total-desktop {
+  display: inline;
 }
 
 @media (max-width: 480px) {
-  .hl-expense-meta {
-    order: 0;
+  .hl-expense-row {
+    padding: 16px 20px !important;
+    gap: 10px;
   }
 
-  .hl-expense-desc {
-    flex-basis: 100%;
-    order: 1;
-  }
-
-  .hl-expense-amount-line {
-    flex-basis: 100%;
-    order: 2;
-    margin-left: 0;
-    justify-content: flex-end;
-    align-items: center;
-    gap: 8px;
-  }
-
-  /* Single amount on mobile: hide running total */
-  .hl-expense-total {
+  .hl-expense-total-desktop {
     display: none;
   }
 }

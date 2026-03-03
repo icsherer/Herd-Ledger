@@ -1159,6 +1159,11 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
   });
   const [showDeceasedAnimals, setShowDeceasedAnimals] = useState(false);
   const [showArchivedAnimals, setShowArchivedAnimals] = useState(false);
+  const [filterSpecies, setFilterSpecies] = useState("All Species");
+  const [filterSexStatus, setFilterSexStatus] = useState("All");
+  const [filterPasture, setFilterPasture] = useState("All Pastures");
+  const [sortBy, setSortBy] = useState("dateAddedNewest");
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [showBreedingForm, setShowBreedingForm] = useState(false);
   const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
@@ -1458,11 +1463,88 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
     });
   }
 
-  const filtered = animals.filter(a => {
-    const matchesSearch = getAnimalName(a).toLowerCase().includes(search.toLowerCase()) || a.species.toLowerCase().includes(search.toLowerCase());
+  const speciesInHerd = [...new Set((animals || []).map(a => a.species).filter(Boolean))].sort();
+  const pastureNamesForFilter = getCanonicalPastureNames(animals, pastures);
+  const animalIdToIndex = new Map((animals || []).map((a, i) => [a.id, i]));
+
+  function hasActiveGestation(animalId) {
+    return (gestations || []).some(g => g.animalId === animalId && g.status !== "Delivered");
+  }
+
+  const filtered = (animals || []).filter(a => {
     const showByDeceased = showDeceasedAnimals ? true : !a.deceased;
     const showByArchived = showArchivedAnimals ? true : !a.sale;
-    return matchesSearch && showByDeceased && showByArchived;
+    if (!showByDeceased || !showByArchived) return false;
+
+    const q = (search || "").trim().toLowerCase();
+    const matchesSearch = !q ||
+      getAnimalName(a).toLowerCase().includes(q) ||
+      (a.species || "").toLowerCase().includes(q) ||
+      (a.tag != null && String(a.tag).toLowerCase().includes(q));
+
+    if (!matchesSearch) return false;
+
+    if (filterSpecies !== "All Species" && (a.species || "") !== filterSpecies) return false;
+
+    const currentPasture = (a.movements && a.movements[0] && a.movements[0].pastureName) ? a.movements[0].pastureName.trim() : "";
+    if (filterPasture === "No Pasture Assigned") {
+      if (currentPasture) return false;
+    } else if (filterPasture !== "All Pastures") {
+      if (!pastureNameEq(currentPasture, filterPasture)) return false;
+    }
+
+    if (filterSexStatus !== "All") {
+      const isFemaleAnimal = isFemale(a);
+      const isMaleAnimal = isMale(a);
+      const castrated = !!a.castration;
+      const bredPregnant = isFemaleAnimal && hasActiveGestation(a.id);
+      const open = isFemaleAnimal && !hasActiveGestation(a.id);
+      if (filterSexStatus === "Intact Males" && (!isMaleAnimal || castrated)) return false;
+      if (filterSexStatus === "Females" && !isFemaleAnimal) return false;
+      if (filterSexStatus === "Castrated" && !castrated) return false;
+      if (filterSexStatus === "Bred/Pregnant" && !bredPregnant) return false;
+      if (filterSexStatus === "Open" && !open) return false;
+    }
+
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    switch (sortBy) {
+      case "dateAddedNewest": {
+        const ia = animalIdToIndex.get(a.id) ?? 0;
+        const ib = animalIdToIndex.get(b.id) ?? 0;
+        return ib - ia;
+      }
+      case "nameAZ":
+        return getAnimalName(a).localeCompare(getAnimalName(b), undefined, { sensitivity: "base" });
+      case "ageYoungest": {
+        const da = a.dob ? new Date(a.dob).getTime() : 0;
+        const db = b.dob ? new Date(b.dob).getTime() : 0;
+        if (da === 0 && db === 0) return 0;
+        if (da === 0) return 1;
+        if (db === 0) return -1;
+        return db - da;
+      }
+      case "ageOldest": {
+        const da = a.dob ? new Date(a.dob).getTime() : 0;
+        const db = b.dob ? new Date(b.dob).getTime() : 0;
+        if (da === 0 && db === 0) return 0;
+        if (da === 0) return 1;
+        if (db === 0) return -1;
+        return da - db;
+      }
+      case "tagNumber": {
+        const ta = (a.tag != null && String(a.tag).trim() !== "") ? String(a.tag).trim() : "\uFFFF";
+        const tb = (b.tag != null && String(b.tag).trim() !== "") ? String(b.tag).trim() : "\uFFFF";
+        const na = parseInt(ta, 10);
+        const nb = parseInt(tb, 10);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return ta.localeCompare(tb, undefined, { numeric: true });
+      }
+      default:
+        return 0;
+    }
   });
 
   if (viewing) {
@@ -3113,8 +3195,8 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         Animal Register
       </SectionTitle>
 
-      {/* Show/hide deceased + archived (sold) + Search */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "16px", marginBottom: "20px" }}>
+      {/* Show/hide deceased + archived */}
+      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "16px", marginBottom: "12px" }}>
         {deceasedCount > 0 && (
           <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--muted)", cursor: "pointer" }}>
             <input type="checkbox" checked={showDeceasedAnimals} onChange={e => setShowDeceasedAnimals(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
@@ -3127,10 +3209,135 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
             Show archived (sold) animals ({(animals || []).filter(a => a.sale).length})
           </label>
         )}
-        <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-          <Input placeholder="Search by name, species, or tag..." value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
       </div>
+
+      {/* Filter & Sort bar (desktop: full bar; mobile: button that opens bottom sheet) */}
+      {(() => {
+        const activeFilterCount = (search.trim() ? 1 : 0) + (filterSpecies !== "All Species" ? 1 : 0) + (filterSexStatus !== "All" ? 1 : 0) + (filterPasture !== "All Pastures" ? 1 : 0);
+        const clearFilters = () => {
+          setSearch("");
+          setFilterSpecies("All Species");
+          setFilterSexStatus("All");
+          setFilterPasture("All Pastures");
+        };
+
+        const filterControls = (
+          <>
+            <div style={{ flex: "1 1 180px", minWidth: 0 }}>
+              <Input placeholder="Search by name or tag..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <Select value={filterSpecies} onChange={e => setFilterSpecies(e.target.value)} style={{ minWidth: "140px" }}>
+              <option value="All Species">All Species</option>
+              {speciesInHerd.map(s => <option key={s} value={s}>{s}</option>)}
+            </Select>
+            <Select value={filterSexStatus} onChange={e => setFilterSexStatus(e.target.value)} style={{ minWidth: "140px" }}>
+              <option value="All">All</option>
+              <option value="Intact Males">Intact Males</option>
+              <option value="Females">Females</option>
+              <option value="Castrated">Castrated</option>
+              <option value="Bred/Pregnant">Bred/Pregnant</option>
+              <option value="Open">Open</option>
+            </Select>
+            <Select value={filterPasture} onChange={e => setFilterPasture(e.target.value)} style={{ minWidth: "160px" }}>
+              <option value="All Pastures">All Pastures</option>
+              <option value="No Pasture Assigned">No Pasture Assigned</option>
+              {pastureNamesForFilter.map(p => <option key={p} value={p}>{p}</option>)}
+            </Select>
+            <Select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ minWidth: "160px" }}>
+              <option value="dateAddedNewest">Date Added (newest first)</option>
+              <option value="nameAZ">Name A–Z</option>
+              <option value="ageYoungest">Age (youngest first)</option>
+              <option value="ageOldest">Age (oldest first)</option>
+              <option value="tagNumber">Tag Number</option>
+            </Select>
+            {activeFilterCount > 0 && (
+              <>
+                <span className="hl-animals-filter-badge" style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", minWidth: "22px", height: "22px", padding: "0 6px", borderRadius: "11px", background: "var(--brass2)", color: "#fff", fontSize: "12px", fontWeight: 600 }}>
+                  {activeFilterCount}
+                </span>
+                <Btn size="sm" variant="ghost" onClick={clearFilters}>Clear Filters</Btn>
+              </>
+            )}
+          </>
+        );
+
+        return (
+          <>
+            <div className="hl-animals-filter-bar" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              {filterControls}
+            </div>
+            <div className="hl-animals-filter-bar-mobile" style={{ display: "none", marginBottom: "20px" }}>
+              <button
+                type="button"
+                onClick={() => setShowFilterSheet(true)}
+                style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "10px 18px", background: "#fff", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", fontSize: "14px", fontWeight: 600, color: "var(--ink)", cursor: "pointer", boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}
+              >
+                Filter & Sort
+                {activeFilterCount > 0 && (
+                  <span style={{ minWidth: "20px", height: "20px", borderRadius: "10px", background: "var(--brass2)", color: "#fff", fontSize: "11px", fontWeight: 700, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{activeFilterCount}</span>
+                )}
+              </button>
+            </div>
+
+            {showFilterSheet && (
+              <div className="hl-filter-sheet-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowFilterSheet(false)}>
+                <div className="hl-filter-sheet" style={{ background: "var(--cream)", borderTopLeftRadius: "16px", borderTopRightRadius: "16px", width: "100%", maxWidth: "480px", maxHeight: "85vh", overflowY: "auto", padding: "24px", boxShadow: "0 -4px 24px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+                    <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, color: "var(--ink)" }}>Filter & Sort</span>
+                    <button type="button" onClick={() => setShowFilterSheet(false)} style={{ background: "none", border: "none", fontSize: "24px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Search</label>
+                      <Input placeholder="Name or tag..." value={search} onChange={e => setSearch(e.target.value)} />
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Species</label>
+                      <Select value={filterSpecies} onChange={e => setFilterSpecies(e.target.value)} style={{ width: "100%" }}>
+                        <option value="All Species">All Species</option>
+                        {speciesInHerd.map(s => <option key={s} value={s}>{s}</option>)}
+                      </Select>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Sex / Status</label>
+                      <Select value={filterSexStatus} onChange={e => setFilterSexStatus(e.target.value)} style={{ width: "100%" }}>
+                        <option value="All">All</option>
+                        <option value="Intact Males">Intact Males</option>
+                        <option value="Females">Females</option>
+                        <option value="Castrated">Castrated</option>
+                        <option value="Bred/Pregnant">Bred/Pregnant</option>
+                        <option value="Open">Open</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Pasture</label>
+                      <Select value={filterPasture} onChange={e => setFilterPasture(e.target.value)} style={{ width: "100%" }}>
+                        <option value="All Pastures">All Pastures</option>
+                        <option value="No Pasture Assigned">No Pasture Assigned</option>
+                        {pastureNamesForFilter.map(p => <option key={p} value={p}>{p}</option>)}
+                      </Select>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Sort by</label>
+                      <Select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ width: "100%" }}>
+                        <option value="dateAddedNewest">Date Added (newest first)</option>
+                        <option value="nameAZ">Name A–Z</option>
+                        <option value="ageYoungest">Age (youngest first)</option>
+                        <option value="ageOldest">Age (oldest first)</option>
+                        <option value="tagNumber">Tag Number</option>
+                      </Select>
+                    </div>
+                    {activeFilterCount > 0 && (
+                      <Btn variant="secondary" onClick={clearFilters} style={{ marginTop: "8px" }}>Clear Filters</Btn>
+                    )}
+                    <Btn onClick={() => setShowFilterSheet(false)} style={{ marginTop: "8px" }}>Done</Btn>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {bulkMode && selectedIds.length > 0 && (
         <Card className="hl-bulk-toolbar">
@@ -3423,17 +3630,17 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
         </Card>
       )}
 
-      {!filtered.length && (
+      {!sorted.length && (
         <Card style={{ padding: "60px", textAlign: "center" }}>
           <div style={{ fontSize: "40px", marginBottom: "10px" }}>🐄</div>
           <div style={{ color: "var(--muted)", fontSize: "15px" }}>{search ? "No animals match your search." : "No animals registered yet."}</div>
         </Card>
       )}
 
-      {viewMode === "list" && filtered.length > 0 && (
+      {viewMode === "list" && sorted.length > 0 && (
         <Card className="hl-card-no-padding hl-animals-list-card" style={{ overflow: "hidden" }}>
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {filtered.map((a, idx) => {
+            {sorted.map((a, idx) => {
               const activeGest = isFemale(a) && a.species !== "Mule" ? gestations.find(g => g.animalId === a.id && g.status !== "Delivered") : null;
               const pastureName = a.movements?.[0]?.pastureName?.trim() || "";
               const health = getHealthStatus(a);
@@ -3448,7 +3655,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
                   onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (bulkMode) toggleBulkSelect(a.id); else { setViewing(a); setShowSaleForm(false); } } }}
                   style={{
                     background: bulkMode && selectedIds.includes(a.id) ? "rgba(201,149,42,0.15)" : rowBg,
-                    borderBottom: idx < filtered.length - 1 ? "1px solid var(--cream2)" : "none",
+                    borderBottom: idx < sorted.length - 1 ? "1px solid var(--cream2)" : "none",
                     cursor: "pointer",
                     transition: "background 0.15s ease",
                   }}
@@ -3495,7 +3702,7 @@ function Animals({ animals, setAnimals, offspring, setOffspring, gestations, set
 
       {viewMode === "tile" && (
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "14px" }}>
-        {filtered.map(a => (
+        {sorted.map(a => (
           <Card key={a.id} style={{
             padding: "18px 20px", cursor: "pointer", transition: "box-shadow 0.15s, transform 0.15s", position: "relative", overflow: "hidden",
             ...(bulkMode && selectedIds.includes(a.id) ? { boxShadow: "0 0 0 2px var(--brass)", borderColor: "var(--brass)" } : {})

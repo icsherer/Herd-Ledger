@@ -620,6 +620,22 @@
   }
 }
 
+/* Animals filter bar: on mobile show single button that opens bottom sheet */
+@media (max-width: 600px) {
+  .hl-animals-filter-bar {
+    display: none !important;
+  }
+  .hl-animals-filter-bar-mobile {
+    display: block !important;
+  }
+}
+
+@media (min-width: 601px) {
+  .hl-animals-filter-bar-mobile {
+    display: none !important;
+  }
+}
+
 /* List view: mobile under 480px — 5 cols (emoji, name, health, species, status); hide breed & age */
 @media (max-width: 480px) {
   .hl-animals-list-row {

@@ -485,10 +485,38 @@
   }
 }
 
-/* Help page: accordion focus for accessibility */
+/* Help page: accordion focus and ensure content is visible */
 .hl-help-section button:focus-visible {
   outline: 2px solid var(--brass);
   outline-offset: 2px;
+}
+
+.hl-help-content {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Pasture assignment form: same-width, aligned input fields */
+.hl-pasture-assign-form-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.hl-pasture-assign-form .hl-pasture-assign-field {
+  width: 220px;
+  min-width: 220px;
+  flex-shrink: 0;
+}
+
+.hl-pasture-assign-form .hl-pasture-assign-field > div {
+  width: 100%;
+}
+
+.hl-pasture-assign-form .hl-pasture-assign-field input {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 /* ── Animal profile page ───────────────────────────────────────────────────── */

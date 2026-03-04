@@ -18,7 +18,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
   });
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
@@ -75,13 +75,51 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [showSaleForm, setShowSaleForm] = useState(false);
   const [saleForm, setSaleForm] = useState({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" });
   const [showImportModal, setShowImportModal] = useState(false);
-  const [importStep, setImportStep] = useState(1);
+  const [importStep, setImportStep] = useState(1); // 1=Upload, 2=Map, 3=Preview, 4=Duplicates, 5=Result
   const [importFile, setImportFile] = useState(null);
   const [importData, setImportData] = useState(null);
   const [importMapping, setImportMapping] = useState({});
   const [importSuccess, setImportSuccess] = useState(null);
   const [importDragActive, setImportDragActive] = useState(false);
+  const [importDuplicateChoices, setImportDuplicateChoices] = useState({}); // rowIndex -> "skip" | "overwrite"
+  const [importPreviewRowIndex, setImportPreviewRowIndex] = useState(0); // 0-4 for first 5 rows
+  const [showImportInstructions, setShowImportInstructions] = useState(false);
   const importFileInputRef = useRef(null);
+
+  const IMPORT_FUZZY_ALIASES = {
+    "Name": ["name", "cow name", "animal name", "id", "animal id", "identification", "nickname"],
+    "Tag": ["tag", "tag number", "ear tag", "id#", "id #", "tag no", "tagno", "number", "ear tag number"],
+    "Species": ["species", "type", "kind", "animal type", "livestock type", "animal kind"],
+    "Breed": ["breed", "breeding", "breed type"],
+    "Sex": ["sex", "gender"],
+    "Date of Birth": ["dob", "born", "birth date", "date of birth", "birthday", "birth", "calving date"],
+    "Color": ["color", "coat", "markings", "colour"],
+    "Purchase Date": ["purchase date", "bought", "date purchased", "acquisition date"],
+    "Notes": ["notes", "note", "comments", "remarks", "comments notes"],
+  };
+
+  function fuzzyMapHeaders(headers) {
+    const mapping = {};
+    const normalized = headers.map(h => String(h ?? "").trim().toLowerCase());
+    for (const hl of IMPORT_HL_FIELDS) {
+      const aliases = IMPORT_FUZZY_ALIASES[hl] || [hl.toLowerCase().replace(/\s+/g, " ")];
+      let bestScore = 0;
+      let bestCol = null;
+      for (let i = 0; i < normalized.length; i++) {
+        const h = normalized[i];
+        if (!h) continue;
+        for (const alias of aliases) {
+          if (h === alias) { bestScore = 100; bestCol = headers[i]; break; }
+          if (h.includes(alias) || alias.includes(h)) {
+            const score = 50 + Math.min(h.length, alias.length) / Math.max(h.length, alias.length) * 30;
+            if (score > bestScore) { bestScore = score; bestCol = headers[i]; }
+          }
+        }
+      }
+      if (bestCol !== null) mapping[hl] = bestCol;
+    }
+    return mapping;
+  }
   const animalPhotoInputRef = useRef(null);
   const [photoUploading, setPhotoUploading] = useState(false);
   const [registerMode, setRegisterMode] = useState("single"); // "single" | "bulk"
@@ -141,7 +179,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "" };
   };
 
   function parseImportFile(file, onDone) {
@@ -168,12 +206,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         }
         const headers = arr[0].map(h => String(h ?? "").trim());
         const rows = arr.slice(1).map(row => (Array.isArray(row) ? row : []).map(c => (c == null ? "" : String(c)).trim()));
-        const autoMapping = {};
-        IMPORT_HL_FIELDS.forEach(hl => {
-          const key = hl.toLowerCase().replace(/\s+/g, " ");
-          const found = headers.findIndex(h => String(h).toLowerCase().trim() === key || String(h).toLowerCase().replace(/\s+/g, " ") === key);
-          if (found >= 0) autoMapping[hl] = headers[found];
-        });
+        const autoMapping = fuzzyMapHeaders(headers);
         onDone({ headers, rows }, null, autoMapping);
       } catch (err) {
         onDone(null, err.message || "Parse error");
@@ -182,6 +215,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     reader.onerror = () => onDone(null, "Failed to read file");
     if (isCsv) reader.readAsText(file);
     else reader.readAsArrayBuffer(file);
+  }
+
+  function isBlankRow(row) {
+    return !row || row.every(c => !String(c ?? "").trim());
   }
 
   function normalizeSpecies(val) {
@@ -213,23 +250,42 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     return "";
   }
 
-  function getImportPreview() {
-    if (!importData || !importMapping) return { valid: [], skipped: [], byRow: [] };
-    const { headers, rows } = importData;
-    const colIndex = (hl) => {
+  function getImportColIndex() {
+    if (!importData || !importMapping) return () => -1;
+    const { headers } = importData;
+    return (hl) => {
       const mapped = importMapping[hl];
       if (!mapped) return -1;
       const i = headers.indexOf(mapped);
       return i >= 0 ? i : -1;
     };
+  }
+
+  function getImportPreview() {
+    if (!importData || !importMapping) return { byRow: [], validCount: 0, errorCount: 0, duplicateRows: [], blankCount: 0 };
+    const { headers, rows } = importData;
+    const colIndex = getImportColIndex();
     const speciesCol = colIndex("Species");
-    const valid = [];
-    const skipped = [];
+    const byRow = [];
+    let validCount = 0;
+    let errorCount = 0;
+    let blankCount = 0;
+    const duplicateRows = [];
+    const existingByTag = new Map((animals || []).filter(a => a.tag).map(a => [String(a.tag).trim().toLowerCase(), a]));
+    const existingByNameSpecies = new Map((animals || []).map(a => [`${(a.name || "").trim().toLowerCase()}|${(a.species || "").toLowerCase()}`, a]));
+
     rows.forEach((row, idx) => {
-      const rawSpecies = speciesCol >= 0 ? row[speciesCol] : "";
+      const rowNum = idx + 2;
+      if (isBlankRow(row)) {
+        blankCount++;
+        byRow.push({ rowIndex: rowNum, data: null, error: null, duplicate: null, blank: true });
+        return;
+      }
+      const rawSpecies = speciesCol >= 0 ? (row[speciesCol] || "").trim() : "";
       const species = normalizeSpecies(rawSpecies);
       if (!species) {
-        skipped.push({ rowIndex: idx + 2, reason: "Missing or invalid Species", row });
+        errorCount++;
+        byRow.push({ rowIndex: rowNum, data: null, error: "Missing or invalid Species", duplicate: null, blank: false });
         return;
       }
       const name = colIndex("Name") >= 0 ? (row[colIndex("Name")] || "").trim() : "";
@@ -239,20 +295,97 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const sex = normalizeSexForSpecies(species, sexVal);
       const dobVal = colIndex("Date of Birth") >= 0 ? row[colIndex("Date of Birth")] : "";
       const dob = normalizeDob(dobVal);
+      const colorVal = colIndex("Color") >= 0 ? (row[colIndex("Color")] || "").trim() : "";
+      const purchaseDateVal = colIndex("Purchase Date") >= 0 ? row[colIndex("Purchase Date")] : "";
+      const purchaseDate = normalizeDob(purchaseDateVal);
       const notes = colIndex("Notes") >= 0 ? (row[colIndex("Notes")] || "").trim() : "";
-      valid.push({ name: name || undefined, tag: tag || undefined, species, breed: breed || undefined, sex, dob: dob || undefined, notes: notes || undefined });
+      const data = {
+        name: name || undefined,
+        tag: tag || undefined,
+        species,
+        breed: breed || undefined,
+        sex,
+        dob: dob || undefined,
+        color: colorVal || undefined,
+        notes: notes || undefined,
+        acquisitionType: purchaseDate || undefined ? "Purchased" : "Home Raised",
+        purchaseDate: purchaseDate || undefined,
+      };
+      const dupByTag = tag ? existingByTag.get(tag.trim().toLowerCase()) : null;
+      const dupByNameSpecies = name ? existingByNameSpecies.get(`${name.trim().toLowerCase()}|${species.toLowerCase()}`) : null;
+      const duplicate = dupByTag || dupByNameSpecies || null;
+      if (duplicate) duplicateRows.push({ rowIndex: rowNum, data, duplicate });
+      else validCount++;
+      byRow.push({ rowIndex: rowNum, data, error: null, duplicate, blank: false });
     });
-    return { valid, skipped };
+    return { byRow, validCount, errorCount, duplicateRows, blankCount };
   }
 
   function runImport() {
-    const { valid, skipped } = getImportPreview();
-    const newAnimals = valid.map(a => ({
-      ...a,
-      id: Date.now().toString() + "-" + Math.random().toString(36).slice(2, 9),
-    }));
-    setAnimals(prev => [...prev, ...newAnimals]);
-    setImportSuccess({ imported: newAnimals.length, skipped: skipped.length });
+    const { byRow, duplicateRows, blankCount } = getImportPreview();
+    let imported = 0;
+    let skippedDuplicates = 0;
+    const errors = [];
+    const newAnimals = [];
+    const updates = []; // { existingId, data }
+
+    byRow.forEach(({ rowIndex, data, error, duplicate, blank }) => {
+      if (blank) return;
+      if (error) {
+        errors.push({ row: rowIndex, message: error });
+        return;
+      }
+      if (duplicate) {
+        const choice = importDuplicateChoices[rowIndex] || "skip";
+        if (choice === "skip") {
+          skippedDuplicates++;
+          return;
+        }
+        updates.push({ existingId: duplicate.id, data });
+        imported++;
+        return;
+      }
+      newAnimals.push({
+        ...data,
+        id: Date.now().toString() + "-" + Math.random().toString(36).slice(2, 9),
+      });
+      imported++;
+    });
+
+    setAnimals(prev => {
+      let next = [...prev];
+      newAnimals.forEach(a => next.push(a));
+      updates.forEach(({ existingId, data }) => {
+        next = next.map(an => an.id === existingId ? { ...an, ...data } : an);
+      });
+      return next;
+    });
+    setImportSuccess({
+      imported,
+      skippedDuplicates,
+      errorCount: errors.length,
+      blankCount,
+      errors,
+    });
+    setImportStep(5);
+  }
+
+  function downloadImportTemplate() {
+    const headers = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes"];
+    const examples = [
+      ["Bessie", "1001", "Cattle", "Angus", "Cow", "2020-03-15", "Black", "", "Home raised"],
+      ["Blue", "1002", "Cattle", "Hereford", "Steer", "2021-05-20", "Red", "", ""],
+      ["Daisy", "1003", "Horse", "Quarter Horse", "Mare", "2019-01-10", "Bay", "2022-04-15", "Purchased 2022"],
+    ];
+    const rows = [headers, ...examples];
+    const csv = rows.map(r => r.map(c => (typeof c === "string" && (c.includes(",") || c.includes('"') || c.includes("\n")) ? `"${String(c).replace(/"/g, '""')}"` : c)).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "herd-ledger-import-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function closeImportModal() {
@@ -262,6 +395,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setImportData(null);
     setImportMapping({});
     setImportSuccess(null);
+    setImportDuplicateChoices({});
+    setImportPreviewRowIndex(0);
   }
 
   function add() {
@@ -333,7 +468,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   function saveEdit() {
     if (!editingId) return;
     const purchasePriceNum = form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined;
-      const updated = { ...viewing, name: form.name || undefined, species: form.species, sex: form.sex, dob: form.dob || undefined, breed: form.breed || undefined, tag: form.tag || undefined, notes: form.notes || undefined, acquisitionType: form.acquisitionType || "Home Raised", purchasePrice: purchasePriceNum, purchaseDate: form.purchaseDate?.trim() || undefined, purchasedFrom: form.purchasedFrom?.trim() || undefined, targetWeaningDate: form.targetWeaningDate?.trim() || undefined };
+      const updated = { ...viewing, name: form.name || undefined, species: form.species, sex: form.sex, dob: form.dob || undefined, breed: form.breed || undefined, tag: form.tag || undefined, notes: form.notes || undefined, color: form.color?.trim() || undefined, acquisitionType: form.acquisitionType || "Home Raised", purchasePrice: purchasePriceNum, purchaseDate: form.purchaseDate?.trim() || undefined, purchasedFrom: form.purchasedFrom?.trim() || undefined, targetWeaningDate: form.targetWeaningDate?.trim() || undefined };
     setAnimals(p => p.map(x => x.id === editingId ? updated : x));
     setViewing(updated);
     setEditingId(null);
@@ -464,14 +599,15 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     function saveOffspring() {
       const isEdit = !!editingOffspringId;
       const stillborn = !!offspringForm.stillborn;
-      const effectiveSex = (offspringForm.sex && String(offspringForm.sex).trim()) ? offspringForm.sex : getOffspringDefaultSex(offspringForm.species || a.species);
+      const motherSpecies = a.species;
+      const effectiveSex = (offspringForm.sex && String(offspringForm.sex).trim()) ? offspringForm.sex : getOffspringDefaultSex(motherSpecies);
       const rec = {
         id: isEdit ? editingOffspringId : Date.now().toString(),
         motherId: a.id,
         name: offspringForm.name || undefined,
         tag: offspringForm.tag || undefined,
         sex: effectiveSex,
-        species: offspringForm.species || a.species,
+        species: motherSpecies,
         birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
         dob: offspringForm.dob || undefined,
         weaningDate: offspringForm.weaningDate || undefined,
@@ -500,7 +636,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           name: offspringForm.name || undefined,
           tag: offspringForm.tag || undefined,
           sex: effectiveSex,
-          species: offspringForm.species || a.species,
+          species: motherSpecies,
           dob: offspringForm.dob || undefined,
           breed: a.breed || undefined,
           notes: undefined,
@@ -830,7 +966,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 const opts = getSexOptions(species);
                 const sex = opts.includes(a.sex) ? a.sex : (SEX_TERM_GENDER[a.sex] === "Female" ? opts.find(o => SEX_TERM_GENDER[o] === "Female") : opts.find(o => SEX_TERM_GENDER[o] === "Male")) || opts[0];
                 setEditingId(a.id);
-                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "", acquisitionType: a.acquisitionType || "Home Raised", purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "", purchaseDate: a.purchaseDate || "", purchasedFrom: a.purchasedFrom || "", targetWeaningDate: a.targetWeaningDate || "" });
+                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "", color: a.color || "", acquisitionType: a.acquisitionType || "Home Raised", purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "", purchaseDate: a.purchaseDate || "", purchasedFrom: a.purchasedFrom || "", targetWeaningDate: a.targetWeaningDate || "" });
               }}>Edit</Btn>
           )}
         </div>
@@ -842,7 +978,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
               <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
               <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
-              <Input label="Target weaning date (optional)" type="date" value={form.targetWeaningDate || ""} onChange={e => setForm(p => ({ ...p, targetWeaningDate: e.target.value }))} />
               <Select label="Species" value={form.species} onChange={e => {
                 const newSpecies = e.target.value;
                 const opts = getSexOptions(newSpecies);
@@ -854,7 +989,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
               </Select>
               <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
-              <Input label="Target weaning date (optional)" type="date" value={form.targetWeaningDate || ""} onChange={e => setForm(p => ({ ...p, targetWeaningDate: e.target.value }))} />
+              <Input label="Color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} placeholder="e.g. Black, Red Baldy, Roan" />
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
                 <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
@@ -947,6 +1082,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               {[
                 ["Species", a.species],
                 ["Breed", a.breed || "—"],
+                ["Color", a.color || "—"],
                 ["Sex", displaySex(a, gestations)],
                 ["Date of Birth", fmt(a.dob)],
                 ["Tag / ID", a.tag || "—"],
@@ -1501,21 +1637,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                   <div>
                     <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>Success Rate (%)</div>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.1}
-                      value={a.successRate != null ? a.successRate : ""}
-                      onChange={e => {
-                        const v = e.target.value;
-                        const num = v === "" ? undefined : parseFloat(v);
-                        setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, successRate: num } : an)));
-                        setViewing(prev => (prev && prev.id === a.id ? { ...prev, successRate: num } : prev));
-                      }}
-                      placeholder="e.g. 85"
-                      style={{ width: "100%", padding: "8px 12px", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", fontSize: "14px", color: "var(--ink)", background: "#fff", outline: "none" }}
-                    />
+                    <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--ink2)" }}>
+                      {offspringForMother.length === 0
+                        ? "N/A"
+                        : `${((offspringForMother.filter(c => !c.stillborn).length / offspringForMother.length) * 100).toFixed(1)}%`}
+                    </div>
                   </div>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
@@ -1580,11 +1706,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 )}
 
                 {showOffspringForm && (
-                  <Card style={{ padding: "18px 20px", marginTop: "14px", borderLeft: "3px solid var(--brass)" }}>
+                  <Card className="hl-offspring-form-card" style={{ padding: "18px 20px", marginTop: "14px", borderLeft: "3px solid var(--brass)", overflow: "hidden", boxSizing: "border-box", maxWidth: "100%" }}>
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
                       {editingOffspringId ? `Edit ${getOffspringTerm(a.species)}` : `Add ${getOffspringTerm(a.species)}`}
                     </div>
-                    <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                    <div className="hl-form-grid-3 hl-offspring-form-grid" style={{ marginBottom: "12px", minWidth: 0, width: "100%" }}>
                       <Input
                         label={`${getOffspringTerm(a.species)} Name`}
                         value={offspringForm.name}
@@ -1597,29 +1723,21 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         onChange={e => setOffspringForm(p => ({ ...p, tag: e.target.value }))}
                         placeholder="e.g. 2043"
                       />
-                      <div style={{ borderLeft: (offspringForm.sex || getOffspringDefaultSex(offspringForm.species || a.species)) === getOffspringDefaultSex(offspringForm.species || a.species) ? "4px solid var(--brass)" : "4px solid transparent", borderRadius: "var(--radius)", paddingLeft: "4px", marginLeft: "-4px" }}>
+                      <div style={{ borderLeft: (offspringForm.sex || getOffspringDefaultSex(a.species)) === getOffspringDefaultSex(a.species) ? "4px solid var(--brass)" : "4px solid transparent", borderRadius: "var(--radius)", paddingLeft: "4px", marginLeft: "-4px" }}>
                         <Select
                           label="Sex (default is pre-selected)"
-                          value={offspringForm.sex || getOffspringDefaultSex(offspringForm.species || a.species)}
+                          value={offspringForm.sex || getOffspringDefaultSex(a.species)}
                           onChange={e => setOffspringForm(p => ({ ...p, sex: e.target.value }))}
                         >
-                          {(getOffspringSexOptions(offspringForm.species || a.species) || []).map(opt => (
+                          {(getOffspringSexOptions(a.species) || []).map(opt => (
                             <option key={opt} value={opt}>{opt}</option>
                           ))}
                         </Select>
                       </div>
-                      <Select
-                        label="Species"
-                        value={offspringForm.species || a.species}
-                        onChange={e => {
-                          const newSpecies = e.target.value;
-                          setOffspringForm(p => ({ ...p, species: newSpecies, sex: getOffspringDefaultSex(newSpecies) }));
-                        }}
-                      >
-                        {Object.keys(SPECIES).map(s => (
-                          <option key={s}>{s}</option>
-                        ))}
-                      </Select>
+                      <div>
+                        <span style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>Species</span>
+                        <span style={{ display: "block", fontSize: "14px", color: "var(--ink2)", padding: "9px 0" }}>{a.species || "—"}</span>
+                      </div>
                       <Input
                         label="Birth Weight (lbs)"
                         type="number"
@@ -1861,6 +1979,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px 24px", fontSize: "14px" }}>
             <div><strong>Species</strong> {a.species}</div>
             <div><strong>Breed</strong> {a.breed || "—"}</div>
+            <div><strong>Color</strong> {a.color || "—"}</div>
             <div><strong>Sex</strong> {displaySex(a, gestations)}</div>
             {getRunningWithMaleForFemale(a, animals) && <div><strong>Running with</strong> {getAnimalName(getRunningWithMaleForFemale(a, animals))}</div>}
             <div><strong>Tag / ID</strong> {a.tag || "—"}</div>
@@ -2671,7 +2790,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
                 </Select>
                 <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
-                <Input label="Target weaning date (optional)" type="date" value={form.targetWeaningDate || ""} onChange={e => setForm(p => ({ ...p, targetWeaningDate: e.target.value }))} />
+                <Input label="Color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} placeholder="e.g. Black, Red Baldy, Roan" />
                 {PASTURE_SPECIES.includes(form.species) && (
                   <PastureCombo label="Current Pasture (optional)" value={form.currentPasture} onChange={v => setForm(p => ({ ...p, currentPasture: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-add-animal" />
                 )}
@@ -2891,22 +3010,52 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       )}
 
       {showImportModal && (
-        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => !importSuccess && closeImportModal()}>
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => !importSuccess && importStep !== 5 && closeImportModal()}>
           <Card style={{ maxWidth: "720px", width: "100%", maxHeight: "90vh", overflow: "auto", margin: "20px" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "8px" }}>
               <span style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600 }}>Import Animals</span>
-              {!importSuccess && (
-                <button type="button" onClick={closeImportModal} style={{ background: "none", border: "none", fontSize: "24px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
-              )}
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <Btn size="sm" variant="ghost" onClick={downloadImportTemplate}>Download Template</Btn>
+                <Btn size="sm" variant="ghost" onClick={() => setShowImportInstructions(true)}>How to Import</Btn>
+                {importStep !== 5 && (
+                  <button type="button" onClick={closeImportModal} style={{ background: "none", border: "none", fontSize: "24px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
+                )}
+              </div>
             </div>
 
-            {importSuccess ? (
+            {showImportInstructions && (
+              <div style={{ marginBottom: "20px", padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                  <span style={{ fontWeight: 600, fontSize: "15px" }}>How to Import</span>
+                  <button type="button" onClick={() => setShowImportInstructions(false)} style={{ background: "none", border: "none", fontSize: "20px", color: "var(--muted)", cursor: "pointer" }}>×</button>
+                </div>
+                <ol style={{ margin: 0, paddingLeft: "20px", color: "var(--ink2)", fontSize: "14px", lineHeight: 1.7 }}>
+                  <li><strong>Upload your file.</strong> Use any CSV from your computer or spreadsheet. Column names don't have to match exactly — we'll figure them out.</li>
+                  <li><strong>Check the mapping.</strong> We'll suggest which columns match Name, Tag, Species, and so on. You can change any mapping with the dropdowns. Species is required.</li>
+                  <li><strong>Preview the data.</strong> Flip through the first few rows to see how they'll look in your herd. Fix the mapping if something looks wrong.</li>
+                  <li><strong>Handle duplicates.</strong> If we find animals that already exist (same tag or same name + species), you can choose to skip or overwrite each one.</li>
+                  <li><strong>Import.</strong> We'll add new animals and update any you chose to overwrite. Blank rows are skipped. You'll get a summary when it's done.</li>
+                </ol>
+                <p style={{ marginTop: "12px", marginBottom: 0, fontSize: "13px", color: "var(--muted)" }}>Tip: Use "Download Template" to get a sample CSV with the right format and example rows.</p>
+              </div>
+            )}
+
+            {importStep === 5 && importSuccess ? (
               <div style={{ padding: "20px 0" }}>
                 <div style={{ fontSize: "16px", color: "var(--green)", fontWeight: 600, marginBottom: "12px" }}>Import complete</div>
-                <p style={{ color: "var(--ink2)", marginBottom: "20px" }}>
-                  {importSuccess.imported} animal{importSuccess.imported !== 1 ? "s" : ""} imported successfully.
-                  {importSuccess.skipped > 0 && ` ${importSuccess.skipped} row${importSuccess.skipped !== 1 ? "s" : ""} skipped due to missing or invalid Species.`}
-                </p>
+                <ul style={{ margin: "0 0 20px 20px", padding: 0, color: "var(--ink2)", fontSize: "14px", lineHeight: 1.8 }}>
+                  <li><strong>{importSuccess.imported}</strong> animal{importSuccess.imported !== 1 ? "s" : ""} imported successfully.</li>
+                  {importSuccess.skippedDuplicates > 0 && <li><strong>{importSuccess.skippedDuplicates}</strong> skipped as duplicates (you chose to skip).</li>}
+                  {importSuccess.blankCount > 0 && <li><strong>{importSuccess.blankCount}</strong> blank row{importSuccess.blankCount !== 1 ? "s" : ""} skipped.</li>}
+                  {importSuccess.errorCount > 0 && (
+                    <li><strong>{importSuccess.errorCount}</strong> row{importSuccess.errorCount !== 1 ? "s" : ""} had errors:
+                    <ul style={{ marginTop: "6px", marginBottom: 0 }}>
+                      {importSuccess.errors.slice(0, 15).map((e, i) => <li key={i}>Row {e.row}: {e.message}</li>)}
+                      {importSuccess.errors.length > 15 && <li>… and {importSuccess.errors.length - 15} more</li>}
+                    </ul>
+                    </li>
+                  )}
+                </ul>
                 <Btn onClick={closeImportModal}>Close</Btn>
               </div>
             ) : importStep === 1 ? (
@@ -2915,7 +3064,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <input
                     ref={importFileInputRef}
                     type="file"
-                    accept=".xlsx,.xls,.csv"
+                    accept=".csv,.xlsx,.xls,.txt"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (!file) return;
@@ -2942,8 +3091,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       const file = e.dataTransfer.files?.[0];
                       if (!file) return;
                       const ext = (file.name || "").toLowerCase().split(".").pop();
-                      if (!["xlsx", "xls", "csv"].includes(ext)) {
-                        alert("Please drop a .xlsx, .xls, or .csv file.");
+                      if (!["csv", "xlsx", "xls", "txt"].includes(ext)) {
+                        alert("Please drop a .csv or Excel file.");
                         return;
                       }
                       setImportFile(file);
@@ -2961,95 +3110,120 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         <line x1="12" y1="3" x2="12" y2="15" />
                       </svg>
                     </div>
-                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink2)", marginBottom: "4px" }}>Drag and drop your CSV or Excel file here, or click to browse</div>
-                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>Accepts .xlsx, .xls, .csv</div>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink2)", marginBottom: "4px" }}>Upload your CSV file</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>Drag and drop or click to browse. Any column names are fine — we'll match them automatically.</div>
                   </div>
                   {importFile && (
                     <div style={{ marginTop: "12px", padding: "10px 14px", background: "rgba(72, 120, 72, 0.1)", border: "1px solid var(--green3)", borderRadius: "var(--radius)", fontSize: "13px", color: "var(--green)", display: "flex", alignItems: "center", gap: "8px" }}>
                       <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{importFile.name}</span>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); setImportFile(null); setImportData(null); setImportMapping({}); }} style={{ background: "none", border: "none", color: "var(--brass)", fontWeight: 600, cursor: "pointer", fontSize: "12px" }}>Remove</button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); setImportFile(null); setImportData(null); setImportMapping({}); setImportStep(1); }} style={{ background: "none", border: "none", color: "var(--brass)", fontWeight: 600, cursor: "pointer", fontSize: "12px" }}>Remove</button>
                     </div>
                   )}
                 </div>
-
                 {importData && (
-                  <>
-                    <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Preview (first 5 rows)</div>
-                    <div style={{ overflowX: "auto", marginBottom: "20px", border: "1px solid var(--cream3)", borderRadius: "var(--radius)" }}>
-                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                        <thead>
-                          <tr style={{ background: "var(--cream2)" }}>
-                            {importData.headers.map((h, i) => (
-                              <th key={i} style={{ padding: "8px 10px", textAlign: "left", borderBottom: "1px solid var(--cream3)" }}>{h || `Column ${i + 1}`}</th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {importData.rows.slice(0, 5).map((row, ri) => (
-                            <tr key={ri} style={{ borderBottom: "1px solid var(--cream2)" }}>
-                              {importData.headers.map((_, ci) => (
-                                <td key={ci} style={{ padding: "8px 10px", color: "var(--ink2)" }}>{row[ci] ?? ""}</td>
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                    <Btn onClick={() => setImportStep(2)}>Next: Map columns</Btn>
+                    <Btn variant="secondary" onClick={closeImportModal}>Cancel</Btn>
+                  </div>
+                )}
+              </>
+            ) : importStep === 2 ? (
+              <>
+                <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "10px" }}>Map your columns to Herd Ledger fields</div>
+                <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>We've auto-detected the mappings below. Change any dropdown if we got it wrong. Species is required.</p>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                  {IMPORT_HL_FIELDS.map(hl => (
+                    <div key={hl}>
+                      <label style={{ display: "block", fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>{hl}{hl === "Species" ? " *" : ""}</label>
+                      <Select value={importMapping[hl] ?? ""} onChange={e => setImportMapping(prev => ({ ...prev, [hl]: e.target.value || undefined }))} style={{ width: "100%" }}>
+                        <option value="">— Don't import —</option>
+                        {importData.headers.filter(Boolean).map(h => (
+                          <option key={h} value={h}>{h}</option>
+                        ))}
+                      </Select>
                     </div>
-
-                    <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "10px" }}>Map columns to Herd Ledger fields</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-                      {IMPORT_HL_FIELDS.map(hl => (
-                        <div key={hl}>
-                          <label style={{ display: "block", fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>{hl}{hl === "Species" ? " *" : ""}</label>
-                          <Select value={importMapping[hl] ?? ""} onChange={e => setImportMapping(prev => ({ ...prev, [hl]: e.target.value || undefined }))} style={{ width: "100%" }}>
-                            <option value="">— Don't import —</option>
-                            {importData.headers.filter(Boolean).map(h => (
-                              <option key={h} value={h}>{h}</option>
-                            ))}
+                  ))}
+                </div>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <Btn onClick={() => setImportStep(3)} disabled={!importMapping.Species}>Next: Preview</Btn>
+                  <Btn variant="secondary" onClick={() => setImportStep(1)}>Back</Btn>
+                  <Btn variant="secondary" onClick={closeImportModal}>Cancel</Btn>
+                </div>
+              </>
+            ) : importStep === 3 ? (
+              (() => {
+                const { byRow, validCount, errorCount, duplicateRows, blankCount } = getImportPreview();
+                const previewRows = byRow.filter(r => !r.blank).slice(0, 5);
+                const previewIndex = previewRows.length === 0 ? 0 : Math.min(importPreviewRowIndex, previewRows.length - 1);
+                const current = previewRows[previewIndex];
+                return (
+                  <>
+                    <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Preview: how the first rows will appear</div>
+                    <p style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>{previewRows.length === 0 ? "No data rows in the first 5 (all blank)." : `Row ${current?.rowIndex ?? 0} of ${previewRows.length} shown. Verify the data looks right.`}</p>
+                    {current && (
+                      <div style={{ padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", marginBottom: "16px" }}>
+                        {current.error ? (
+                          <div style={{ color: "var(--danger2)", fontWeight: 600 }}>Error: {current.error}</div>
+                        ) : current.data ? (
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "8px 20px", fontSize: "14px" }}>
+                            <div><span style={{ color: "var(--muted)" }}>Name</span><div style={{ fontWeight: 600 }}>{current.data.name || "—"}</div></div>
+                            <div><span style={{ color: "var(--muted)" }}>Tag</span><div>{current.data.tag || "—"}</div></div>
+                            <div><span style={{ color: "var(--muted)" }}>Species</span><div>{current.data.species}</div></div>
+                            <div><span style={{ color: "var(--muted)" }}>Breed</span><div>{current.data.breed || "—"}</div></div>
+                            <div><span style={{ color: "var(--muted)" }}>Sex</span><div>{current.data.sex || "—"}</div></div>
+                            <div><span style={{ color: "var(--muted)" }}>Date of Birth</span><div>{current.data.dob ? fmt(current.data.dob) : "—"}</div></div>
+                            <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "var(--muted)" }}>Notes</span><div>{current.data.notes || "—"}</div></div>
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                    {previewRows.length > 0 && (
+                      <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+                        {previewRows.map((_, i) => (
+                          <button key={i} type="button" onClick={() => setImportPreviewRowIndex(i)} style={{ width: "32px", height: "32px", borderRadius: "50%", border: "2px solid " + (previewIndex === i ? "var(--brass)" : "var(--cream3)"), background: previewIndex === i ? "var(--cream)" : "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px", color: previewIndex === i ? "var(--ink)" : "var(--muted)" }}>{i + 1}</button>
+                        ))}
+                      </div>
+                    )}
+                    <p style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "16px" }}>
+                      {validCount + duplicateRows.length} row{(validCount + duplicateRows.length) !== 1 ? "s" : ""} with data · {errorCount} error{errorCount !== 1 ? "s" : ""} · {blankCount} blank row{blankCount !== 1 ? "s" : ""} skipped
+                    </p>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <Btn onClick={() => duplicateRows.length > 0 ? setImportStep(4) : runImport()}>{duplicateRows.length > 0 ? "Next: Duplicates" : "Import"}</Btn>
+                      <Btn variant="secondary" onClick={() => setImportStep(2)}>Back</Btn>
+                      <Btn variant="secondary" onClick={closeImportModal}>Cancel</Btn>
+                    </div>
+                  </>
+                );
+              })()
+            ) : importStep === 4 ? (
+              (() => {
+                const { duplicateRows } = getImportPreview();
+                return (
+                  <>
+                    <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Duplicate animals found</div>
+                    <p style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "16px" }}>These rows match an animal already in your herd (same tag or same name + species). Choose Skip to leave the existing record as-is, or Overwrite to update it with the imported data.</p>
+                    <div style={{ maxHeight: "280px", overflowY: "auto", marginBottom: "16px", border: "1px solid var(--cream2)", borderRadius: "var(--radius)" }}>
+                      {duplicateRows.map(({ rowIndex, data, duplicate }) => (
+                        <div key={rowIndex} style={{ padding: "12px 14px", borderBottom: "1px solid var(--cream2)", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                          <span style={{ fontWeight: 600, minWidth: "80px" }}>Row {rowIndex}</span>
+                          <span style={{ color: "var(--ink2)", flex: "1 1 200px" }}>{data.name || "—"} / {data.tag || "—"} ({data.species})</span>
+                          <span style={{ fontSize: "12px", color: "var(--muted)" }}>→ matches existing {getAnimalName(duplicate)}</span>
+                          <Select value={importDuplicateChoices[rowIndex] || "skip"} onChange={e => setImportDuplicateChoices(prev => ({ ...prev, [rowIndex]: e.target.value }))} style={{ width: "120px" }}>
+                            <option value="skip">Skip</option>
+                            <option value="overwrite">Overwrite</option>
                           </Select>
                         </div>
                       ))}
                     </div>
                     <div style={{ display: "flex", gap: "10px" }}>
-                      <Btn onClick={() => { setImportStep(2); }} disabled={!importMapping.Species}>Next: Review</Btn>
+                      <Btn onClick={runImport}>Import</Btn>
+                      <Btn variant="secondary" onClick={() => setImportStep(3)}>Back</Btn>
                       <Btn variant="secondary" onClick={closeImportModal}>Cancel</Btn>
                     </div>
                   </>
-                )}
-              </>
-            ) : (
-              <>
-                {(() => {
-                  const { valid, skipped } = getImportPreview();
-                  return (
-                    <>
-                      <p style={{ marginBottom: "16px", color: "var(--ink2)" }}>
-                        <strong>{valid.length}</strong> animal{valid.length !== 1 ? "s" : ""} will be imported.
-                        {skipped.length > 0 && <span style={{ color: "var(--muted)" }}> <strong>{skipped.length}</strong> row{skipped.length !== 1 ? "s" : ""} will be skipped (missing or invalid Species).</span>}
-                      </p>
-                      {skipped.length > 0 && skipped.length <= 20 && (
-                        <div style={{ marginBottom: "16px", fontSize: "13px" }}>
-                          <span style={{ fontWeight: 600, color: "var(--muted)" }}>Skipped rows:</span>
-                          <ul style={{ margin: "6px 0 0 20px", color: "var(--muted)" }}>
-                            {skipped.map((s, i) => (
-                              <li key={i}>Row {s.rowIndex}: {s.reason}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-                      {skipped.length > 20 && (
-                        <p style={{ marginBottom: "16px", fontSize: "13px", color: "var(--muted)" }}>Skipped rows: {skipped.map(s => s.rowIndex).join(", ")}</p>
-                      )}
-                      <div className="hl-import-confirm-actions" style={{ display: "flex", gap: "10px" }}>
-                        <Btn onClick={runImport} disabled={valid.length === 0}>Import {valid.length} animal{valid.length !== 1 ? "s" : ""}</Btn>
-                        <Btn variant="secondary" onClick={() => setImportStep(1)}>Back</Btn>
-                        <Btn variant="secondary" onClick={closeImportModal}>Cancel</Btn>
-                      </div>
-                    </>
-                  );
-                })()}
-              </>
-            )}
+                );
+              })()
+            ) : null}
           </Card>
         </div>
       )}

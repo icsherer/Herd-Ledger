@@ -348,7 +348,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
               const offspringTerm = getOffspringTerm(animal?.species);
               return (
                 <Card key={g.id} className="hl-delivered-row" style={{ padding: "14px 20px", opacity: 0.65 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: hasCalf ? "10px" : "0" }}>
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 12px", marginBottom: !hasCalf ? "8px" : "0" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                       <span>{SPECIES[animal?.species]?.emoji}</span>
                       <div>
@@ -356,17 +356,23 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                         <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{animal?.species}</span>
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "auto" }}>
                       <Badge color="var(--green)">Delivered</Badge>
                       <span style={{ fontSize: "13px", color: "var(--muted)" }}>Due {fmtDueRange(g)}</span>
-                      {!hasCalf && (
-                        <Btn size="sm" onClick={() => { setDeliveringId(g.id); setEditingCalfGestationId(null); setShowCalfForm(true); setDeliveryForm({ deliveryDate: todayISO(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" }); }}>
-                          Add Delivery Record
-                        </Btn>
-                      )}
                       <Btn size="sm" variant="ghost" onClick={() => remove(g.id)}>×</Btn>
                     </div>
                   </div>
+                  {!hasCalf && (
+                    <div style={{ marginTop: "2px" }}>
+                      <button
+                        type="button"
+                        onClick={() => { setDeliveringId(g.id); setEditingCalfGestationId(null); setShowCalfForm(true); setDeliveryForm({ deliveryDate: todayISO(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" }); }}
+                        style={{ background: "none", border: "none", padding: 0, fontSize: "13px", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}
+                      >
+                        Add delivery record
+                      </button>
+                    </div>
+                  )}
                   {hasCalf && (
                     <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--cream2)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>

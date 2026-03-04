@@ -39,22 +39,8 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
   const [bulkAddAnimals, setBulkAddAnimals] = useState([]);
   const [showBulkCalculator, setShowBulkCalculator] = useState(false);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
-  const [calculatorMode, setCalculatorMode] = useState("pen"); // "pen" | "individual"
-  const [penCalcForm, setPenCalcForm] = useState({
-    headCount: "",
-    avgStartWeight: "",
-    avgCurrentWeight: "",
-    targetWeight: "",
-    feedType: "Corn",
-    feedConversionRatio: "6",
-    costPerLbFeed: "",
-    daysOnFeed: "",
-    additionalPerHead: "",
-    purchasePricePerHead: "",
-    marketPricePerLb: "",
-  });
   const [individualCalcAnimalId, setIndividualCalcAnimalId] = useState("");
-  const [individualCalcOverrides, setIndividualCalcOverrides] = useState({ startWeight: "", currentWeight: "", daysOnFeed: "", targetWeight: "", feedType: "Corn", feedConversionRatio: "", costPerLbFeed: "", additionalExpenses: "", marketPricePerLb: "" });
+  const [individualCalcOverrides, setIndividualCalcOverrides] = useState({ feedType: "Corn", feedConversionRatio: "", costPerLbFeed: "", additionalExpenses: "", marketPricePerLb: "" });
   const [bulkCalcForm, setBulkCalcForm] = useState({
     headCount: "",
     avgStartWeight: "",
@@ -218,7 +204,7 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
     <div className="hl-page hl-fade-in">
       <SectionTitle action={
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <Btn variant="secondary" onClick={() => { setShowCalculatorModal(true); setCalculatorMode("pen"); }}>Open Calculator</Btn>
+          <Btn variant="secondary" onClick={() => setShowCalculatorModal(true)}>Open Calculator</Btn>
           <Btn variant="secondary" onClick={() => setShowBulkCalculator(true)}>Bulk Calculator</Btn>
           <Btn onClick={() => setShowAdd(true)}>+ Add to Feeder Program</Btn>
         </div>
@@ -252,7 +238,7 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
           <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
             <section className="hl-bulk-calc-inputs" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
               <h3 style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", margin: 0 }}>Inputs</h3>
-              <div className="hl-bulk-calc-grid" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "14px" }}>
+              <div className="hl-bulk-calc-grid">
                 <Input label="Number of head" type="number" min="1" value={bulkCalcForm.headCount} onChange={e => setBulkCalcForm(p => ({ ...p, headCount: e.target.value }))} placeholder="e.g. 50" />
                 <Input label="Avg starting weight (lbs)" type="number" min="0" step="0.1" value={bulkCalcForm.avgStartWeight} onChange={e => setBulkCalcForm(p => ({ ...p, avgStartWeight: e.target.value }))} placeholder="e.g. 650" />
                 <Input label="Avg target weight (lbs)" type="number" min="0" step="0.1" value={bulkCalcForm.avgTargetWeight} onChange={e => setBulkCalcForm(p => ({ ...p, avgTargetWeight: e.target.value }))} placeholder="e.g. 1400" />
@@ -493,57 +479,73 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
         </table>
       </div>
 
-      {showCalculatorModal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", boxSizing: "border-box", overflow: "auto" }} onClick={() => setShowCalculatorModal(false)}>
-          <Card style={{ maxWidth: "720px", width: "100%", maxHeight: "90vh", overflow: "auto", borderLeft: "4px solid var(--brass)" }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "8px" }}>
-              <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600 }}>Profitability Calculator</div>
-              <Btn size="sm" variant="ghost" onClick={() => setShowCalculatorModal(false)}>Close</Btn>
-            </div>
-            <div style={{ display: "flex", gap: "0", marginBottom: "20px", borderBottom: "1px solid var(--cream2)" }}>
-              <button type="button" onClick={() => setCalculatorMode("pen")} style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 600, background: calculatorMode === "pen" ? "var(--cream)" : "transparent", border: "none", borderBottom: calculatorMode === "pen" ? "2px solid var(--brass)" : "2px solid transparent", color: calculatorMode === "pen" ? "var(--ink)" : "var(--muted)", cursor: "pointer" }}>Pen Calculator</button>
-              <button type="button" onClick={() => setCalculatorMode("individual")} style={{ padding: "10px 20px", fontSize: "14px", fontWeight: 600, background: calculatorMode === "individual" ? "var(--cream)" : "transparent", border: "none", borderBottom: calculatorMode === "individual" ? "2px solid var(--brass)" : "2px solid transparent", color: calculatorMode === "individual" ? "var(--ink)" : "var(--muted)", cursor: "pointer" }}>Individual Animal</button>
-            </div>
-
-            {calculatorMode === "pen" && (() => {
-              const head = parseInt(penCalcForm.headCount, 10) || 0;
-              const startWt = parseFloat(penCalcForm.avgStartWeight) || 0;
-              const currentWt = parseFloat(penCalcForm.avgCurrentWeight) || 0;
-              const targetWt = parseFloat(penCalcForm.targetWeight) || 0;
-              const conversion = parseFloat(penCalcForm.feedConversionRatio) || getFCRDefault("Cattle", penCalcForm.feedType);
-              const costPerLb = parseFloat(penCalcForm.costPerLbFeed) || 0;
-              const daysOnFeed = parseFloat(penCalcForm.daysOnFeed) || 0;
-              const addPerHead = parseFloat(penCalcForm.additionalPerHead) || 0;
-              const purchasePerHead = parseFloat(penCalcForm.purchasePricePerHead) || 0;
-              const marketPrice = parseFloat(penCalcForm.marketPricePerLb) || 0;
-              const gainPerHead = currentWt > startWt ? currentWt - startWt : 0;
-              const totalLbsGain = head * gainPerHead;
-              const totalFeedCost = totalLbsGain * conversion * costPerLb;
-              const totalAdd = head * addPerHead;
-              const totalPurchase = head * purchasePerHead;
-              const totalAllIn = totalFeedCost + totalPurchase + totalAdd;
-              const costOfGainPerLb = totalLbsGain > 0 ? totalAllIn / totalLbsGain : 0;
-              const breakevenPerLb = head > 0 && targetWt > 0 ? totalAllIn / (head * targetWt) : 0;
-              const projectedRevenue = head * targetWt * marketPrice;
-              const projectedNet = projectedRevenue - totalAllIn;
-              const profitPerHead = head > 0 ? projectedNet / head : 0;
-              const netColor = profitColor(projectedNet, totalAllIn);
-              return (
+      {showCalculatorModal && (() => {
+        const fp = (feederPrograms || []).find(f => f.animalId === individualCalcAnimalId);
+        const animal = fp ? (animals || []).find(a => a.id === fp.animalId) : null;
+        const daysOnFeedVal = individualCalcAnimalId && fp ? feederDaysOnFeed(fp.startDate) : 0;
+        const latestW = individualCalcAnimalId ? getLatestWeightForAnimal(animals, individualCalcAnimalId) : "";
+        const estW = animal && fp ? estimatedWeightFromADG(animal, fp.startDate) : null;
+        const currentWVal = individualCalcAnimalId && fp ? (latestW ? parseFloat(latestW) : estW ?? fp.startingWeight ?? 0) : 0;
+        const startWVal = fp?.startingWeight ?? 0;
+        const targetWVal = fp?.targetWeight ?? (currentWVal ? currentWVal + 200 : 0);
+        const startW = startWVal;
+        const currentW = currentWVal;
+        const daysOnFeed = daysOnFeedVal;
+        const targetW = targetWVal;
+        const feedType = individualCalcOverrides.feedType || fp?.feedType || "Corn";
+        const conversion = individualCalcOverrides.feedConversionRatio !== "" ? parseFloat(individualCalcOverrides.feedConversionRatio) : (fp?.feedConversionRatio ?? getFCRDefault(animal?.species || "Cattle", feedType));
+        const costPerLb = individualCalcOverrides.costPerLbFeed !== "" ? parseFloat(individualCalcOverrides.costPerLbFeed) : (fp?.costPerLb ?? 0);
+        const additionalExp = individualCalcOverrides.additionalExpenses !== "" ? parseFloat(individualCalcOverrides.additionalExpenses) : (fp?.additionalExpenses ?? 0);
+        const purchasePrice = animal?.acquisitionType === "Purchased" && animal?.purchasePrice != null ? Number(animal.purchasePrice) : 0;
+        const marketPrice = individualCalcOverrides.marketPricePerLb !== "" ? parseFloat(individualCalcOverrides.marketPricePerLb) : (fp?.marketPricePerLb ?? 0);
+        const lbsGain = currentW > startW ? currentW - startW : 0;
+        const totalFeedCost = lbsGain * conversion * costPerLb;
+        const totalAllIn = totalFeedCost + additionalExp + purchasePrice;
+        const costOfGainPerLb = lbsGain > 0 ? totalAllIn / lbsGain : 0;
+        const breakevenPerLb = currentW > 0 ? totalAllIn / currentW : 0;
+        const projectedRevenue = targetW > 0 && marketPrice ? marketPrice * targetW : 0;
+        const projectedNet = projectedRevenue - totalAllIn;
+        const netColor = profitColor(projectedNet, totalAllIn);
+        return (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px", boxSizing: "border-box", overflow: "auto" }} onClick={() => setShowCalculatorModal(false)}>
+            <Card style={{ maxWidth: "720px", width: "100%", maxHeight: "90vh", overflow: "auto", borderLeft: "4px solid var(--brass)" }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 600 }}>Profitability Calculator</div>
+                <Btn size="sm" variant="ghost" onClick={() => setShowCalculatorModal(false)}>Close</Btn>
+              </div>
+              <div style={{ marginBottom: "20px" }}>
+                <Select label="Animal" value={individualCalcAnimalId} onChange={e => {
+                  const id = e.target.value;
+                  setIndividualCalcAnimalId(id);
+                  const f = (feederPrograms || []).find(x => x.animalId === id);
+                  const a = f ? (animals || []).find(x => x.id === id) : null;
+                  if (!f || !a) { setIndividualCalcOverrides({ feedType: "Corn", feedConversionRatio: "", costPerLbFeed: "", additionalExpenses: "", marketPricePerLb: "" }); return; }
+                  setIndividualCalcOverrides({ feedType: f.feedType || "Corn", feedConversionRatio: f.feedConversionRatio != null ? String(f.feedConversionRatio) : "", costPerLbFeed: f.costPerLb != null ? String(f.costPerLb) : "", additionalExpenses: f.additionalExpenses != null ? String(f.additionalExpenses) : "", marketPricePerLb: f.marketPricePerLb != null ? String(f.marketPricePerLb) : "" });
+                }}>
+                  <option value="">— Select animal —</option>
+                  {(feederPrograms || []).map(f => {
+                    const an = (animals || []).find(a => a.id === f.animalId);
+                    return an ? <option key={f.id} value={f.animalId}>{getAnimalName(an)}{an.name && an.tag ? ` (#${an.tag})` : ""}</option> : null;
+                  })}
+                </Select>
+              </div>
+              {individualCalcAnimalId && fp && (
                 <>
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-                    <Input label="Number of head" type="number" min="1" value={penCalcForm.headCount} onChange={e => setPenCalcForm(p => ({ ...p, headCount: e.target.value }))} placeholder="e.g. 50" />
-                    <Input label="Avg start weight (lb)" type="number" min="0" step="0.1" value={penCalcForm.avgStartWeight} onChange={e => setPenCalcForm(p => ({ ...p, avgStartWeight: e.target.value }))} placeholder="e.g. 650" />
-                    <Input label="Avg current weight (lb)" type="number" min="0" step="0.1" value={penCalcForm.avgCurrentWeight} onChange={e => setPenCalcForm(p => ({ ...p, avgCurrentWeight: e.target.value }))} placeholder="e.g. 850" />
-                    <Input label="Target weight (lb)" type="number" min="0" step="0.1" value={penCalcForm.targetWeight} onChange={e => setPenCalcForm(p => ({ ...p, targetWeight: e.target.value }))} placeholder="e.g. 1400" />
-                    <Select label="Feed type" value={penCalcForm.feedType} onChange={e => { const ft = e.target.value; setPenCalcForm(p => ({ ...p, feedType: ft, feedConversionRatio: String(getFCRDefault("Cattle", ft)) })); }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "12px", marginBottom: "20px", padding: "12px 0", borderTop: "1px solid var(--cream2)", borderBottom: "1px solid var(--cream2)" }}>
+                    <div><span style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Start weight (lb)</span><span style={{ fontSize: "14px", color: "var(--ink2)" }}>{startWVal != null ? Math.round(startWVal) : "—"}</span></div>
+                    <div><span style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Current weight (lb)</span><span style={{ fontSize: "14px", color: "var(--ink2)" }}>{currentWVal != null ? Math.round(currentWVal) : "—"}</span></div>
+                    <div><span style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Days on feed</span><span style={{ fontSize: "14px", color: "var(--ink2)" }}>{daysOnFeedVal}</span></div>
+                    <div><span style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Target weight (lb)</span><span style={{ fontSize: "14px", color: "var(--ink2)" }}>{targetWVal != null ? Math.round(targetWVal) : "—"}</span></div>
+                  </div>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "10px" }}>Feed cost inputs</div>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "12px", marginBottom: "20px" }}>
+                    <Select label="Feed type" value={individualCalcOverrides.feedType || feedType} onChange={e => { const ft = e.target.value; setIndividualCalcOverrides(p => ({ ...p, feedType: ft, feedConversionRatio: animal ? String(getFCRDefault(animal.species, ft)) : p.feedConversionRatio })); }}>
                       {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </Select>
-                    <Input label="FCR" type="number" min="0.1" step="0.1" value={penCalcForm.feedConversionRatio} onChange={e => setPenCalcForm(p => ({ ...p, feedConversionRatio: e.target.value }))} />
-                    <Input label="Cost per lb feed ($)" type="number" min="0" step="0.01" value={penCalcForm.costPerLbFeed} onChange={e => setPenCalcForm(p => ({ ...p, costPerLbFeed: e.target.value }))} placeholder="e.g. 0.08" />
-                    <Input label="Days on feed" type="number" min="0" value={penCalcForm.daysOnFeed} onChange={e => setPenCalcForm(p => ({ ...p, daysOnFeed: e.target.value }))} placeholder="e.g. 90" />
-                    <Input label="Add'l expenses per head ($)" type="number" min="0" step="0.01" value={penCalcForm.additionalPerHead} onChange={e => setPenCalcForm(p => ({ ...p, additionalPerHead: e.target.value }))} placeholder="0" />
-                    <Input label="Purchase price per head ($)" type="number" min="0" step="0.01" value={penCalcForm.purchasePricePerHead} onChange={e => setPenCalcForm(p => ({ ...p, purchasePricePerHead: e.target.value }))} placeholder="e.g. 950" />
-                    <Input label="Market price per lb ($)" type="number" min="0" step="0.01" value={penCalcForm.marketPricePerLb} onChange={e => setPenCalcForm(p => ({ ...p, marketPricePerLb: e.target.value }))} placeholder="e.g. 1.85" />
+                    <Input label="FCR" type="number" min="0.1" step="0.1" value={individualCalcOverrides.feedConversionRatio} onChange={e => setIndividualCalcOverrides(p => ({ ...p, feedConversionRatio: e.target.value }))} />
+                    <Input label="Cost per lb feed ($)" type="number" min="0" step="0.01" value={individualCalcOverrides.costPerLbFeed} onChange={e => setIndividualCalcOverrides(p => ({ ...p, costPerLbFeed: e.target.value }))} />
+                    <Input label="Add'l expenses ($)" type="number" min="0" step="0.01" value={individualCalcOverrides.additionalExpenses} onChange={e => setIndividualCalcOverrides(p => ({ ...p, additionalExpenses: e.target.value }))} />
+                    <Input label="Market $/lb" type="number" min="0" step="0.01" value={individualCalcOverrides.marketPricePerLb} onChange={e => setIndividualCalcOverrides(p => ({ ...p, marketPricePerLb: e.target.value }))} />
                   </div>
                   <section style={{ padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
                     <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", marginBottom: "12px" }}>Results</div>
@@ -554,97 +556,14 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
                       <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Breakeven $/lb</span><div style={{ fontWeight: 600 }}>${breakevenPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
                       <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected revenue</span><div style={{ fontWeight: 600 }}>${projectedRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
                       <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected net P/L</span><div style={{ fontWeight: 600, color: netColor }}>${projectedNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Profit per head</span><div style={{ fontWeight: 600, color: netColor }}>${profitPerHead.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
                     </div>
                   </section>
                 </>
-              );
-            })()}
-
-            {calculatorMode === "individual" && (() => {
-              const fp = (feederPrograms || []).find(f => f.animalId === individualCalcAnimalId);
-              const animal = fp ? (animals || []).find(a => a.id === fp.animalId) : null;
-              const daysOnFeedVal = individualCalcAnimalId && fp ? feederDaysOnFeed(fp.startDate) : 0;
-              const latestW = individualCalcAnimalId ? getLatestWeightForAnimal(animals, individualCalcAnimalId) : "";
-              const estW = animal && fp ? estimatedWeightFromADG(animal, fp.startDate) : null;
-              const currentWVal = individualCalcAnimalId && fp ? (latestW ? parseFloat(latestW) : estW ?? fp.startingWeight ?? 0) : 0;
-              const startWVal = fp?.startingWeight ?? 0;
-              const targetWVal = fp?.targetWeight ?? (currentWVal ? currentWVal + 200 : 0);
-              const startW = individualCalcOverrides.startWeight !== "" ? parseFloat(individualCalcOverrides.startWeight) : startWVal;
-              const currentW = individualCalcOverrides.currentWeight !== "" ? parseFloat(individualCalcOverrides.currentWeight) : currentWVal;
-              const daysOnFeed = individualCalcOverrides.daysOnFeed !== "" ? parseFloat(individualCalcOverrides.daysOnFeed) : daysOnFeedVal;
-              const targetW = individualCalcOverrides.targetWeight !== "" ? parseFloat(individualCalcOverrides.targetWeight) : targetWVal;
-              const feedType = individualCalcOverrides.feedType || fp?.feedType || "Corn";
-              const conversion = individualCalcOverrides.feedConversionRatio !== "" ? parseFloat(individualCalcOverrides.feedConversionRatio) : (fp?.feedConversionRatio ?? getFCRDefault(animal?.species || "Cattle", feedType));
-              const costPerLb = individualCalcOverrides.costPerLbFeed !== "" ? parseFloat(individualCalcOverrides.costPerLbFeed) : (fp?.costPerLb ?? 0);
-              const additionalExp = individualCalcOverrides.additionalExpenses !== "" ? parseFloat(individualCalcOverrides.additionalExpenses) : (fp?.additionalExpenses ?? 0);
-              const purchasePrice = animal?.acquisitionType === "Purchased" && animal?.purchasePrice != null ? Number(animal.purchasePrice) : 0;
-              const marketPrice = individualCalcOverrides.marketPricePerLb !== "" ? parseFloat(individualCalcOverrides.marketPricePerLb) : (fp?.marketPricePerLb ?? 0);
-              const lbsGain = currentW > startW ? currentW - startW : 0;
-              const totalFeedCost = lbsGain * conversion * costPerLb;
-              const totalAllIn = totalFeedCost + additionalExp + purchasePrice;
-              const costOfGainPerLb = lbsGain > 0 ? totalAllIn / lbsGain : 0;
-              const breakevenPerLb = currentW > 0 ? totalAllIn / currentW : 0;
-              const projectedRevenue = targetW > 0 && marketPrice ? marketPrice * targetW : 0;
-              const projectedNet = projectedRevenue - totalAllIn;
-              const netColor = profitColor(projectedNet, totalAllIn);
-              return (
-                <>
-                  <div style={{ marginBottom: "20px" }}>
-                    <Select label="Animal" value={individualCalcAnimalId} onChange={e => {
-                      const id = e.target.value;
-                      setIndividualCalcAnimalId(id);
-                      const f = (feederPrograms || []).find(x => x.animalId === id);
-                      const a = f ? (animals || []).find(x => x.id === id) : null;
-                      if (!f || !a) { setIndividualCalcOverrides({ startWeight: "", currentWeight: "", daysOnFeed: "", targetWeight: "", feedType: "Corn", feedConversionRatio: "", costPerLbFeed: "", additionalExpenses: "", marketPricePerLb: "" }); return; }
-                      const days = feederDaysOnFeed(f.startDate);
-                      const lw = getLatestWeightForAnimal(animals, id);
-                      const ew = estimatedWeightFromADG(a, f.startDate);
-                      const cw = lw ? parseFloat(lw) : (ew ?? f.startingWeight ?? 0);
-                      const tw = f.targetWeight ?? (cw ? cw + 200 : 0);
-                      setIndividualCalcOverrides({ startWeight: String(f.startingWeight ?? ""), currentWeight: cw ? String(cw) : "", daysOnFeed: String(days), targetWeight: tw ? String(tw) : "", feedType: f.feedType || "Corn", feedConversionRatio: f.feedConversionRatio != null ? String(f.feedConversionRatio) : "", costPerLbFeed: f.costPerLb != null ? String(f.costPerLb) : "", additionalExpenses: f.additionalExpenses != null ? String(f.additionalExpenses) : "", marketPricePerLb: f.marketPricePerLb != null ? String(f.marketPricePerLb) : "" });
-                    }}>
-                      <option value="">— Select animal —</option>
-                      {(feederPrograms || []).map(f => {
-                        const an = (animals || []).find(a => a.id === f.animalId);
-                        return an ? <option key={f.id} value={f.animalId}>{getAnimalName(an)}{an.name && an.tag ? ` (#${an.tag})` : ""}</option> : null;
-                      })}
-                    </Select>
-                  </div>
-                  {individualCalcAnimalId && (
-                    <>
-                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "12px", marginBottom: "20px" }}>
-                        <Input label="Start weight (lb)" type="number" min="0" step="0.1" value={individualCalcOverrides.startWeight} onChange={e => setIndividualCalcOverrides(p => ({ ...p, startWeight: e.target.value }))} />
-                        <Input label="Current weight (lb)" type="number" min="0" step="0.1" value={individualCalcOverrides.currentWeight} onChange={e => setIndividualCalcOverrides(p => ({ ...p, currentWeight: e.target.value }))} />
-                        <Input label="Days on feed" type="number" min="0" value={individualCalcOverrides.daysOnFeed} onChange={e => setIndividualCalcOverrides(p => ({ ...p, daysOnFeed: e.target.value }))} />
-                        <Input label="Target weight (lb)" type="number" min="0" step="0.1" value={individualCalcOverrides.targetWeight} onChange={e => setIndividualCalcOverrides(p => ({ ...p, targetWeight: e.target.value }))} />
-                        <Select label="Feed type" value={individualCalcOverrides.feedType || feedType} onChange={e => { const ft = e.target.value; setIndividualCalcOverrides(p => ({ ...p, feedType: ft, feedConversionRatio: animal ? String(getFCRDefault(animal.species, ft)) : p.feedConversionRatio })); }}>
-                          {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                        </Select>
-                        <Input label="FCR" type="number" min="0.1" step="0.1" value={individualCalcOverrides.feedConversionRatio} onChange={e => setIndividualCalcOverrides(p => ({ ...p, feedConversionRatio: e.target.value }))} />
-                        <Input label="Cost per lb feed ($)" type="number" min="0" step="0.01" value={individualCalcOverrides.costPerLbFeed} onChange={e => setIndividualCalcOverrides(p => ({ ...p, costPerLbFeed: e.target.value }))} />
-                        <Input label="Add'l expenses ($)" type="number" min="0" step="0.01" value={individualCalcOverrides.additionalExpenses} onChange={e => setIndividualCalcOverrides(p => ({ ...p, additionalExpenses: e.target.value }))} />
-                        <Input label="Market $/lb" type="number" min="0" step="0.01" value={individualCalcOverrides.marketPricePerLb} onChange={e => setIndividualCalcOverrides(p => ({ ...p, marketPricePerLb: e.target.value }))} />
-                      </div>
-                      <section style={{ padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
-                        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", marginBottom: "12px" }}>Results</div>
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px", fontSize: "14px" }}>
-                          <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total feed cost</span><div style={{ fontWeight: 600 }}>${totalFeedCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                          <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total all-in cost</span><div style={{ fontWeight: 600 }}>${totalAllIn.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                          <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Cost of gain/lb</span><div style={{ fontWeight: 600 }}>${costOfGainPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                          <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Breakeven $/lb</span><div style={{ fontWeight: 600 }}>${breakevenPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                          <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected revenue</span><div style={{ fontWeight: 600 }}>${projectedRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                          <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected net P/L</span><div style={{ fontWeight: 600, color: netColor }}>${projectedNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                        </div>
-                      </section>
-                    </>
-                  )}
-                </>
-              );
-            })()}
-          </Card>
-        </div>
-      )}
+              )}
+            </Card>
+          </div>
+        );
+      })()}
     </div>
   );
 }

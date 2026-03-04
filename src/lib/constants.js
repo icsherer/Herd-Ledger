@@ -18,7 +18,7 @@ export const SPECIES = {
 
 export const PASTURE_SPECIES = ["Cattle", "Horse"];
 
-export const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Notes"];
+export const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes"];
 
 export const TREATMENT_TYPES = ["Illness", "Injury", "Medication", "Deworming", "Vitamin/Supplement", "Vet Visit", "Other"];
 /** Treatment type → expense category for auto-created expense when cost is entered */

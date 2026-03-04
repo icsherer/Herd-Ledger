@@ -369,11 +369,29 @@
 }
 
 .hl-bulk-calc-grid {
+  display: grid;
   grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
 }
 @media (max-width: 640px) {
   .hl-bulk-calc-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Offspring Add Calf form: keep inputs inside card on mobile */
+.hl-offspring-form-card {
+  box-sizing: border-box;
+}
+@media (max-width: 480px) {
+  .hl-offspring-form-card .hl-offspring-form-grid,
+  .hl-offspring-form-card .hl-form-grid-3 {
+    min-width: 0;
+  }
+  .hl-offspring-form-card input,
+  .hl-offspring-form-card select {
+    max-width: 100%;
+    box-sizing: border-box;
   }
 }
 
@@ -467,7 +485,7 @@
   }
 
   .hl-page-with-bulk-toolbar {
-    padding-bottom: 200px !important;
+    padding-bottom: 320px !important;
   }
 }
 

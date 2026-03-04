@@ -223,14 +223,31 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
   const displaySoldAnimals = filterActive ? filteredSoldAnimals : soldAnimals;
   const displayLoadSales = filterActive ? filteredLoadSales : loadSalesSorted;
 
-  const monthYearOptions = [];
-  for (let y = currentYear; y >= currentYear - 5; y--) {
-    for (let m = 1; m <= 12; m++) {
-      const val = `${y}-${String(m).padStart(2, "0")}`;
-      const label = new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
-      monthYearOptions.push({ value: val, label });
-    }
-  }
+  const monthYearOptions = (() => {
+    const seen = new Set();
+    (soldAnimals || []).forEach(a => {
+      const d = a.sale?.dateSold;
+      if (d && d.length >= 7) {
+        const ym = d.slice(0, 7);
+        seen.add(ym);
+      }
+    });
+    (loadSales || []).forEach(l => {
+      const d = l.date;
+      if (d && d.length >= 7) {
+        const ym = d.slice(0, 7);
+        seen.add(ym);
+      }
+    });
+    return Array.from(seen)
+      .sort((a, b) => b.localeCompare(a))
+      .map(ym => {
+        const [y, m] = ym.split("-").map(Number);
+        const label = new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+        return { value: ym, label };
+      });
+  })();
+  const hasAnySales = soldAnimals.length > 0 || (loadSales || []).length > 0;
 
   return (
     <div className="hl-page hl-fade-in">
@@ -246,10 +263,14 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
           <Input label="End date" type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} style={{ width: "140px" }} />
           <div style={{ minWidth: "140px" }}>
             <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Month / Year</label>
-            <select value={filterMonthYear} onChange={e => setMonthYear(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
-              <option value="">— Select —</option>
-              {monthYearOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+            {!hasAnySales ? (
+              <div style={{ padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "var(--cream)", color: "var(--muted)" }}>No sales recorded yet</div>
+            ) : (
+              <select value={filterMonthYear} onChange={e => setMonthYear(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
+                <option value="">— Select —</option>
+                {monthYearOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            )}
           </div>
           <div style={{ minWidth: "160px" }}>
             <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Species</label>

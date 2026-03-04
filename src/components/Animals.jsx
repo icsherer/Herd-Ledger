@@ -5,7 +5,7 @@ import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffsp
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes }) {
+export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring }) {
   const [showAdd, setShowAdd] = useState(false);
   const forceList = (animals || []).length > 50;
   const viewMode = forceList ? "list" : (settings?.animalsViewMode || "tile");
@@ -479,6 +479,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         createdAt: isEdit ? (offspringForMother.find(c => c.id === editingOffspringId)?.createdAt) : new Date().toISOString(),
       };
       const prevRec = isEdit ? offspringForMother.find(c => c.id === editingOffspringId) : null;
+      const activeForMother = gestations.filter(g => g.animalId === a.id && g.status !== "Delivered");
+      const matchingGestation = rec.dob ? activeForMother.find(g => birthDateWithinGestationWindow(rec.dob, g)) : null;
+      const existingAnimal = isEdit ? animals.find(an => an.id === editingOffspringId) : null;
+      const sireIdFromGestation = matchingGestation?.sireAnimalId ?? (existingAnimal?.sireId ?? undefined);
       if (isEdit && prevRec && !prevRec.stillborn && stillborn) {
         setAnimals(prev => prev.filter(an => an.id !== editingOffspringId));
       }
@@ -501,6 +505,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           breed: a.breed || undefined,
           notes: undefined,
           motherId: a.id,
+          sireId: sireIdFromGestation,
         };
         if (isEdit) {
           setAnimals(prev => prev.map(an => an.id === editingOffspringId ? { ...an, ...updatedAnimal } : an));
@@ -611,6 +616,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       );
       setShowSaleForm(false);
       setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" });
+    }
+
+    function markDeliveredToBuyer(animalId) {
+      const an = (animals || []).find(x => x.id === animalId);
+      if (!an?.sale) return;
+      const updatedSale = { ...an.sale, delivered: true, deliveredAt: new Date().toISOString() };
+      setAnimals(prev => prev.map(x => (x.id === animalId ? { ...x, sale: updatedSale } : x)));
+      setViewing(prev => (prev && prev.id === animalId ? { ...prev, sale: updatedSale } : prev));
     }
 
     function saveVaccination() {
@@ -1149,30 +1162,57 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               )}
             </div>
 
-            {a.motherId && (() => {
-              const mother = animals.find(m => m.id === a.motherId);
-              const sire = a.sireId ? animals.find(s => s.id === a.sireId) : null;
-              const sireName = sire ? getAnimalName(sire) : (a.sireName || null);
+            <div style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Lineage</div>
+              <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "16px", borderLeft: "3px solid var(--brass)" }}>
+                <div style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--ink2)" }}>
+                  <div>
+                    <span style={{ color: "var(--muted)", marginRight: "6px" }}>Dam:</span>
+                    {a.motherId ? (() => {
+                      const mother = animals.find(m => m.id === a.motherId);
+                      return mother ? (
+                        <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}{mother.tag ? ` (#${mother.tag})` : ""}</button>
+                      ) : (
+                        <span>Unknown</span>
+                      );
+                    })() : (
+                      <span>Unknown</span>
+                    )}
+                  </div>
+                  <div style={{ marginTop: "6px" }}>
+                    <span style={{ color: "var(--muted)", marginRight: "6px" }}>Sire:</span>
+                    {a.sireId ? (() => {
+                      const sire = animals.find(s => s.id === a.sireId);
+                      return sire ? (
+                        <button type="button" onClick={() => setViewing(sire)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(sire)}{sire.tag ? ` (#${sire.tag})` : ""}</button>
+                      ) : (
+                        <span>{a.sireName || "Unknown"}</span>
+                      );
+                    })() : (
+                      <span>{a.sireName || "Unknown"}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {(() => {
+              const asDam = (animals || []).filter(an => an.motherId === a.id);
+              const asSire = (animals || []).filter(an => an.sireId === a.id);
+              const offspringList = [...asDam.map(an => ({ ...an, _role: "dam" })), ...asSire.map(an => ({ ...an, _role: "sire" }))];
+              if (offspringList.length === 0) return null;
               return (
                 <div style={{ marginTop: "24px" }}>
-                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Parentage</div>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Offspring</div>
                   <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "16px", borderLeft: "3px solid var(--brass)" }}>
-                    <div style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--ink2)" }}>
-                      <div>
-                        <span style={{ color: "var(--muted)", marginRight: "6px" }}>Dam:</span>
-                        {mother ? (
-                          <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}</button>
-                        ) : (
-                          <span>—</span>
-                        )}
-                        {mother?.breed && <span style={{ color: "var(--muted)", marginLeft: "6px" }}>({mother.breed})</span>}
-                      </div>
-                      {sireName && (
-                        <div style={{ marginTop: "6px" }}>
-                          <span style={{ color: "var(--muted)", marginRight: "6px" }}>Sire:</span>
-                          <span style={{ fontWeight: 500 }}>{sireName}</span>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "14px" }}>
+                      {offspringList.map(an => (
+                        <div key={an.id} style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <button type="button" onClick={() => setViewing(an)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(an)}{an.tag ? ` (#${an.tag})` : ""}</button>
+                          <span style={{ color: "var(--muted)" }}>·</span>
+                          <span>{an.species || "—"}</span>
+                          {an.dob && <><span style={{ color: "var(--muted)" }}>·</span><span>Born {fmt(an.dob)}</span></>}
                         </div>
-                      )}
+                      ))}
                     </div>
                   </div>
                 </div>
@@ -1352,7 +1392,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       Breeding
                     </div>
                     {!showBreedingForm ? (
-                      <Btn size="sm" variant="secondary" onClick={() => {
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                        <Btn size="sm" variant="secondary" onClick={() => {
                       const damGestations = (gestations || []).filter(g => g.animalId === a.id).sort((x, y) => (y.breedingDate || "").localeCompare(x.breedingDate || ""));
                       const latest = damGestations[0];
                       if (latest?.sireAnimalId) {
@@ -1365,6 +1406,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       }
                       setShowBreedingForm(true);
                     }}>Log Breeding</Btn>
+                        {(() => {
+                          const activeGest = (gestations || []).find(g => g.animalId === a.id && g.status !== "Delivered");
+                          if (!activeGest || !setTab || !setDeliveryGestureId) return null;
+                          return (
+                            <Btn size="sm" variant="primary" onClick={() => { setTab("gestation"); setDeliveryGestureId(activeGest.id); }}>
+                              ✓ Mark as Delivered
+                            </Btn>
+                          );
+                        })()}
+                      </div>
                     ) : (
                       <Card style={{ padding: "24px", borderLeft: "4px solid var(--brass)" }}>
                         <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Log Breeding Date</div>
@@ -1414,6 +1465,21 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         </div>
                       </Card>
                     )}
+                  </div>
+                )}
+
+                {promptAddOffspring?.animalId === a.id && setPromptAddOffspring && (
+                  <div style={{ marginBottom: "16px", padding: "14px 16px", background: "rgba(34, 139, 34, 0.12)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--green)" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink2)", marginBottom: "8px" }}>You recorded a live birth. Add the calf to your herd?</div>
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <Btn size="sm" onClick={() => {
+                        setPromptAddOffspring(null);
+                        setEditingOffspringId(null);
+                        setShowOffspringForm(true);
+                        setOffspringForm(prev => ({ ...prev, dob: promptAddOffspring.deliveryDate || "", name: "", tag: "", sex: getOffspringDefaultSex(a.species), species: a.species, birthWeight: "", weaningDate: "", stillborn: false }));
+                      }}>Add Calf</Btn>
+                      <Btn size="sm" variant="secondary" onClick={() => setPromptAddOffspring(null)}>Dismiss</Btn>
+                    </div>
                   </div>
                 )}
 
@@ -1838,16 +1904,48 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           </section>
         )}
 
-        {a.motherId && (() => {
-          const mother = animals.find(m => m.id === a.motherId);
-          const sire = a.sireId ? animals.find(s => s.id === a.sireId) : null;
-          const sireName = sire ? getAnimalName(sire) : (a.sireName || null);
+        <section style={{ marginBottom: "20px" }}>
+          <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Lineage</h2>
+          <div style={{ fontSize: "14px" }}>
+            <div><strong>Dam:</strong> {a.motherId ? (() => {
+              const mother = animals.find(m => m.id === a.motherId);
+              return mother ? (
+                <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}{mother.tag ? ` (#${mother.tag})` : ""}</button>
+              ) : (
+                <span>Unknown</span>
+              );
+            })() : (
+              <span>Unknown</span>
+            )}</div>
+            <div style={{ marginTop: "4px" }}><strong>Sire:</strong> {a.sireId ? (() => {
+              const sire = animals.find(s => s.id === a.sireId);
+              return sire ? (
+                <button type="button" onClick={() => setViewing(sire)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(sire)}{sire.tag ? ` (#${sire.tag})` : ""}</button>
+              ) : (
+                <span>{a.sireName || "Unknown"}</span>
+              );
+            })() : (
+              <span>{a.sireName || "Unknown"}</span>
+            )}</div>
+          </div>
+        </section>
+
+        {(() => {
+          const asDam = (animals || []).filter(an => an.motherId === a.id);
+          const asSire = (animals || []).filter(an => an.sireId === a.id);
+          const offspringList = [...asDam, ...asSire];
+          if (offspringList.length === 0) return null;
           return (
             <section style={{ marginBottom: "20px" }}>
-              <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Parentage</h2>
+              <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Offspring</h2>
               <div style={{ fontSize: "14px" }}>
-                <div><strong>Dam:</strong> {mother ? getAnimalName(mother) + (mother.breed ? ` (${mother.breed})` : "") : "—"}</div>
-                {sireName && <div style={{ marginTop: "4px" }}><strong>Sire:</strong> {sireName}</div>}
+                {offspringList.map(an => (
+                  <div key={an.id} style={{ padding: "4px 0", borderBottom: "1px solid #EDE6D6" }}>
+                    <button type="button" onClick={() => setViewing(an)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(an)}{an.tag ? ` (#${an.tag})` : ""}</button>
+                    {" · "}{an.species || "—"}
+                    {an.dob && ` · Born ${fmt(an.dob)}`}
+                  </div>
+                ))}
               </div>
             </section>
           );

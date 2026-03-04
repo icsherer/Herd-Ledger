@@ -2,7 +2,7 @@ import { getExpectedWeaningDate, getAnimalName, fmt } from "../lib/helpers.js";
 import { SPECIES } from "../lib/constants.js";
 import { Card, Btn, SectionTitle } from "./ui.jsx";
 
-export default function Weaning({ animals, setAnimals, offspring, setOffspring, setViewingAnimal }) {
+export default function Weaning({ animals, setAnimals, offspring, setOffspring, setViewingAnimal, setTab }) {
   const todayStr = new Date().toISOString().split("T")[0];
 
   const activeAnimals = (animals || []).filter(a => !a.deceased && !a.sale);
@@ -89,8 +89,8 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  {setViewingAnimal && (
-                    <Btn size="sm" variant="ghost" onClick={() => setViewingAnimal(a)}>View</Btn>
+                  {setViewingAnimal && setTab && (
+                    <Btn size="sm" variant="ghost" onClick={() => { setViewingAnimal(a); setTab("animals"); }}>View</Btn>
                   )}
                   <Btn size="sm" onClick={() => markAsWeaned(a)}>Mark as Weaned</Btn>
                 </div>
@@ -137,8 +137,8 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  {setViewingAnimal && (
-                    <Btn size="sm" variant="ghost" onClick={() => setViewingAnimal(a)}>View</Btn>
+                  {setViewingAnimal && setTab && (
+                    <Btn size="sm" variant="ghost" onClick={() => { setViewingAnimal(a); setTab("animals"); }}>View</Btn>
                   )}
                   <Btn size="sm" onClick={() => markAsWeaned(a)}>Mark as Weaned</Btn>
                 </div>
@@ -175,8 +175,8 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
                 <span style={{ color: "var(--muted)", fontSize: "13px" }}>{a.species} · DOB {a.dob ? fmt(a.dob) : "—"}</span>
                 {getMotherName(a) && <span style={{ color: "var(--muted)", fontSize: "13px" }}>· Dam {getMotherName(a)}</span>}
                 <span style={{ marginLeft: "auto", fontSize: "13px", color: "var(--green)" }}>Weaned {a.weaningDate ? fmt(a.weaningDate) : "—"}</span>
-                {setViewingAnimal && (
-                  <Btn size="sm" variant="ghost" onClick={() => setViewingAnimal(a)}>View</Btn>
+                {setViewingAnimal && setTab && (
+                  <Btn size="sm" variant="ghost" onClick={() => { setViewingAnimal(a); setTab("animals"); }}>View</Btn>
                 )}
               </div>
             ))}

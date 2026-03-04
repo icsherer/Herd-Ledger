@@ -130,6 +130,12 @@ export function getEligibleFemalesForRunningWithBull(animals, gestations, pastur
   });
 }
 
+/** Intact males of the given species (e.g. bulls for Cattle, rams for Sheep). For use in sire dropdowns. */
+export function getBreedingMalesForSpecies(animals, species) {
+  if (!species) return [];
+  return (animals || []).filter(a => !a.deceased && !a.sale && a.species === species && isBreedingMale(a));
+}
+
 export function getBreedingMaleInPasture(animals, pastureName) {
   if (!pastureName?.trim()) return null;
   return (animals || []).find(a => isBreedingMale(a) && pastureNameEq(a.movements?.[0]?.pastureName, pastureName)) || null;

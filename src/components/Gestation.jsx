@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SPECIES } from "../lib/constants.js";
-import { getAnimalName, fmt, daysUntil, dueDate, progress, fmtDueRange, daysUntilDue, isOverdue, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale } from "../lib/helpers.js";
+import { getAnimalName, fmt, daysUntil, dueDate, progress, fmtDueRange, daysUntilDue, isOverdue, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies } from "../lib/helpers.js";
 import { Card, Btn, Input, Select, Textarea, SectionTitle, ProgressBar, Badge } from "./ui.jsx";
 
 // ── Gestation ─────────────────────────────────────────────────────────────────
@@ -8,13 +8,31 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   const animalsList = animals ?? [];
   const gestationsList = gestations ?? [];
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ animalId: "", breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
+  const [form, setForm] = useState({ animalId: "", breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
   const [showCalfForm, setShowCalfForm] = useState(false);
   const [deliveringId, setDeliveringId] = useState(null);
   const [editingCalfGestationId, setEditingCalfGestationId] = useState(null);
   const [calfForm, setCalfForm] = useState({ name: "", tag: "", sex: "", birthWeight: "", weaningDate: "", stillborn: false });
 
   const females = animalsList.filter(a => isFemale(a));
+
+  const selectedDam = form.animalId ? animalsList.find(x => x.id === form.animalId) : null;
+  const sireOptions = selectedDam ? getBreedingMalesForSpecies(animalsList, selectedDam.species) : [];
+
+  useEffect(() => {
+    if (!form.animalId) return;
+    const damGestations = (gestationsList || []).filter(g => g.animalId === form.animalId).sort((a, b) => (b.breedingDate || "").localeCompare(a.breedingDate || ""));
+    const latest = damGestations[0];
+    if (!latest) return;
+    if (latest.sireAnimalId) {
+      const male = animalsList.find(m => m.id === latest.sireAnimalId);
+      setForm(prev => ({ ...prev, sireAnimalId: latest.sireAnimalId, sire: male ? getAnimalName(male) : (latest.sire || "") }));
+    } else if (latest.sire === "Unknown" || (latest.sire && latest.sire.trim().toLowerCase() === "unknown")) {
+      setForm(prev => ({ ...prev, sireAnimalId: "unknown", sire: "Unknown" }));
+    } else if (latest.sire) {
+      setForm(prev => ({ ...prev, sireAnimalId: "", sire: latest.sire }));
+    }
+  }, [form.animalId]);
 
   function add() {
     const start = form.breedingDate;
@@ -24,13 +42,16 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     const totalDays = SPECIES[animal.species]?.days || 150;
     const dueStart = dueDate(start, totalDays);
     const dueEnd = form.runningWithBull ? dueDate(end, totalDays) : dueStart;
+    const sireDisplay = form.sireAnimalId === "unknown" ? "Unknown" : (form.sire || undefined);
+    const sireId = form.sireAnimalId && form.sireAnimalId !== "unknown" ? form.sireAnimalId : undefined;
     const record = {
       animalId: form.animalId,
       breedingDate: start,
       ...(form.runningWithBull && { breedingDateEnd: end, runningWithBull: true }),
       dueDate: dueStart,
       ...(form.runningWithBull && { dueDateStart: dueStart, dueDateEnd: dueEnd }),
-      sire: form.sire,
+      sire: sireDisplay,
+      ...(sireId && { sireAnimalId: sireId }),
       notes: form.notes,
       id: Date.now().toString(),
       gestationDays: totalDays,
@@ -38,7 +59,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
       createdAt: new Date().toISOString(),
     };
     setGestations(p => [...(p ?? []), record]);
-    setForm({ animalId: "", breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
+    setForm({ animalId: "", breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
     setShowAdd(false);
   }
 
@@ -156,7 +177,18 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                 <Input label="Exposure end *" type="date" value={form.breedingDateEnd} onChange={e => setForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
               </>
             )}
-            <Input label="Sire (optional)" value={form.sire} onChange={e => setForm(p => ({ ...p, sire: e.target.value }))} placeholder="Sire name or tag" />
+            <Select label="Sire (optional)" value={form.sireAnimalId || ""} onChange={e => {
+              const v = e.target.value;
+              if (v === "unknown") setForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
+              else if (!v) setForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
+              else { const m = animalsList.find(x => x.id === v); setForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" })); }
+            }}>
+              <option value="">— None —</option>
+              <option value="unknown">Unknown</option>
+              {sireOptions.map(m => (
+                <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>
+              ))}
+            </Select>
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
             <input type="checkbox" checked={form.runningWithBull} onChange={e => setForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDate : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />

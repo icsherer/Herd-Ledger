@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES } from "../lib/constants.js";
-import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery } from "../lib/helpers.js";
+import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 
 // ── Animals ───────────────────────────────────────────────────────────────────
@@ -61,7 +61,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [sortBy, setSortBy] = useState("dateAddedNewest");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [showBreedingForm, setShowBreedingForm] = useState(false);
-  const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
+  const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
   const [moveForm, setMoveForm] = useState({ pastureName: "", dateMovedIn: "", notes: "" });
   const [showWeightForm, setShowWeightForm] = useState(false);
@@ -775,13 +775,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const totalDays = SPECIES[a.species]?.days || 150;
       const dueStart = dueDate(start, totalDays);
       const dueEnd = breedingForm.runningWithBull ? dueDate(end, totalDays) : dueStart;
+      const sireDisplay = breedingForm.sireAnimalId === "unknown" ? "Unknown" : (breedingForm.sire || undefined);
+      const sireId = breedingForm.sireAnimalId && breedingForm.sireAnimalId !== "unknown" ? breedingForm.sireAnimalId : undefined;
       const record = {
         animalId: a.id,
         breedingDate: start,
         ...(breedingForm.runningWithBull && { breedingDateEnd: end, runningWithBull: true }),
         dueDate: dueStart,
         ...(breedingForm.runningWithBull && { dueDateStart: dueStart, dueDateEnd: dueEnd }),
-        sire: breedingForm.sire,
+        sire: sireDisplay,
+        ...(sireId && { sireAnimalId: sireId }),
         notes: breedingForm.notes,
         id: Date.now().toString(),
         gestationDays: totalDays,
@@ -790,8 +793,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       };
       setGestations(p => [...p, record]);
       setShowBreedingForm(false);
-      setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" });
+      setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
     }
+
+    const breedingSireOptions = getBreedingMalesForSpecies(animals, a.species);
 
     const vaccinationsSorted = [...(a.vaccinations || [])].sort((x, y) => {
       const d1 = x.dateGiven || "";
@@ -1347,7 +1352,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       Breeding
                     </div>
                     {!showBreedingForm ? (
-                      <Btn size="sm" variant="secondary" onClick={() => setShowBreedingForm(true)}>Log Breeding</Btn>
+                      <Btn size="sm" variant="secondary" onClick={() => {
+                      const damGestations = (gestations || []).filter(g => g.animalId === a.id).sort((x, y) => (y.breedingDate || "").localeCompare(x.breedingDate || ""));
+                      const latest = damGestations[0];
+                      if (latest?.sireAnimalId) {
+                        const male = animals.find(m => m.id === latest.sireAnimalId);
+                        setBreedingForm(prev => ({ ...prev, sireAnimalId: latest.sireAnimalId, sire: male ? getAnimalName(male) : (latest.sire || "") }));
+                      } else if (latest?.sire === "Unknown" || (latest?.sire && String(latest.sire).trim().toLowerCase() === "unknown")) {
+                        setBreedingForm(prev => ({ ...prev, sireAnimalId: "unknown", sire: "Unknown" }));
+                      } else if (latest?.sire) {
+                        setBreedingForm(prev => ({ ...prev, sireAnimalId: "", sire: latest.sire }));
+                      }
+                      setShowBreedingForm(true);
+                    }}>Log Breeding</Btn>
                     ) : (
                       <Card style={{ padding: "24px", borderLeft: "4px solid var(--brass)" }}>
                         <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Log Breeding Date</div>
@@ -1361,7 +1378,18 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                               <Input label="Exposure end *" type="date" value={breedingForm.breedingDateEnd} onChange={e => setBreedingForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
                             </>
                           )}
-                          <Input label="Sire (optional)" value={breedingForm.sire} onChange={e => setBreedingForm(p => ({ ...p, sire: e.target.value }))} placeholder="Sire name or tag" />
+                          <Select label="Sire (optional)" value={breedingForm.sireAnimalId || ""} onChange={e => {
+                            const v = e.target.value;
+                            if (v === "unknown") setBreedingForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
+                            else if (!v) setBreedingForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
+                            else { const m = animals.find(x => x.id === v); setBreedingForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" })); }
+                          }}>
+                            <option value="">— None —</option>
+                            <option value="unknown">Unknown</option>
+                            {breedingSireOptions.map(m => (
+                              <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>
+                            ))}
+                          </Select>
                         </div>
                         <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
                           <input type="checkbox" checked={breedingForm.runningWithBull} onChange={e => setBreedingForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDate : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
@@ -1382,7 +1410,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         })()}
                         <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                           <Btn onClick={addBreedingFromProfile}>Record</Btn>
-                          <Btn variant="secondary" onClick={() => { setShowBreedingForm(false); setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>Cancel</Btn>
+                          <Btn variant="secondary" onClick={() => { setShowBreedingForm(false); setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" }); }}>Cancel</Btn>
                         </div>
                       </Card>
                     )}
@@ -1874,13 +1902,49 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             <section style={{ marginBottom: "20px" }}>
               <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Gestation History</h2>
               <div style={{ fontSize: "14px" }}>
-                {gestationsForAnimal.map(g => (
-                  <div key={g.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
-                    {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${fmt(g.dueDate)}`}
-                    {g.sire && ` · Sire: ${g.sire}`}
-                    {g.calf && (g.calf.stillborn ? " · Stillborn" : (g.calf.name ? ` · ${getOffspringTerm(a.species)}: ${g.calf.name}` : ""))}
-                  </div>
-                ))}
+                {gestationsForAnimal.map(g => {
+                  const sireAnimal = g.sireAnimalId ? animals.find(m => m.id === g.sireAnimalId) : null;
+                  const sireLabel = g.sire || (sireAnimal ? getAnimalName(sireAnimal) : null) || "Unknown";
+                  return (
+                    <div key={g.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
+                      {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${fmt(g.dueDate)}`}
+                      {(g.sire || g.sireAnimalId) && (
+                        <> · Sire: {sireAnimal ? (
+                          <button type="button" onClick={() => setViewing(sireAnimal)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontSize: "inherit" }}>{sireLabel}</button>
+                        ) : (
+                          <span>{sireLabel}</span>
+                        )}</>
+                      )}
+                      {g.calf && (g.calf.stillborn ? " · Stillborn" : (g.calf.name ? ` · ${getOffspringTerm(a.species)}: ${g.calf.name}` : ""))}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          );
+        })()}
+
+        {(() => {
+          if (!isBreedingMale(a)) return null;
+          const siredGestations = (gestations || []).filter(g => g.sireAnimalId === a.id || (g.sire && getAnimalName(a) && g.sire.trim() === getAnimalName(a).trim()));
+          if (siredGestations.length === 0) return null;
+          return (
+            <section style={{ marginBottom: "20px" }}>
+              <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Breeding Records</h2>
+              <div style={{ fontSize: "14px" }}>
+                {siredGestations.map(g => {
+                  const dam = animals.find(d => d.id === g.animalId);
+                  return (
+                    <div key={g.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
+                      {dam ? (
+                        <button type="button" onClick={() => setViewing(dam)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontSize: "inherit" }}>{getAnimalName(dam)}{dam.tag ? ` #${dam.tag}` : ""}</button>
+                      ) : (
+                        <span>Unknown dam</span>
+                      )}
+                      {` · Bred ${g.breedingDate ? fmt(g.breedingDate) : "—"}${g.runningWithBull && g.breedingDateEnd ? ` – ${fmt(g.breedingDateEnd)}` : ""}`}
+                    </div>
+                  );
+                })}
               </div>
             </section>
           );

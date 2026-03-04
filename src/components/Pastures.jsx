@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { SPECIES, PASTURE_SPECIES } from "../lib/constants.js";
-import { getAnimalName, fmt, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, pastureNameEq, getCanonicalPastureNames, resolvePastureName, createMovementJournalEntry, dueDate } from "../lib/helpers.js";
+import { getAnimalName, fmt, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, pastureNameEq, getCanonicalPastureNames, resolvePastureName, createMovementJournalEntry, dueDate, feederDaysOnFeed } from "../lib/helpers.js";
 import { Card, Btn, Input, PastureCombo, SectionTitle } from "./ui.jsx";
 
 // ── Pastures ───────────────────────────────────────────────────────────────────

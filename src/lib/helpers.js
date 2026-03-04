@@ -186,6 +186,48 @@ export function getSeason(d = new Date()) {
   return "Autumn";
 }
 
+/** Days an animal has been on feed from feeder start date to now. */
+export function feederDaysOnFeed(startDateStr) {
+  if (!startDateStr) return 0;
+  const start = new Date(startDateStr + "T12:00:00").getTime();
+  const now = Date.now();
+  return Math.max(0, Math.floor((now - start) / 86400000));
+}
+
+/** Estimated current weight from ADG (last two weights, extrapolated to now). Returns null if not enough data. */
+export function estimatedWeightFromADG(animal, feederStartDateStr) {
+  const weights = [...(animal?.weights || [])].sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+  if (weights.length < 2) return null;
+  const first = weights[0];
+  const last = weights[weights.length - 1];
+  if (!first?.date || !last?.date) return null;
+  const daysBetween = (new Date(last.date) - new Date(first.date)) / 86400000;
+  if (daysBetween <= 0) return null;
+  const adg = (last.weight - first.weight) / daysBetween;
+  const lastDate = new Date(last.date + "T12:00:00").getTime();
+  const daysSinceLast = (Date.now() - lastDate) / 86400000;
+  return last.weight + adg * daysSinceLast;
+}
+
+/** Latest weight for an animal by id (most recent entry); returns string or "". */
+export function getLatestWeightForAnimal(animals, animalId) {
+  const an = (animals || []).find(a => a.id === animalId);
+  const weights = [...(an?.weights || [])].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+  const w = weights[0]?.weight;
+  return w != null ? String(w) : "";
+}
+
+/** ADG defaults (lbs/day) by species. */
+export function getADGDefault(species) {
+  if (species === "Cattle") return 3.0;
+  if (species === "Pig") return 1.8;
+  if (species === "Sheep") return 0.5;
+  if (species === "Goat") return 0.4;
+  if (species === "Chicken") return 0.1;
+  if (species === "Rabbit") return 0.15;
+  return 1.0;
+}
+
 export function daysUntil(dateStr) {
   const d = new Date(dateStr); d.setHours(0,0,0,0);
   const t = new Date(); t.setHours(0,0,0,0);

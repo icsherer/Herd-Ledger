@@ -341,12 +341,48 @@
   background: rgba(72, 120, 72, 0.1);
 }
 
+.hl-bulk-action-btn-danger {
+  color: var(--danger2, #c0392b);
+  border-color: var(--danger2, #c0392b);
+}
+
+.hl-bulk-action-btn-danger:hover {
+  background: rgba(192, 57, 43, 0.1);
+}
+
 .hl-bulk-action-icon {
   display: inline-flex;
 }
 
 .hl-bulk-action-label {
   display: inline;
+}
+
+/* Bulk Profitability Calculator: plain number inputs (no spinners), equal-width grid */
+.hl-bulk-calc-inputs input[type="number"] {
+  -moz-appearance: textfield;
+}
+.hl-bulk-calc-inputs input[type="number"]::-webkit-inner-spin-button,
+.hl-bulk-calc-inputs input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.hl-bulk-calc-grid {
+  grid-template-columns: repeat(3, 1fr);
+}
+@media (max-width: 640px) {
+  .hl-bulk-calc-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Feeder Program: table list view, horizontal scroll on mobile */
+.hl-feeder-table-wrap {
+  -webkit-overflow-scrolling: touch;
+}
+.hl-feeder-table tbody tr:hover {
+  background: var(--cream);
 }
 
 /* Bulk toolbar: mobile = fixed bottom, 2x2 grid, icon-on-top buttons */

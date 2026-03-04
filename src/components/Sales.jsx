@@ -7,6 +7,10 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [showLoadForm, setShowLoadForm] = useState(false);
+  const [filterStartDate, setFilterStartDate] = useState("");
+  const [filterEndDate, setFilterEndDate] = useState("");
+  const [filterSpecies, setFilterSpecies] = useState("");
+  const [filterMonthYear, setFilterMonthYear] = useState("");
   const [loadForm, setLoadForm] = useState({
     date: new Date().toISOString().split("T")[0],
     headCount: "",
@@ -20,13 +24,76 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
   });
 
   const soldAnimals = (animals || []).filter(a => a.sale).sort((x, y) => (y.sale?.dateSold || "").localeCompare(x.sale?.dateSold || ""));
+  const loadSalesSorted = [...(loadSales || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+
+  const speciesWithSales = Array.from(new Set([
+    ...soldAnimals.map(a => a.species).filter(Boolean),
+    ...(loadSales || []).map(l => l.species).filter(Boolean),
+  ])).sort((a, b) => a.localeCompare(b));
+
+  const inDateRange = (dateStr) => {
+    if (!dateStr) return false;
+    if (filterStartDate && dateStr < filterStartDate) return false;
+    if (filterEndDate && dateStr > filterEndDate) return false;
+    return true;
+  };
+
+  const filteredSoldAnimals = soldAnimals.filter(a => {
+    if (!inDateRange(a.sale?.dateSold)) return false;
+    if (filterSpecies && a.species !== filterSpecies) return false;
+    return true;
+  });
+  const filteredLoadSales = (loadSales || []).filter(l => {
+    if (!inDateRange(l.date)) return false;
+    if (filterSpecies && l.species !== filterSpecies) return false;
+    return true;
+  });
+
+  const filterActive = filterStartDate || filterEndDate || filterSpecies || filterMonthYear;
+
+  const filteredHeadCount = filteredSoldAnimals.length + filteredLoadSales.reduce((s, l) => s + (Number(l.headCount) || 0), 0);
+  const filteredRevenue = filteredSoldAnimals.reduce((s, a) => s + (Number(a.sale?.pricePerHead) || 0), 0) + filteredLoadSales.reduce((s, l) => s + (Number(l.totalAmount) || 0), 0);
+  const filteredNetGain = filteredSoldAnimals.reduce((s, a) => {
+    const salePrice = Number(a.sale?.pricePerHead) || 0;
+    const purchasePrice = a.acquisitionType === "Purchased" && a.purchasePrice != null ? Number(a.purchasePrice) : 0;
+    return s + (salePrice - purchasePrice);
+  }, 0) + filteredLoadSales.reduce((s, l) => s + (Number(l.totalAmount) || 0), 0);
+
+  function setMonthYear(value) {
+    setFilterMonthYear(value);
+    if (!value) {
+      setFilterStartDate("");
+      setFilterEndDate("");
+      return;
+    }
+    const [y, m] = value.split("-").map(Number);
+    const first = new Date(y, m - 1, 1);
+    const last = new Date(y, m, 0);
+    setFilterStartDate(first.toISOString().split("T")[0]);
+    setFilterEndDate(last.toISOString().split("T")[0]);
+  }
+
+  function clearFilters() {
+    setFilterStartDate("");
+    setFilterEndDate("");
+    setFilterSpecies("");
+    setFilterMonthYear("");
+  }
+
   const individualSalesYTD = soldAnimals
     .filter(a => a.sale?.dateSold && a.sale.dateSold.startsWith(String(year)))
     .reduce((sum, a) => sum + (Number(a.sale?.pricePerHead) || 0), 0);
   const loadSalesYTD = (loadSales || [])
     .filter(l => l.date && l.date.startsWith(String(year)))
     .reduce((sum, l) => sum + (Number(l.totalAmount) || 0), 0);
-  const totalCombinedYTD = individualSalesYTD + loadSalesYTD;
+  const totalSalesRevenueYTD = individualSalesYTD + loadSalesYTD;
+  const purchasesYTD = (animals || [])
+    .filter(a => a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchasePrice > 0 && a.purchaseDate && a.purchaseDate.startsWith(String(year)))
+    .reduce((sum, a) => sum + (Number(a.purchasePrice) || 0), 0);
+  const expensesYTD = (expenses || [])
+    .filter(e => e.date && e.date.startsWith(String(year)))
+    .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
+  const netProfitLossYTD = totalSalesRevenueYTD - purchasesYTD - expensesYTD;
 
   function saveLoadSale() {
     const headCount = parseInt(loadForm.headCount, 10);
@@ -55,6 +122,30 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
 
   function removeLoadSale(id) {
     setLoadSales(prev => (prev || []).filter(l => l.id !== id));
+  }
+
+  function exportAnnualSummaryCSV() {
+    const rows = [
+      ["Schedule F Tax Summary", ""],
+      ["Year", year],
+      ["", ""],
+      ["Income", ""],
+      ["Total livestock sales (individual + load)", totalSalesRevenueYTD.toFixed(2)],
+      ["", ""],
+      ["Expenses / Cost of goods", ""],
+      ["Total livestock purchased", purchasesYTD.toFixed(2)],
+      ["Total farm expenses", expensesYTD.toFixed(2)],
+      ["", ""],
+      ["Net profit (loss)", netProfitLossYTD.toFixed(2)],
+    ];
+    const csv = rows.map(r => r.map(c => (typeof c === "string" && (c.includes(",") || c.includes('"')) ? `"${String(c).replace(/"/g, '""')}"` : c)).join(",")).join("\r\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `schedule-f-summary-${year}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   function exportScheduleF() {
@@ -129,7 +220,17 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
     URL.revokeObjectURL(url);
   }
 
-  const loadsInYear = (loadSales || []).filter(l => l.date && l.date.startsWith(String(year)));
+  const displaySoldAnimals = filterActive ? filteredSoldAnimals : soldAnimals;
+  const displayLoadSales = filterActive ? filteredLoadSales : loadSalesSorted;
+
+  const monthYearOptions = [];
+  for (let y = currentYear; y >= currentYear - 5; y--) {
+    for (let m = 1; m <= 12; m++) {
+      const val = `${y}-${String(m).padStart(2, "0")}`;
+      const label = new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "short", year: "numeric" });
+      monthYearOptions.push({ value: val, label });
+    }
+  }
 
   return (
     <div className="hl-page hl-fade-in">
@@ -137,36 +238,42 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
         Sales
       </SectionTitle>
 
-      {/* Annual Summary */}
-      <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
-        <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "14px" }}>Annual Summary</div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
-          <label style={{ fontSize: "14px", color: "var(--ink2)" }}>Year</label>
-          <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", fontSize: "14px", background: "#fff" }}>
-            {[currentYear, currentYear - 1, currentYear - 2].map(y => <option key={y} value={y}>{y}</option>)}
-          </select>
+      {/* Filter bar */}
+      <Card style={{ padding: "16px 20px", marginBottom: "12px", borderLeft: "4px solid var(--green3)" }}>
+        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "12px" }}>Filters</div>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "12px" }}>
+          <Input label="Start date" type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} style={{ width: "140px" }} />
+          <Input label="End date" type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} style={{ width: "140px" }} />
+          <div style={{ minWidth: "140px" }}>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Month / Year</label>
+            <select value={filterMonthYear} onChange={e => setMonthYear(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
+              <option value="">— Select —</option>
+              {monthYearOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          <div style={{ minWidth: "160px" }}>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Species</label>
+            <select value={filterSpecies} onChange={e => setFilterSpecies(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
+              <option value="">All Species</option>
+              {speciesWithSales.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <Btn size="sm" variant="secondary" onClick={clearFilters} disabled={!filterActive}>Clear Filters</Btn>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px" }}>
-          <div>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Individual sales</div>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "22px", fontWeight: 700, color: "var(--green)" }}>${individualSalesYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+        {filterActive && (
+          <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid var(--cream2)", display: "flex", flexWrap: "wrap", gap: "20px", fontSize: "14px" }}>
+            <span><strong>Filtered total:</strong> <span style={{ color: "var(--ink2)" }}>{filteredHeadCount}</span> head sold</span>
+            <span><strong>Revenue:</strong> <span style={{ fontWeight: 600, color: "var(--green)" }}>${filteredRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></span>
+            <span><strong>Net gain:</strong> <span style={{ fontWeight: 600, color: filteredNetGain >= 0 ? "var(--green)" : "var(--danger2)" }}>${filteredNetGain.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></span>
           </div>
-          <div>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Load sales</div>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "22px", fontWeight: 700, color: "var(--green)" }}>${loadSalesYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Total income ({year})</div>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "22px", fontWeight: 700, color: "var(--green)" }}>${totalCombinedYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-          </div>
-        </div>
+        )}
       </Card>
 
       {/* Individual Sales */}
       <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Individual Sales</div>
-        {soldAnimals.length === 0 ? (
-          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>No sold animals recorded yet.</div>
+        {displaySoldAnimals.length === 0 ? (
+          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No sales match the current filters." : "No sold animals recorded yet."}</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -183,7 +290,7 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
                 </tr>
               </thead>
               <tbody>
-                {soldAnimals.map(a => {
+                {displaySoldAnimals.map(a => {
                   const salePrice = Number(a.sale?.pricePerHead) || 0;
                   const purchasePrice = a.acquisitionType === "Purchased" && a.purchasePrice != null ? Number(a.purchasePrice) : 0;
                   const netGain = salePrice - purchasePrice;
@@ -240,8 +347,8 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
             </div>
           </div>
         )}
-        {loadsInYear.length === 0 ? (
-          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>No load sales recorded yet. Use the button above to log a sale barn load.</div>
+        {[...displayLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).length === 0 ? (
+          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No load sales match the current filters." : "No load sales recorded yet. Use the button above to log a sale barn load."}</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
@@ -256,7 +363,7 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
                 </tr>
               </thead>
               <tbody>
-                {[...(loadSales || [])].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
+                {[...displayLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
                     <td style={{ padding: "10px 12px" }}>{l.date ? fmt(l.date) : "—"}</td>
                     <td style={{ padding: "10px 12px" }}>{l.headCount ?? "—"}</td>
@@ -272,6 +379,39 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
             </table>
           </div>
         )}
+      </Card>
+
+      {/* Annual Summary — bottom */}
+      <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+        <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "14px" }}>Annual Summary ({year})</div>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "18px" }}>
+          <label style={{ fontSize: "14px", color: "var(--ink2)" }}>Year</label>
+          <select value={year} onChange={e => setYear(Number(e.target.value))} style={{ padding: "8px 12px", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", fontSize: "14px", background: "#fff" }}>
+            {[currentYear, currentYear - 1, currentYear - 2].map(y => <option key={y} value={y}>{y}</option>)}
+          </select>
+          <Btn size="sm" variant="secondary" onClick={exportAnnualSummaryCSV}>Export Summary</Btn>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "20px", marginBottom: "20px" }}>
+          <div>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Total revenue (animal sales)</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "var(--green)" }}>${totalSalesRevenueYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Total purchases (animals)</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "var(--ink2)" }}>${purchasesYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Total expenses</div>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "var(--ink2)" }}>${expensesYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          </div>
+        </div>
+        <div style={{ paddingTop: "16px", borderTop: "1px solid var(--cream2)" }}>
+          <div style={{ fontSize: "12px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>Net profit (loss) for {year}</div>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "24px", fontWeight: 700, color: netProfitLossYTD >= 0 ? "var(--green)" : "var(--danger2)" }}>
+            {netProfitLossYTD >= 0 ? "" : "−"}${Math.abs(netProfitLossYTD).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+          </div>
+          <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "4px" }}>Sales − Purchases − Expenses</div>
+        </div>
       </Card>
     </div>
   );

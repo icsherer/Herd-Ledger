@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES } from "../lib/constants.js";
-import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale } from "../lib/helpers.js";
+import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes }) {
+export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes }) {
   const [showAdd, setShowAdd] = useState(false);
   const forceList = (animals || []).length > 50;
   const viewMode = forceList ? "list" : (settings?.animalsViewMode || "tile");
@@ -1387,7 +1387,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             <option value="">— None —</option>
                             <option value="unknown">Unknown</option>
                             {breedingSireOptions.map(m => (
-                              <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>
+                              <option key={m.id} value={m.id}>{getAnimalName(m)}{m.name && m.tag ? ` #${m.tag}` : ""}</option>
                             ))}
                           </Select>
                         </div>
@@ -1788,7 +1788,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.7)", letterSpacing: "2px", textTransform: "uppercase", marginTop: "4px" }}>Livestock Management</div>
         </div>
         <h1 style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "#141A14", marginBottom: "8px" }}>{getAnimalName(a)}</h1>
-        <p style={{ color: "#7A8C7A", fontSize: "14px", marginBottom: "24px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{(() => { const rw = getRunningWithMaleForFemale(a, animals); return rw ? ` · Running with ${getAnimalName(rw)}` : ""; })()}{a.tag ? ` · #${a.tag}` : ""}</p>
+        <p style={{ color: "#7A8C7A", fontSize: "14px", marginBottom: "24px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{(() => { const rw = getRunningWithMaleForFemale(a, animals); return rw ? ` · Running with ${getAnimalName(rw)}` : ""; })()}{a.name && a.tag ? ` · #${a.tag}` : ""}</p>
 
         <section style={{ marginBottom: "20px" }}>
           <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Basic Information</h2>
@@ -1937,7 +1937,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   return (
                     <div key={g.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
                       {dam ? (
-                        <button type="button" onClick={() => setViewing(dam)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontSize: "inherit" }}>{getAnimalName(dam)}{dam.tag ? ` #${dam.tag}` : ""}</button>
+                        <button type="button" onClick={() => setViewing(dam)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontSize: "inherit" }}>{getAnimalName(dam)}{dam.name && dam.tag ? ` #${dam.tag}` : ""}</button>
                       ) : (
                         <span>Unknown dam</span>
                       )}
@@ -1986,6 +1986,34 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setBulkFormType(null);
     setBulkForm({});
   }
+
+  function bulkDeleteSelected() {
+    const count = selectedIds.length;
+    if (count === 0) return;
+    if (!confirm(`Are you sure you want to delete ${count} animal${count !== 1 ? "s" : ""}? This cannot be undone.`)) return;
+    const idSet = new Set(selectedIds);
+    setAnimals(prev => prev.filter(a => !idSet.has(a.id)));
+    if (viewingAnimal && idSet.has(viewingAnimal.id)) setViewing(null);
+    setGestations(prev =>
+      prev
+        .filter(g => !idSet.has(g.animalId))
+        .map(g => (g.calf?.animalId && idSet.has(g.calf.animalId) ? { ...g, calf: undefined } : g))
+    );
+    setOffspring(prev => {
+      const next = { ...prev };
+      selectedIds.forEach(id => delete next[id]);
+      return Object.fromEntries(
+        Object.entries(next)
+          .filter(([motherId]) => !idSet.has(motherId))
+          .map(([motherId, list]) => [motherId, (list || []).filter(c => !idSet.has(c.id))])
+          .filter(([, list]) => list.length > 0)
+      );
+    });
+    if (setFeederPrograms) setFeederPrograms(prev => prev.filter(f => !idSet.has(f.animalId)));
+    if (setNotes) setNotes(prev => (prev || []).filter(note => !selectedIds.some(id => note.id === id || note.id.endsWith("-" + id))));
+    exitBulkMode();
+  }
+
   const selectedAnimals = animals.filter(an => selectedIds.includes(an.id));
   const selectedFemales = selectedAnimals.filter(an => isFemale(an) && an.species !== "Mule");
   const selectedPastureEligible = selectedAnimals.filter(an => PASTURE_SPECIES.includes(an.species));
@@ -2360,6 +2388,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <span className="hl-bulk-action-label">Add to Feeder Program</span>
               </button>
             )}
+            <button type="button" className="hl-bulk-action-btn hl-bulk-action-btn-danger" onClick={bulkDeleteSelected}>
+              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
+              <span className="hl-bulk-action-label">Delete Selected</span>
+            </button>
           </div>
         </Card>
       )}

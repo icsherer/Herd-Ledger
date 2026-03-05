@@ -82,6 +82,57 @@
   }
 }
 
+/* Summary dollar values: never wrap (tiles across app) */
+.hl-summary-dollar {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Sales: summary tiles — same height, value never wraps */
+.hl-sales-summary-tiles {
+  align-items: stretch;
+}
+
+.hl-sales-summary-tile {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.hl-sales-summary-value {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.9375rem; /* 15px — keeps $999.9K on one line on narrow screens */
+  line-height: 1.2;
+}
+
+.hl-sales-summary-net {
+  font-size: 1rem; /* 16px for net profit line */
+}
+
+@media (max-width: 480px) {
+  .hl-sales-summary-tiles {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .hl-sales-summary-tile {
+    min-height: 68px;
+  }
+
+  .hl-sales-summary-value {
+    font-size: 0.875rem; /* 14px on mobile so value never wraps */
+  }
+
+  .hl-sales-summary-net {
+    font-size: 0.9375rem;
+  }
+}
+
 /* Dashboard: two-column layout stacks on mobile */
 .hl-dash-columns {
   display: grid;
@@ -248,7 +299,13 @@
   }
 }
 
-/* Dashboard stat cards: smaller font so numbers don't overflow */
+/* Dashboard stat cards: value never wraps, smaller font on mobile */
+.hl-dash-stat-value {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 @media (max-width: 480px) {
   .hl-dash-stat-value {
     font-size: 22px !important;

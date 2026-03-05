@@ -1920,6 +1920,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     {a.sale.pricePerHead != null && <div><strong>Price per head:</strong> ${Number(a.sale.pricePerHead).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>}
                     {a.sale.buyerName && <div><strong>Buyer:</strong> {a.sale.buyerName}</div>}
                     {a.sale.buyerContact && <div><strong>Buyer contact:</strong> {a.sale.buyerContact}</div>}
+                    {a.sale.saleType && <div><strong>Sale type:</strong> {a.sale.saleType}</div>}
+                    {a.sale.weightAtSale != null && <div><strong>Weight at sale:</strong> {Number(a.sale.weightAtSale).toLocaleString("en-US")} lbs</div>}
                     {a.sale.saleLocation && <div><strong>Sale location:</strong> {a.sale.saleLocation}</div>}
                     {a.sale.notes && <div style={{ marginTop: "4px" }}><strong>Notes:</strong> {a.sale.notes}</div>}
                   </div>

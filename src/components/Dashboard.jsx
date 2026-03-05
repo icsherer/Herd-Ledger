@@ -1,5 +1,5 @@
 import { TIPS, SPECIES, DEFAULT_TAB_VISIBILITY, PASTURE_SPECIES } from "../lib/constants.js";
-import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, progress, breedingDateForProgress } from "../lib/helpers.js";
+import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, progress, breedingDateForProgress, formatCompactDollar } from "../lib/helpers.js";
 import { Card, Badge, ProgressBar } from "./ui.jsx";
 
 export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, expenses, tasks, settings }) {
@@ -76,7 +76,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
             icon: "🥛",
             onClick: () => setTab?.("weaning"),
           }] : []),
-          { label: "Financials (this month)", value: (incomeThisMonth - expensesThisMonth) >= 0 ? `+$${(incomeThisMonth - expensesThisMonth).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : `-$${Math.abs(incomeThisMonth - expensesThisMonth).toLocaleString("en-US", { minimumFractionDigits: 2 })}`, sub: `Income $${incomeThisMonth.toLocaleString("en-US", { minimumFractionDigits: 2 })} · Expenses $${expensesThisMonth.toLocaleString("en-US", { minimumFractionDigits: 2 })}`, icon: "💰", onClick: () => setTab?.("expenses"), large: false },
+          { label: "Financials (this month)", value: (() => { const net = incomeThisMonth - expensesThisMonth; return net >= 0 ? `+${formatCompactDollar(net)}` : formatCompactDollar(net); })(), sub: `Income ${formatCompactDollar(incomeThisMonth)} · Expenses ${formatCompactDollar(expensesThisMonth)}`, icon: "💰", onClick: () => setTab?.("expenses"), large: false },
         ].map((s, i) => (
           <Card
             key={i}

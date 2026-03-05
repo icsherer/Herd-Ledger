@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { SPECIES, FEED_TYPES } from "../lib/constants.js";
-import { getAnimalName, fmt, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault } from "../lib/helpers.js";
+import { getAnimalName, fmt, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, formatCompactDollar } from "../lib/helpers.js";
 import { Card, Btn, Input, Select, SectionTitle } from "./ui.jsx";
 
 // Feeder helpers (used only in FeederProgram)
@@ -219,11 +219,11 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
         </Card>
         <Card style={{ padding: "18px 24px", minWidth: "160px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Est. feed cost (gain × FCR × $/lb)</div>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "var(--green)" }}>${totalEstimatedCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          <div className="hl-summary-dollar" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "var(--green)" }}>{formatCompactDollar(totalEstimatedCost)}</div>
         </Card>
         <Card style={{ padding: "18px 24px", minWidth: "160px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Total projected P/L</div>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: profitColor(totalProjectedNet, totalEstimatedCost || 1) }}>${totalProjectedNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
+          <div className="hl-summary-dollar" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: profitColor(totalProjectedNet, totalEstimatedCost || 1) }}>{formatCompactDollar(totalProjectedNet)}</div>
         </Card>
       </div>
 
@@ -307,15 +307,15 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
                   )}
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "14px 20px", fontSize: "14px" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total feed consumed</span><strong>{totalFeedConsumed.toLocaleString("en-US", { maximumFractionDigits: 0 })} lb</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total feed cost</span><strong>${totalFeedCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total all-in cost</span><strong>${totalAllIn.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>All-in per head</span><strong>${totalAllInPerHead.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Cost of gain/lb</span><strong>${costOfGainPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Breakeven $/lb</span><strong>${breakevenPricePerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected revenue</span><strong>${projectedRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Net profit (group)</span><strong style={{ color: netColor }}>${projectedNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Profit/loss per head</span><strong style={{ color: netColor }}>${profitPerHead.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Profit per day</span><strong style={{ color: netColor }}>${profitPerDay.toLocaleString("en-US", { minimumFractionDigits: 2 })}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total feed cost</span><strong className="hl-summary-dollar">{formatCompactDollar(totalFeedCost)}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total all-in cost</span><strong className="hl-summary-dollar">{formatCompactDollar(totalAllIn)}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>All-in per head</span><strong className="hl-summary-dollar">{formatCompactDollar(totalAllInPerHead)}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Cost of gain/lb</span><strong className="hl-summary-dollar">{formatCompactDollar(costOfGainPerLb)}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Breakeven $/lb</span><strong className="hl-summary-dollar">{formatCompactDollar(breakevenPricePerLb)}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected revenue</span><strong className="hl-summary-dollar">{formatCompactDollar(projectedRevenue)}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Net profit (group)</span><strong className="hl-summary-dollar" style={{ color: netColor }}>{formatCompactDollar(projectedNet)}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Profit/loss per head</span><strong className="hl-summary-dollar" style={{ color: netColor }}>{formatCompactDollar(profitPerHead)}</strong></div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Profit per day</span><strong className="hl-summary-dollar" style={{ color: netColor }}>{formatCompactDollar(profitPerDay)}</strong></div>
                   </div>
                 </section>
               );
@@ -550,12 +550,12 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
                   <section style={{ padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
                     <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", marginBottom: "12px" }}>Results</div>
                     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: "12px", fontSize: "14px" }}>
-                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total feed cost</span><div style={{ fontWeight: 600 }}>${totalFeedCost.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total all-in cost</span><div style={{ fontWeight: 600 }}>${totalAllIn.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Cost of gain/lb</span><div style={{ fontWeight: 600 }}>${costOfGainPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Breakeven $/lb</span><div style={{ fontWeight: 600 }}>${breakevenPerLb.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected revenue</span><div style={{ fontWeight: 600 }}>${projectedRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
-                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected net P/L</span><div style={{ fontWeight: 600, color: netColor }}>${projectedNet.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div></div>
+                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total feed cost</span><div className="hl-summary-dollar" style={{ fontWeight: 600 }}>{formatCompactDollar(totalFeedCost)}</div></div>
+                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total all-in cost</span><div className="hl-summary-dollar" style={{ fontWeight: 600 }}>{formatCompactDollar(totalAllIn)}</div></div>
+                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Cost of gain/lb</span><div className="hl-summary-dollar" style={{ fontWeight: 600 }}>{formatCompactDollar(costOfGainPerLb)}</div></div>
+                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Breakeven $/lb</span><div className="hl-summary-dollar" style={{ fontWeight: 600 }}>{formatCompactDollar(breakevenPerLb)}</div></div>
+                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected revenue</span><div className="hl-summary-dollar" style={{ fontWeight: 600 }}>{formatCompactDollar(projectedRevenue)}</div></div>
+                      <div><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected net P/L</span><div className="hl-summary-dollar" style={{ fontWeight: 600, color: netColor }}>{formatCompactDollar(projectedNet)}</div></div>
                     </div>
                   </section>
                 </>

@@ -154,6 +154,21 @@ export function pastureNameEq(a, b) {
   return (a || "").trim().toLowerCase() === (b || "").trim().toLowerCase();
 }
 
+/** Compact dollar for summary tiles: ≥$1000 → $10.5K / $125K, ≥$1M → $1.5M; <$1000 → $0 / $500 (no decimals). */
+export function formatCompactDollar(n) {
+  const num = Number(n);
+  if (Number.isNaN(num)) return "$0";
+  const abs = Math.abs(num);
+  const sign = num < 0 ? "−" : "";
+  if (abs >= 1e6) return `${sign}$${(abs / 1e6).toFixed(1)}M`;
+  if (abs >= 1e3) {
+    const k = abs / 1e3;
+    const str = k % 1 === 0 ? String(Math.round(k)) : k.toFixed(1);
+    return `${sign}$${str}K`;
+  }
+  return `${sign}$${Math.round(abs)}`;
+}
+
 export function getCanonicalPastureNames(animals, pastures) {
   const byLower = new Map();
   [...(pastures || []), ...(animals || []).flatMap(a => (a.movements || []).map(m => m.pastureName)).filter(Boolean)].forEach(n => {

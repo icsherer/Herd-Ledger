@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { EXPENSE_CATEGORIES } from "../lib/constants.js";
-import { fmt, getAnimalName, getCanonicalPastureNames } from "../lib/helpers.js";
+import { fmt, getAnimalName, getCanonicalPastureNames, formatCompactDollar } from "../lib/helpers.js";
 import { Card, Btn, Input, Select, SectionTitle, Textarea, Badge } from "./ui.jsx";
 
 const emptyForm = () => ({
@@ -118,14 +118,14 @@ export default function Expenses({ expenses, setExpenses, animals, pastures, set
             return (
               <div key={cat} style={{ display: "flex", justifyContent: "space-between", gap: "8px" }}>
                 <span style={{ color: "var(--ink2)" }}>{cat}</span>
-                <span style={{ fontWeight: 600 }}>${tot.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+                <span className="hl-summary-dollar" style={{ fontWeight: 600 }}>{formatCompactDollar(tot)}</span>
               </div>
             );
           })}
         </div>
         <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--cream2)", display: "flex", justifyContent: "space-between", fontWeight: 700, fontSize: "15px" }}>
           <span>Total this month</span>
-          <span>${expensesThisMonth.reduce((s, e) => s + (Number(e.amount) || 0), 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+          <span className="hl-summary-dollar">{formatCompactDollar(expensesThisMonth.reduce((s, e) => s + (Number(e.amount) || 0), 0))}</span>
         </div>
       </Card>
 

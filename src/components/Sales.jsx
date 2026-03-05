@@ -1,9 +1,20 @@
 import { useState } from "react";
-import { fmt, getAnimalName } from "../lib/helpers.js";
+import { fmt, getAnimalName, formatCompactDollar } from "../lib/helpers.js";
 import { SPECIES } from "../lib/constants.js";
 import { Card, Btn, Input, Select, SectionTitle, Textarea } from "./ui.jsx";
 
-export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
+const emptySaleEditForm = () => ({
+  dateSold: "",
+  pricePerHead: "",
+  buyerName: "",
+  buyerContact: "",
+  saleType: "",
+  weightAtSale: "",
+  saleLocation: "",
+  notes: "",
+});
+
+export default function Sales({ animals, setAnimals, loadSales, setLoadSales, expenses }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [showLoadForm, setShowLoadForm] = useState(false);
@@ -11,6 +22,8 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
   const [filterEndDate, setFilterEndDate] = useState("");
   const [filterSpecies, setFilterSpecies] = useState("");
   const [filterMonthYear, setFilterMonthYear] = useState("");
+  const [editingSaleAnimalId, setEditingSaleAnimalId] = useState(null);
+  const [saleEditForm, setSaleEditForm] = useState(emptySaleEditForm);
   const [loadForm, setLoadForm] = useState({
     date: new Date().toISOString().split("T")[0],
     headCount: "",
@@ -122,6 +135,56 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
 
   function removeLoadSale(id) {
     setLoadSales(prev => (prev || []).filter(l => l.id !== id));
+  }
+
+  function openSaleEdit(animal) {
+    const s = animal?.sale;
+    setEditingSaleAnimalId(animal.id);
+    setSaleEditForm({
+      dateSold: s?.dateSold ?? "",
+      pricePerHead: s?.pricePerHead != null ? String(s.pricePerHead) : "",
+      buyerName: s?.buyerName ?? "",
+      buyerContact: s?.buyerContact ?? "",
+      saleType: s?.saleType ?? "",
+      weightAtSale: s?.weightAtSale != null ? String(s.weightAtSale) : "",
+      saleLocation: s?.saleLocation ?? "",
+      notes: s?.notes ?? "",
+    });
+  }
+
+  function closeSaleEdit() {
+    setEditingSaleAnimalId(null);
+    setSaleEditForm(emptySaleEditForm());
+  }
+
+  function saveSaleEdit() {
+    if (!setAnimals || !editingSaleAnimalId) return;
+    const priceVal = saleEditForm.pricePerHead?.trim() ? parseFloat(saleEditForm.pricePerHead) : undefined;
+    const weightVal = saleEditForm.weightAtSale?.trim() ? parseFloat(saleEditForm.weightAtSale) : undefined;
+    const saleRec = {
+      dateSold: saleEditForm.dateSold?.trim() || undefined,
+      pricePerHead: priceVal,
+      buyerName: saleEditForm.buyerName?.trim() || undefined,
+      buyerContact: saleEditForm.buyerContact?.trim() || undefined,
+      saleType: saleEditForm.saleType?.trim() || undefined,
+      weightAtSale: weightVal,
+      saleLocation: saleEditForm.saleLocation?.trim() || undefined,
+      notes: saleEditForm.notes?.trim() || undefined,
+    };
+    setAnimals(prev =>
+      prev.map(an => (an.id === editingSaleAnimalId ? { ...an, sale: saleRec } : an))
+    );
+    closeSaleEdit();
+  }
+
+  function deleteSaleRecord(animalId) {
+    const msg = "Are you sure you want to delete this sale record? The animal will be returned to your active herd.";
+    if (!window.confirm(msg)) return;
+    if (!setAnimals) return;
+    setAnimals(prev =>
+      prev.map(an => (an.id === animalId ? { ...an, sale: undefined } : an))
+    );
+    if (editingSaleAnimalId === animalId) closeSaleEdit();
   }
 
   function exportAnnualSummaryCSV() {
@@ -293,6 +356,36 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
       {/* Individual Sales */}
       <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Individual Sales</div>
+        {editingSaleAnimalId && (() => {
+          const animal = (animals || []).find(a => a.id === editingSaleAnimalId);
+          return animal ? (
+            <div style={{ padding: "20px", background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
+              <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Edit sale — {getAnimalName(animal)}{animal.tag ? ` #${animal.tag}` : ""}</div>
+              <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                <Input label="Sale date" type="date" value={saleEditForm.dateSold} onChange={e => setSaleEditForm(p => ({ ...p, dateSold: e.target.value }))} />
+                <Input label="Sale price ($)" type="number" min="0" step="0.01" value={saleEditForm.pricePerHead} onChange={e => setSaleEditForm(p => ({ ...p, pricePerHead: e.target.value }))} placeholder="e.g. 1250.00" />
+                <Input label="Buyer name" value={saleEditForm.buyerName} onChange={e => setSaleEditForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                <Input label="Buyer contact" value={saleEditForm.buyerContact} onChange={e => setSaleEditForm(p => ({ ...p, buyerContact: e.target.value }))} placeholder="Phone or email" />
+                <div>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Sale type</label>
+                  <select value={saleEditForm.saleType} onChange={e => setSaleEditForm(p => ({ ...p, saleType: e.target.value }))} style={{ width: "100%", padding: "10px 12px", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", fontSize: "14px" }}>
+                    <option value="">— Select —</option>
+                    <option value="Private">Private</option>
+                    <option value="Auction">Auction</option>
+                    <option value="Sale barn">Sale barn</option>
+                  </select>
+                </div>
+                <Input label="Weight at sale (lbs)" type="number" min="0" step="0.1" value={saleEditForm.weightAtSale} onChange={e => setSaleEditForm(p => ({ ...p, weightAtSale: e.target.value }))} placeholder="Optional" />
+                <Input label="Sale location" value={saleEditForm.saleLocation} onChange={e => setSaleEditForm(p => ({ ...p, saleLocation: e.target.value }))} placeholder="e.g. Sale barn name" style={{ gridColumn: "1 / -1" }} />
+              </div>
+              <Textarea label="Notes" value={saleEditForm.notes} onChange={e => setSaleEditForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
+              <div style={{ display: "flex", gap: "10px" }}>
+                <Btn size="sm" onClick={saveSaleEdit}>Save</Btn>
+                <Btn size="sm" variant="ghost" onClick={closeSaleEdit}>Cancel</Btn>
+              </div>
+            </div>
+          ) : null;
+        })()}
         {displaySoldAnimals.length === 0 ? (
           <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No sales match the current filters." : "No sold animals recorded yet."}</div>
         ) : (
@@ -308,6 +401,7 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
                   <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Acquisition</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Purchase price</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Net gain</th>
+                  <th style={{ width: "120px", padding: "10px 12px", fontWeight: 600 }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -325,6 +419,14 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
                       <td style={{ padding: "10px 12px" }}>{a.acquisitionType === "Purchased" ? "Purchased" : "Home Raised"}</td>
                       <td style={{ padding: "10px 12px", textAlign: "right" }}>{a.acquisitionType === "Purchased" && a.purchasePrice != null ? `$${Number(a.purchasePrice).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}</td>
                       <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600, color: netGain >= 0 ? "var(--green)" : "var(--danger2)" }}>{a.acquisitionType === "Purchased" || purchasePrice !== 0 ? `$${netGain.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}</td>
+                      <td style={{ padding: "10px 12px" }}>
+                        {setAnimals && (
+                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                            <Btn size="sm" variant="secondary" onClick={() => openSaleEdit(a)}>Edit</Btn>
+                            <Btn size="sm" variant="danger" onClick={() => deleteSaleRecord(a.id)}>Delete</Btn>
+                          </div>
+                        )}
+                      </td>
                     </tr>
                   );
                 })}
@@ -412,24 +514,22 @@ export default function Sales({ animals, loadSales, setLoadSales, expenses }) {
           </select>
           <Btn size="sm" variant="secondary" onClick={exportAnnualSummaryCSV}>Export Summary</Btn>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "20px", marginBottom: "20px" }}>
-          <div>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Total revenue (animal sales)</div>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "var(--green)" }}>${totalSalesRevenueYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Total purchases (animals)</div>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "var(--ink2)" }}>${purchasesYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "4px" }}>Total expenses</div>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "var(--ink2)" }}>${expensesYTD.toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>
-          </div>
+        <div className="hl-sales-summary-tiles" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: "16px", marginBottom: "20px" }}>
+          {[
+            { label: "Total revenue (animal sales)", value: totalSalesRevenueYTD, color: "var(--green)" },
+            { label: "Total purchases (animals)", value: purchasesYTD, color: "var(--ink2)" },
+            { label: "Total expenses", value: expensesYTD, color: "var(--ink2)" },
+          ].map(({ label, value, color }) => (
+              <div key={label} className="hl-sales-summary-tile">
+                <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", lineHeight: 1.3 }}>{label}</div>
+                <div className="hl-sales-summary-value" style={{ fontFamily: "'Playfair Display'", fontWeight: 700, color }}>{formatCompactDollar(value)}</div>
+              </div>
+            ))}
         </div>
         <div style={{ paddingTop: "16px", borderTop: "1px solid var(--cream2)" }}>
           <div style={{ fontSize: "12px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>Net profit (loss) for {year}</div>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "24px", fontWeight: 700, color: netProfitLossYTD >= 0 ? "var(--green)" : "var(--danger2)" }}>
-            {netProfitLossYTD >= 0 ? "" : "−"}${Math.abs(netProfitLossYTD).toLocaleString("en-US", { minimumFractionDigits: 2 })}
+          <div className="hl-sales-summary-value hl-sales-summary-net" style={{ fontFamily: "'Playfair Display'", fontWeight: 700, color: netProfitLossYTD >= 0 ? "var(--green)" : "var(--danger2)" }}>
+            {formatCompactDollar(netProfitLossYTD)}
           </div>
           <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "4px" }}>Sales − Purchases − Expenses</div>
         </div>

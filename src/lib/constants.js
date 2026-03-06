@@ -16,7 +16,8 @@ export const SPECIES = {
   Cat:     { days: 65,  emoji: "🐈" },
 };
 
-export const PASTURE_SPECIES = ["Cattle", "Horse"];
+/** All species can be assigned to pastures; mixed-species pastures allowed. */
+export const PASTURE_SPECIES = Object.keys(SPECIES);
 
 export const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes"];
 

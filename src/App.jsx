@@ -134,19 +134,39 @@ export default function App() {
     return () => document.head.removeChild(el);
   }, []);
 
+  // Persist one key to Supabase (user_data table). No-op for guest or missing session. Logs errors.
+  const persistToSupabase = React.useCallback((key, data) => {
+    supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
+      if (sessionError) {
+        console.error("[Supabase] getSession failed:", sessionError);
+        return;
+      }
+      const uid = session?.user?.id;
+      if (!uid) return;
+      supabase
+        .from("user_data")
+        .upsert({ user_id: uid, key, data }, { onConflict: "user_id,key" })
+        .then(({ error }) => {
+          if (error) console.error("[Supabase] write failed:", key, error);
+        });
+    });
+  }, []);
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         const ts = new Date().toISOString();
-        supabase.from("user_data").upsert({ user_id: session.user.id, key: "last_seen", data: ts, updated_at: ts }, { onConflict: "user_id,key" }).then(() => {});
+        supabase.from("user_data").upsert({ user_id: session.user.id, key: "last_seen", data: ts }, { onConflict: "user_id,key" })
+          .then(({ error }) => { if (error) console.error("[Supabase] last_seen write failed:", error); });
       }
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(prev => {
         if (session?.user) {
           const ts = new Date().toISOString();
-          supabase.from("user_data").upsert({ user_id: session.user.id, key: "last_seen", data: ts, updated_at: ts }, { onConflict: "user_id,key" }).then(() => {});
+          supabase.from("user_data").upsert({ user_id: session.user.id, key: "last_seen", data: ts }, { onConflict: "user_id,key" })
+            .then(({ error }) => { if (error) console.error("[Supabase] last_seen write failed:", error); });
           return session.user;
         }
         if (prev?.isGuest) return prev;
@@ -212,7 +232,11 @@ export default function App() {
       .eq("user_id", user.id)
       .in("key", USER_DATA_KEYS)
       .then(({ data: rows, error }) => {
-        if (error) return;
+        if (error) {
+          console.error("[Supabase] load failed:", error);
+          initialLoadDone.current = true;
+          return;
+        }
         const byKey = (rows || []).reduce((acc, r) => { acc[r.key] = r.data; return acc; }, {});
         const animalsData = Array.isArray(byKey.animals) ? byKey.animals : [];
         const gestationsData = Array.isArray(byKey.gestations) ? byKey.gestations : [];
@@ -243,8 +267,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "animals", data: animals }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, animals]);
+    persistToSupabase("animals", animals);
+  }, [user, animals, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -253,8 +277,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "gestations", data: gestations }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, gestations]);
+    persistToSupabase("gestations", gestations);
+  }, [user, gestations, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -263,8 +287,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "notes", data: notes }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, notes]);
+    persistToSupabase("notes", notes);
+  }, [user, notes, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -273,8 +297,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "offspring", data: offspring }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, offspring]);
+    persistToSupabase("offspring", offspring);
+  }, [user, offspring, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -283,8 +307,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "settings", data: settings }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, settings]);
+    persistToSupabase("settings", settings);
+  }, [user, settings, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -293,8 +317,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "feederPrograms", data: feederPrograms }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, feederPrograms]);
+    persistToSupabase("feederPrograms", feederPrograms);
+  }, [user, feederPrograms, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -303,8 +327,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "pastures", data: pastures }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, pastures]);
+    persistToSupabase("pastures", pastures);
+  }, [user, pastures, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -313,8 +337,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "expenses", data: expenses }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, expenses]);
+    persistToSupabase("expenses", expenses);
+  }, [user, expenses, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -323,8 +347,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "loadSales", data: loadSales }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, loadSales]);
+    persistToSupabase("loadSales", loadSales);
+  }, [user, loadSales, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -333,8 +357,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    supabase.from("user_data").upsert({ user_id: user.id, key: "tasks", data: tasks }, { onConflict: "user_id,key" }).then(() => {});
-  }, [user, tasks]);
+    persistToSupabase("tasks", tasks);
+  }, [user, tasks, persistToSupabase]);
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([

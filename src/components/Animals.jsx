@@ -27,6 +27,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const setSearch = setSearchProp !== undefined ? setSearchProp : setSearchLocal;
   const [showOffspringForm, setShowOffspringForm] = useState(false);
   const [editingOffspringId, setEditingOffspringId] = useState(null);
+  const [linkExistingAnimalId, setLinkExistingAnimalId] = useState(null);
   const [offspringForm, setOffspringForm] = useState({
     name: "",
     tag: "",
@@ -228,14 +229,86 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     return key || null;
   }
 
+  /** Normalize CSV sex values to Herd Ledger canonical terms per species. */
   function normalizeSexForSpecies(species, val) {
     if (!species) return null;
     const opts = getSexOptions(species);
     if (!val || !String(val).trim()) return opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0];
-    const v = String(val).trim();
-    const match = opts.find(o => o.toLowerCase() === v.toLowerCase());
-    if (match) return match;
-    const gender = SEX_TERM_GENDER[v] || (v.toLowerCase() === "female" ? "Female" : v.toLowerCase() === "male" ? "Male" : null);
+    const v = String(val).trim().toLowerCase();
+    const exact = opts.find(o => o.toLowerCase() === v);
+    if (exact) return exact;
+
+    const ALIASES = {
+      Cattle: [
+        ["cow", "female", "bred cow", "open cow", "cows"], "Cow",
+        ["heifer", "open heifer", "bred heifer", "heifers"], "Heifer",
+        ["bull", "bulls"], "Bull",
+        ["steer", "steers"], "Steer",
+        ["bull calf", "male calf", "bull calves"], "Bull Calf",
+        ["heifer calf", "female calf", "heifer calves"], "Heifer Calf",
+      ],
+      Bison: [
+        ["cow", "female", "bred cow", "open cow"], "Cow",
+        ["heifer", "open heifer", "bred heifer"], "Heifer",
+        ["bull", "bulls"], "Bull",
+        ["steer", "steers"], "Steer",
+        ["bull calf", "male calf"], "Bull Calf",
+        ["heifer calf", "female calf"], "Heifer Calf",
+      ],
+      Sheep: [
+        ["ewe", "ewes"], "Ewe",
+        ["ram", "rams"], "Ram",
+        ["wether", "wethers"], "Wether",
+        ["ewe lamb", "female lamb"], "Ewe Lamb",
+        ["ram lamb", "male lamb"], "Ram Lamb",
+      ],
+      Goat: [
+        ["doe", "does"], "Doe",
+        ["buck", "bucks"], "Buck",
+        ["wether", "wethers"], "Wether",
+        ["doeling", "doelings"], "Doeling",
+        ["buckling", "bucklings"], "Buckling",
+      ],
+      Pig: [
+        ["sow", "sows"], "Sow",
+        ["gilt", "gilts"], "Gilt",
+        ["boar", "boars"], "Boar",
+        ["barrow", "barrows"], "Barrow",
+        ["piglet", "piglets"], "Piglet",
+      ],
+      Horse: [
+        ["mare", "mares"], "Mare",
+        ["stallion", "stallions"], "Stallion",
+        ["gelding", "geldings"], "Gelding",
+        ["filly", "fillies"], "Filly",
+        ["colt", "colts"], "Colt",
+        ["filly foal", "female foal"], "Filly Foal",
+        ["colt foal", "male foal"], "Colt Foal",
+      ],
+      Donkey: [
+        ["jenny", "jennies"], "Jenny",
+        ["jack", "jacks"], "Jack",
+        ["gelding", "geldings"], "Gelding",
+        ["filly foal", "female foal"], "Filly Foal",
+        ["colt foal", "male foal"], "Colt Foal",
+      ],
+      Mule: [
+        ["jenny", "jennies"], "Jenny",
+        ["jack", "jacks"], "Jack",
+        ["gelding", "geldings"], "Gelding",
+      ],
+    };
+
+    const list = ALIASES[species];
+    if (list) {
+      for (let i = 0; i < list.length; i += 2) {
+        const aliases = list[i];
+        const canonical = list[i + 1];
+        if (aliases.some(a => a === v || (a.endsWith("s") && a.slice(0, -1) === v))) return canonical;
+      }
+    }
+
+    const gender = v === "female" ? "Female" : v === "male" ? "Male" : null;
     if (gender) return opts.find(o => SEX_TERM_GENDER[o] === gender) || opts[0];
     return opts[0];
   }
@@ -468,8 +541,25 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   function saveEdit() {
     if (!editingId) return;
     const purchasePriceNum = form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined;
-      const updated = { ...viewing, name: form.name || undefined, species: form.species, sex: form.sex, dob: form.dob || undefined, breed: form.breed || undefined, tag: form.tag || undefined, notes: form.notes || undefined, color: form.color?.trim() || undefined, acquisitionType: form.acquisitionType || "Home Raised", purchasePrice: purchasePriceNum, purchaseDate: form.purchaseDate?.trim() || undefined, purchasedFrom: form.purchasedFrom?.trim() || undefined, targetWeaningDate: form.targetWeaningDate?.trim() || undefined };
-    setAnimals(p => p.map(x => x.id === editingId ? updated : x));
+    const opts = getSexOptions(form.species);
+    const validSex = (form.sex && opts.includes(form.sex)) ? form.sex : (viewing?.sex && opts.includes(viewing.sex) ? viewing.sex : opts[0]);
+    const updated = {
+      ...viewing,
+      name: form.name || undefined,
+      species: form.species,
+      sex: validSex,
+      dob: form.dob || undefined,
+      breed: form.breed || undefined,
+      tag: form.tag || undefined,
+      notes: form.notes || undefined,
+      color: form.color?.trim() || undefined,
+      acquisitionType: form.acquisitionType || "Home Raised",
+      purchasePrice: purchasePriceNum,
+      purchaseDate: form.purchaseDate?.trim() || undefined,
+      purchasedFrom: form.purchasedFrom?.trim() || undefined,
+      targetWeaningDate: form.targetWeaningDate?.trim() || undefined,
+    };
+    setAnimals(prev => prev.map(x => (x.id === editingId ? updated : x)));
     setViewing(updated);
     setEditingId(null);
     setForm(emptyForm());
@@ -582,6 +672,33 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   if (viewing) {
     const a = viewing;
     const offspringForMother = (offspring && offspring[a.id]) || [];
+
+    const linkableAnimals = (animals || []).filter(
+      an => an.species === a.species && an.id !== a.id && !an.deceased && !an.sale
+        && !(offspringForMother || []).some(c => c.id === an.id)
+    );
+
+    function linkExistingAsOffspring(existingId) {
+      const existing = animals.find(an => an.id === existingId);
+      if (!existing) return;
+      setAnimals(prev => prev.map(an => (an.id === existingId ? { ...an, motherId: a.id } : an)));
+      setOffspring(prev => ({
+        ...prev,
+        [a.id]: [...(prev[a.id] || []), {
+          id: existing.id,
+          name: existing.name,
+          tag: existing.tag,
+          sex: existing.sex,
+          species: existing.species,
+          dob: existing.dob,
+          weaningDate: existing.weaningDate,
+          birthWeight: existing.birthWeight,
+          stillborn: false,
+        }],
+      }));
+      setShowOffspringForm(false);
+      setLinkExistingAnimalId(null);
+    }
 
     function deleteOffspring(offspringId) {
       const rec = offspringForMother.find(c => c.id === offspringId);
@@ -824,21 +941,24 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const prevPasture = (a.movements || [])[0]?.pastureName;
       const nextMovements = [move, ...(a.movements || [])];
       const updated = { ...a, movements: nextMovements };
+      const journalEntry = setNotes ? createMovementJournalEntry(a, prevPasture, resolvedName, moveForm.dateMovedIn || undefined, move.notes, movementId) : null;
       setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
       setViewing(updated);
       setShowMoveForm(false);
       setMoveForm({ pastureName: "", dateMovedIn: "", notes: "" });
-      if (setNotes) {
-        const journalEntry = createMovementJournalEntry(a, prevPasture, resolvedName, moveForm.dateMovedIn || undefined, move.notes, movementId);
-        setNotes(prev => [journalEntry, ...prev]);
-      }
+      if (setNotes && journalEntry) setNotes(prev => [journalEntry, ...prev]);
       if (move.pastureName) {
         const nextAnimals = animals.map(an => (an.id === a.id ? updated : an));
         const male = getBreedingMaleInPasture(nextAnimals, move.pastureName);
         if (male) {
           const eligible = getEligibleFemalesForRunningWithBull(nextAnimals, gestations, move.pastureName, male);
           if (eligible.length > 0) {
-            setRunningWithBullPrompt({ pastureName: move.pastureName, maleAnimal: male, eligibleFemales: eligible });
+            setRunningWithBullPrompt({
+              pastureName: move.pastureName,
+              maleAnimal: male,
+              eligibleFemales: eligible,
+              revertMove: { animalId: a.id, previousAnimal: a, journalEntryId: journalEntry?.id },
+            });
             setRunningWithBullStep("ask");
             setRunningWithBullForm({ startDate: "", endDate: "" });
           }
@@ -1653,6 +1773,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     variant="secondary"
                     onClick={() => {
                       setEditingOffspringId(null);
+                      setLinkExistingAnimalId(null);
                       setShowOffspringForm(true);
                       setOffspringForm({
                         name: "",
@@ -1710,6 +1831,26 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
                       {editingOffspringId ? `Edit ${getOffspringTerm(a.species)}` : `Add ${getOffspringTerm(a.species)}`}
                     </div>
+                    {!editingOffspringId && linkableAnimals.length > 0 && (
+                      <div style={{ marginBottom: "14px" }}>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>Link existing animal (optional)</label>
+                        <select
+                          value={linkExistingAnimalId || ""}
+                          onChange={e => setLinkExistingAnimalId(e.target.value || null)}
+                          style={{ width: "100%", padding: "10px 12px", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", fontSize: "14px" }}
+                        >
+                          <option value="">— Add new {getOffspringTerm(a.species).toLowerCase()} —</option>
+                          {linkableAnimals.map(an => (
+                            <option key={an.id} value={an.id}>{getAnimalName(an)}{an.tag ? ` #${an.tag}` : ""} · {an.species}</option>
+                          ))}
+                        </select>
+                        {linkExistingAnimalId && (
+                          <Btn size="sm" onClick={() => linkExistingAsOffspring(linkExistingAnimalId)} style={{ marginTop: "10px" }}>
+                            Link as offspring
+                          </Btn>
+                        )}
+                      </div>
+                    )}
                     <div className="hl-form-grid-3 hl-offspring-form-grid" style={{ marginBottom: "12px", minWidth: 0, width: "100%" }}>
                       <Input
                         label={`${getOffspringTerm(a.species)} Name`}
@@ -2616,11 +2757,31 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       )}
 
       {runningWithBullPrompt && (
-        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => { setRunningWithBullPrompt(null); setRunningWithBullStep("ask"); setRunningWithBullForm({ startDate: "", endDate: "" }); }}>
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => {
+          const rev = runningWithBullPrompt.revertMove;
+          if (rev) {
+            setAnimals(prev => prev.map(an => (an.id === rev.animalId ? rev.previousAnimal : an)));
+            if (rev.journalEntryId && setNotes) setNotes(prev => prev.filter(n => n.id !== rev.journalEntryId));
+            setViewingAnimal(prev => (prev?.id === rev.animalId ? rev.previousAnimal : prev));
+          }
+          setRunningWithBullPrompt(null);
+          setRunningWithBullStep("ask");
+          setRunningWithBullForm({ startDate: "", endDate: "" });
+        }}>
           <Card style={{ maxWidth: "440px", width: "100%", margin: "20px" }} onClick={e => e.stopPropagation()}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>Running with Bull</span>
-              <button type="button" onClick={() => { setRunningWithBullPrompt(null); setRunningWithBullStep("ask"); setRunningWithBullForm({ startDate: "", endDate: "" }); }} style={{ background: "none", border: "none", fontSize: "22px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
+              <button type="button" onClick={() => {
+                const rev = runningWithBullPrompt.revertMove;
+                if (rev) {
+                  setAnimals(prev => prev.map(an => (an.id === rev.animalId ? rev.previousAnimal : an)));
+                  if (rev.journalEntryId && setNotes) setNotes(prev => prev.filter(n => n.id !== rev.journalEntryId));
+                  setViewingAnimal(prev => (prev?.id === rev.animalId ? rev.previousAnimal : prev));
+                }
+                setRunningWithBullPrompt(null);
+                setRunningWithBullStep("ask");
+                setRunningWithBullForm({ startDate: "", endDate: "" });
+              }} style={{ background: "none", border: "none", fontSize: "22px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
             </div>
             {runningWithBullStep === "ask" ? (
               <>
@@ -2632,7 +2793,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 </p>
                 <div style={{ display: "flex", gap: "10px" }}>
                   <Btn onClick={() => { setRunningWithBullStep("form"); const today = new Date().toISOString().split("T")[0]; setRunningWithBullForm({ startDate: today, endDate: today }); }}>Yes</Btn>
-                  <Btn variant="secondary" onClick={() => { setRunningWithBullPrompt(null); setRunningWithBullStep("ask"); setRunningWithBullForm({ startDate: "", endDate: "" }); }}>No</Btn>
+                  <Btn variant="secondary" onClick={() => {
+                    const rev = runningWithBullPrompt.revertMove;
+                    if (rev) {
+                      setAnimals(prev => prev.map(an => (an.id === rev.animalId ? rev.previousAnimal : an)));
+                      if (rev.journalEntryId && setNotes) setNotes(prev => prev.filter(n => n.id !== rev.journalEntryId));
+                      setViewingAnimal(prev => (prev?.id === rev.animalId ? rev.previousAnimal : prev));
+                    }
+                    setRunningWithBullPrompt(null);
+                    setRunningWithBullStep("ask");
+                    setRunningWithBullForm({ startDate: "", endDate: "" });
+                  }}>No</Btn>
                 </div>
               </>
             ) : (

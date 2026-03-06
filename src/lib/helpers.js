@@ -13,6 +13,13 @@ import {
   CASTRATED_TERM_BY_SPECIES,
 } from "./constants.js";
 
+/** True if animal is an adult breeding female (Cow, Heifer, Mare, etc.), not a calf/lamb/pullet. */
+export function isSexuallyMatureFemale(animal) {
+  if (!animal || SEX_TERM_GENDER[animal.sex] !== "Female") return false;
+  const offspringOptions = OFFSPRING_SEX_OPTIONS[animal.species];
+  return !offspringOptions || !offspringOptions.includes(animal.sex);
+}
+
 /** Compress image to under maxBytes; returns data URL (base64). */
 export function compressImageToBase64(file, maxBytes = 200 * 1024) {
   return new Promise((resolve, reject) => {
@@ -123,7 +130,7 @@ export function getEligibleFemalesForRunningWithBull(animals, gestations, pastur
   return (animals || []).filter(a => {
     if (a.deceased || a.sale) return false;
     if (a.species !== species) return false;
-    if (SEX_TERM_GENDER[a.sex] !== "Female") return false;
+    if (!isSexuallyMatureFemale(a)) return false;
     if (activeGestationAnimalIds.has(a.id)) return false;
     const inPasture = pastureNameEq(a.movements?.[0]?.pastureName, pastureName);
     return inPasture;
@@ -359,48 +366,65 @@ export function getAgeInWeeks(dobStr) {
   return weeks < 0 ? null : weeks;
 }
 
-/** Age-based sex/status term for display. Castrated always shows castrated term; no DOB uses stored sex; else species rules. */
+/** Age-based sex/status term for display. Recalculates from DOB + stored sex; castrated uses age-based castrate term. */
 export function getAgeBasedSexTerm(animal, gestations) {
   if (!animal) return "—";
   const species = animal.species || "Cattle";
   const isMaleStored = SEX_TERM_GENDER[animal.sex] === "Male";
   const isFemaleStored = SEX_TERM_GENDER[animal.sex] === "Female";
   const castrated = animal.castration && isMaleStored;
-  if (castrated) return CASTRATED_TERM_BY_SPECIES[species] ?? "Castrated";
-  if (!animal.dob) return animal.sex || "—";
-  const months = getAgeInMonths(animal.dob);
-  const weeks = getAgeInWeeks(animal.dob);
+  const months = animal.dob != null ? getAgeInMonths(animal.dob) : null;
+  const weeks = animal.dob != null ? getAgeInWeeks(animal.dob) : null;
+  if (!animal.dob) return castrated ? (CASTRATED_TERM_BY_SPECIES[species] ?? "Castrated") : (animal.sex || "—");
   if (months == null) return animal.sex || "—";
   const hasBredOrCalved = gestations?.some(g => g.animalId === animal.id);
 
   switch (species) {
     case "Cattle":
+    case "Bison":
+      if (castrated) return months < 6 ? "Steer Calf" : "Steer";
       if (months < 6) return isMaleStored ? "Bull Calf" : "Heifer Calf";
-      if (months < 24) return isMaleStored ? "Yearling Bull" : "Heifer";
+      if (months < 24) return isMaleStored ? "Bull Calf" : "Heifer";
       return isMaleStored ? "Bull" : (hasBredOrCalved ? "Cow" : "Heifer");
     case "Horse":
+      if (castrated) return "Gelding";
       if (months < 12) return isMaleStored ? "Colt Foal" : "Filly Foal";
       if (months < 48) return isMaleStored ? "Colt" : "Filly";
       return isMaleStored ? "Stallion" : "Mare";
     case "Pig":
-      if (months < 2) return "Piglet"; // 0–8 weeks
-      if (isMaleStored) return "Boar";
-      if (months < 6) return "Gilt";
-      return hasBredOrCalved ? "Sow" : "Gilt";
+      if (castrated) return months < 6 ? "Barrow" : "Barrow";
+      if (months < 2) return "Piglet";
+      if (months < 24) return isMaleStored ? "Boar" : "Gilt";
+      return isMaleStored ? "Boar" : (hasBredOrCalved ? "Sow" : "Gilt");
     case "Sheep":
-      if (months < 6) return "Lamb";
+      if (castrated) return "Wether";
+      if (months < 6) return isMaleStored ? "Ram Lamb" : "Ewe Lamb";
+      if (months < 24) return isFemaleStored ? "Ewe Lamb" : "Ram Lamb";
       return isFemaleStored ? "Ewe" : "Ram";
     case "Goat":
-      if (months < 6) return isFemaleStored ? "Doeling" : "Buckling";
+      if (castrated) return "Wether";
+      if (months < 6) return isMaleStored ? "Buckling" : "Doeling";
+      if (months < 24) return isFemaleStored ? "Doeling" : "Buckling";
       return isFemaleStored ? "Doe" : "Buck";
     case "Chicken":
+      if (castrated) return "Capon";
       if (weeks != null && weeks < 16) return isFemaleStored ? "Pullet" : "Cockerel";
       return isFemaleStored ? "Hen" : "Rooster";
     case "Rabbit":
       if (months < 3) return "Kit";
       return isFemaleStored ? "Doe" : "Buck";
+    case "Llama":
+    case "Alpaca":
+      if (months < 12) return isMaleStored ? "Male Cria" : "Female Cria";
+      return isFemaleStored ? "Female" : "Male";
+    case "Donkey":
+    case "Mule":
+      if (castrated) return "Gelding";
+      if (months < 12) return isMaleStored ? "Colt Foal" : "Filly Foal";
+      if (months < 48) return isMaleStored ? "Colt" : "Filly";
+      return isMaleStored ? "Jack" : "Jenny";
     default:
-      return animal.sex || "—";
+      return castrated ? (CASTRATED_TERM_BY_SPECIES[species] ?? "Castrated") : (animal.sex || "—");
   }
 }
 

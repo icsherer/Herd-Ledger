@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { SPECIES, PASTURE_SPECIES } from "../lib/constants.js";
-import { getAnimalName, fmt, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, pastureNameEq, getCanonicalPastureNames, resolvePastureName, createMovementJournalEntry, dueDate, feederDaysOnFeed } from "../lib/helpers.js";
+import { getAnimalName, fmt, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, pastureNameEq, getCanonicalPastureNames, resolvePastureName, createMovementJournalEntry, dueDate, feederDaysOnFeed, displaySex } from "../lib/helpers.js";
 import { Card, Btn, Input, PastureCombo, SectionTitle } from "./ui.jsx";
 
 // ── Pastures ───────────────────────────────────────────────────────────────────
@@ -14,21 +14,34 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, s
   const [runningWithBullStep, setRunningWithBullStep] = useState("ask");
   const [runningWithBullForm, setRunningWithBullForm] = useState({ startDate: "", endDate: "" });
   const [runningWithBullCheckPending, setRunningWithBullCheckPending] = useState(null);
+  const [pendingMove, setPendingMove] = useState(null);
   const runningWithBullDismissedPasturesRef = useRef(new Set());
 
   useEffect(() => {
-    if (!runningWithBullCheckPending || !animals) return;
-    const { pastureName } = runningWithBullCheckPending;
+    if (!runningWithBullCheckPending || (!animals && !pendingMove?.nextAnimals)) return;
+    const animalsToUse = pendingMove?.nextAnimals ?? animals;
+    const { pastureName, promptType, movedFemales, eligibleFemales, maleAnimal } = runningWithBullCheckPending;
     setRunningWithBullCheckPending(null);
-    const male = getBreedingMaleInPasture(animals, pastureName);
-    if (!male) return;
-    const eligible = getEligibleFemalesForRunningWithBull(animals, gestations, pastureName, male);
-    if (eligible.length > 0) {
-      setRunningWithBullPrompt({ pastureName, maleAnimal: male, eligibleFemales: eligible });
+    if (promptType === "female_moved" && movedFemales?.length > 0 && maleAnimal) {
+      setRunningWithBullPrompt({ pastureName, maleAnimal, eligibleFemales: movedFemales, promptType: "female_moved" });
       setRunningWithBullStep("ask");
       setRunningWithBullForm({ startDate: "", endDate: "" });
+      return;
     }
-  }, [runningWithBullCheckPending, animals, gestations]);
+    const male = maleAnimal || getBreedingMaleInPasture(animalsToUse, pastureName);
+    if (!male) {
+      setPendingMove(null);
+      return;
+    }
+    const eligible = eligibleFemales ?? getEligibleFemalesForRunningWithBull(animalsToUse, gestations, pastureName, male);
+    if (eligible.length > 0) {
+      setRunningWithBullPrompt({ pastureName, maleAnimal: male, eligibleFemales: eligible, promptType: "bull_moved" });
+      setRunningWithBullStep("ask");
+      setRunningWithBullForm({ startDate: "", endDate: "" });
+    } else {
+      setPendingMove(null);
+    }
+  }, [runningWithBullCheckPending, animals, gestations, pendingMove?.nextAnimals]);
 
   useEffect(() => {
     if (!animals || !gestations || runningWithBullPrompt || runningWithBullCheckPending) return;
@@ -90,9 +103,21 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, s
       if (setNotes) journalEntries.push(createMovementJournalEntry(an, prevPasture, toPasture, dateMovedIn, notes, movementId));
       return { ...an, movements: [{ ...movePayload }, ...(an.movements || [])] };
     });
+    const male = getBreedingMaleInPasture(nextAnimals, toPasture);
+    const eligible = male ? getEligibleFemalesForRunningWithBull(nextAnimals, gestations, toPasture, male) : [];
+    if (male && eligible.length > 0) {
+      const movedIds = new Set(selectedIds);
+      const movedFemales = eligible.filter(f => movedIds.has(f.id));
+      const promptType = movedFemales.length > 0 ? "female_moved" : "bull_moved";
+      setPendingMove({ nextAnimals, journalEntries, movedIds: selectedIds.slice() });
+      setRunningWithBullCheckPending({ pastureName: toPasture, promptType, movedFemales, eligibleFemales: eligible, maleAnimal: male });
+      setSelectedIds([]);
+      setBulkMoveTo("");
+      setBulkMoveNotes("");
+      return;
+    }
     setAnimals(nextAnimals);
     if (setNotes && journalEntries.length > 0) setNotes(prev => [...journalEntries, ...prev]);
-    setRunningWithBullCheckPending({ pastureName: toPasture });
     setSelectedIds([]);
     setBulkMoveTo("");
     setBulkMoveNotes("");
@@ -131,6 +156,7 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, s
 
   const dismissRunningWithBullPrompt = () => {
     if (runningWithBullPrompt?.pastureName) runningWithBullDismissedPasturesRef.current.add((runningWithBullPrompt.pastureName || "").trim().toLowerCase());
+    setPendingMove(null);
     setRunningWithBullPrompt(null);
     setRunningWithBullStep("ask");
     setRunningWithBullForm({ startDate: "", endDate: "" });
@@ -146,36 +172,94 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, s
               <button type="button" onClick={dismissRunningWithBullPrompt} style={{ background: "none", border: "none", fontSize: "22px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
             </div>
             {runningWithBullStep === "ask" ? (
-              <>
-                <p style={{ color: "var(--ink2)", marginBottom: "16px", fontSize: "14px" }}>
-                  <strong>{getAnimalName(runningWithBullPrompt.maleAnimal)}</strong> was assigned to <strong>{runningWithBullPrompt.pastureName}</strong>. Log a &quot;Running with Bull&quot; breeding record for all {runningWithBullPrompt.eligibleFemales.length} eligible female{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""} in this pasture?
-                </p>
-                <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
-                  This will create a gestation record (exposure window) for each eligible female. Males, castrated animals, and already bred females are excluded.
-                </p>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <Btn onClick={() => { setRunningWithBullStep("form"); const today = new Date().toISOString().split("T")[0]; setRunningWithBullForm({ startDate: today, endDate: today }); }}>Yes</Btn>
-                  <Btn variant="secondary" onClick={dismissRunningWithBullPrompt}>No</Btn>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="hl-form-grid-3" style={{ marginBottom: "16px" }}>
-                  <Input label="Exposure start date *" type="date" value={runningWithBullForm.startDate} onChange={e => setRunningWithBullForm(p => ({ ...p, startDate: e.target.value }))} />
-                  <Input label="Exposure end date *" type="date" value={runningWithBullForm.endDate} onChange={e => setRunningWithBullForm(p => ({ ...p, endDate: e.target.value }))} />
-                </div>
-                <p style={{ fontSize: "14px", color: "var(--ink2)", marginBottom: "20px", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)" }}>
-                  <strong>{runningWithBullPrompt.eligibleFemales.length}</strong> female{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""} will receive breeding records{runningWithBullPrompt.eligibleFemales.length > 0 ? ": " : ""}
-                  {runningWithBullPrompt.eligibleFemales.length <= 5
-                    ? runningWithBullPrompt.eligibleFemales.map(f => getAnimalName(f)).join(", ")
-                    : runningWithBullPrompt.eligibleFemales.slice(0, 5).map(f => getAnimalName(f)).join(", ") + ` and ${runningWithBullPrompt.eligibleFemales.length - 5} more`}
-                </p>
-                <div style={{ display: "flex", gap: "10px" }}>
-                  <Btn onClick={confirmRunningWithBull} disabled={!runningWithBullForm.startDate || !runningWithBullForm.endDate}>Confirm — Log {runningWithBullPrompt.eligibleFemales.length} record{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""}</Btn>
-                  <Btn variant="secondary" onClick={() => setRunningWithBullStep("ask")}>Back</Btn>
-                </div>
-              </>
-            )}
+              runningWithBullPrompt.promptType === "female_moved" ? (
+                <>
+                  <p style={{ color: "var(--ink2)", marginBottom: "16px", fontSize: "14px" }}>
+                    There is a bull in this pasture. Do you want to add {runningWithBullPrompt.eligibleFemales.length === 1
+                      ? <strong>{getAnimalName(runningWithBullPrompt.eligibleFemales[0])}</strong>
+                      : <><strong>{runningWithBullPrompt.eligibleFemales.length} females</strong> ({runningWithBullPrompt.eligibleFemales.slice(0, 3).map(f => getAnimalName(f)).join(", ")}{runningWithBullPrompt.eligibleFemales.length > 3 ? "…" : ""})</>} to <strong>{runningWithBullPrompt.pastureName}</strong> and mark {runningWithBullPrompt.eligibleFemales.length === 1 ? "her" : "them"} as running with <strong>{getAnimalName(runningWithBullPrompt.maleAnimal)}</strong>?
+                  </p>
+                  <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
+                    Clicking No will cancel the move.
+                  </p>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <Btn onClick={() => {
+                      if (pendingMove) {
+                        setAnimals(pendingMove.nextAnimals);
+                        if (setNotes && pendingMove.journalEntries?.length > 0) setNotes(prev => [...(pendingMove.journalEntries || []), ...prev]);
+                        setPendingMove(null);
+                      }
+                      const today = new Date().toISOString().split("T")[0];
+                      const newRecords = runningWithBullPrompt.eligibleFemales.map(an => {
+                        const totalDays = SPECIES[an.species]?.days || 150;
+                        const dueStart = dueDate(today, totalDays);
+                        return {
+                          animalId: an.id,
+                          breedingDate: today,
+                          breedingDateEnd: today,
+                          runningWithBull: true,
+                          dueDate: dueStart,
+                          dueDateStart: dueStart,
+                          dueDateEnd: dueStart,
+                          sire: getAnimalName(runningWithBullPrompt.maleAnimal),
+                          notes: "Running with bull",
+                          id: Date.now().toString() + "-" + an.id,
+                          gestationDays: totalDays,
+                          status: "Active",
+                          createdAt: new Date().toISOString(),
+                        };
+                      });
+                      setGestations(p => [...p, ...newRecords]);
+                      dismissRunningWithBullPrompt();
+                    }}>Yes</Btn>
+                    <Btn variant="secondary" onClick={dismissRunningWithBullPrompt}>No</Btn>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p style={{ color: "var(--ink2)", marginBottom: "16px", fontSize: "14px" }}>
+                    There {runningWithBullPrompt.eligibleFemales.length === 1 ? "is a" : "are"} {runningWithBullPrompt.eligibleFemales.length === 1
+                      ? <strong>{displaySex(runningWithBullPrompt.eligibleFemales[0], gestations)}</strong>
+                      : <strong>females</strong>} in this pasture. Do you want to mark {runningWithBullPrompt.eligibleFemales.length === 1 ? "her" : `all ${runningWithBullPrompt.eligibleFemales.length} females in this pasture`} as running with <strong>{getAnimalName(runningWithBullPrompt.maleAnimal)}</strong>?
+                  </p>
+                  <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
+                    Clicking No will cancel the move.
+                  </p>
+                  <div style={{ display: "flex", gap: "10px" }}>
+                    <Btn onClick={() => {
+                      if (pendingMove) {
+                        setAnimals(pendingMove.nextAnimals);
+                        if (setNotes && pendingMove.journalEntries?.length > 0) setNotes(prev => [...(pendingMove.journalEntries || []), ...prev]);
+                        setPendingMove(null);
+                      }
+                      const today = new Date().toISOString().split("T")[0];
+                      const newRecords = runningWithBullPrompt.eligibleFemales.map(an => {
+                        const totalDays = SPECIES[an.species]?.days || 150;
+                        const dueStart = dueDate(today, totalDays);
+                        return {
+                          animalId: an.id,
+                          breedingDate: today,
+                          breedingDateEnd: today,
+                          runningWithBull: true,
+                          dueDate: dueStart,
+                          dueDateStart: dueStart,
+                          dueDateEnd: dueStart,
+                          sire: getAnimalName(runningWithBullPrompt.maleAnimal),
+                          notes: "Running with bull",
+                          id: Date.now().toString() + "-" + an.id,
+                          gestationDays: totalDays,
+                          status: "Active",
+                          createdAt: new Date().toISOString(),
+                        };
+                      });
+                      setGestations(p => [...p, ...newRecords]);
+                      dismissRunningWithBullPrompt();
+                    }}>Yes</Btn>
+                    <Btn variant="secondary" onClick={dismissRunningWithBullPrompt}>No</Btn>
+                  </div>
+                </>
+              )
+            ) : null}
           </Card>
         </div>
       )}

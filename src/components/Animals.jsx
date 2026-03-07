@@ -40,6 +40,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     dob: "",
     weaningDate: "",
     stillborn: false,
+    sireId: "",
+    sireName: "",
+    color: "",
+    markings: "",
   });
   const [showCastrationForm, setShowCastrationForm] = useState(false);
   const [castrationForm, setCastrationForm] = useState({
@@ -769,10 +773,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       if ((offspringForMother || []).some(c => c.id === an.id)) return false;
       const months = getAgeInMonths(an.dob);
       const term = getAgeBasedSexTerm({ ...an, species: an.species || a.species }, []);
-      const termHasCalf = term && String(term).toLowerCase().includes("calf");
+      const termLower = term ? String(term).toLowerCase() : "";
+      const isYoungTerm = a.species === "Horse" ? (termLower.includes("colt") || termLower.includes("filly")) : termLower.includes("calf");
       if (months != null && months >= 12) return false;
       if (months != null && months < 12) return true;
-      return !!termHasCalf;
+      return !!isYoungTerm;
     });
     const linkExistingSearchLower = (linkExistingSearch || "").trim().toLowerCase();
     const linkableFiltered = linkExistingSearchLower
@@ -828,6 +833,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const stillborn = !!offspringForm.stillborn;
       const motherSpecies = a.species;
       const effectiveSex = (offspringForm.sex && String(offspringForm.sex).trim()) ? offspringForm.sex : getOffspringDefaultSex(motherSpecies);
+      const weaningDateVal = motherSpecies === "Horse" ? undefined : (() => { const m = getAgeInMonths(offspringForm.dob); if (m != null && m >= 12) return undefined; return offspringForm.weaningDate || undefined; })();
+      const foalSireId = motherSpecies === "Horse" && offspringForm.sireId && offspringForm.sireId !== "outside" ? offspringForm.sireId : undefined;
+      const foalSireName = motherSpecies === "Horse" ? (offspringForm.sireId === "outside" ? (offspringForm.sireName || "").trim() || undefined : (foalSireId ? getAnimalName((animals || []).find(an => an.id === foalSireId)) : undefined)) : undefined;
       const rec = {
         id: isEdit ? editingOffspringId : Date.now().toString(),
         motherId: a.id,
@@ -837,15 +845,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         species: motherSpecies,
         birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
         dob: offspringForm.dob || undefined,
-        weaningDate: (() => { const m = getAgeInMonths(offspringForm.dob); if (m != null && m >= 12) return undefined; return offspringForm.weaningDate || undefined; })(),
+        weaningDate: weaningDateVal,
         stillborn,
         createdAt: isEdit ? (offspringForMother.find(c => c.id === editingOffspringId)?.createdAt) : new Date().toISOString(),
+        ...(motherSpecies === "Horse" && { sireId: foalSireId, sireName: foalSireName, color: (offspringForm.color || "").trim() || undefined, markings: (offspringForm.markings || "").trim() || undefined }),
       };
       const prevRec = isEdit ? offspringForMother.find(c => c.id === editingOffspringId) : null;
       const activeForMother = gestations.filter(g => g.animalId === a.id && g.status !== "Delivered");
       const matchingGestation = rec.dob ? activeForMother.find(g => birthDateWithinGestationWindow(rec.dob, g)) : null;
       const existingAnimal = isEdit ? animals.find(an => an.id === editingOffspringId) : null;
-      const sireIdFromGestation = matchingGestation?.sireAnimalId ?? (existingAnimal?.sireId ?? undefined);
+      const sireIdFromGestation = matchingGestation?.sireAnimalId ?? (existingAnimal?.sireId ?? (motherSpecies === "Horse" ? foalSireId : undefined));
       if (isEdit && prevRec && !prevRec.stillborn && stillborn) {
         setAnimals(prev => prev.filter(an => an.id !== editingOffspringId));
       }
@@ -869,6 +878,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           notes: undefined,
           motherId: a.id,
           sireId: sireIdFromGestation,
+          ...(motherSpecies === "Horse" && { sireName: foalSireName, color: rec.color, markings: rec.markings }),
         };
         if (isEdit) {
           setAnimals(prev => prev.map(an => an.id === editingOffspringId ? { ...an, ...updatedAnimal } : an));
@@ -877,7 +887,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         }
       }
       if (rec.dob) {
-        const calfWeaningDate = (() => { const m = getAgeInMonths(offspringForm.dob); if (m != null && m >= 12) return undefined; return offspringForm.weaningDate || undefined; })();
+        const calfWeaningDate = motherSpecies === "Horse" ? undefined : (() => { const m = getAgeInMonths(offspringForm.dob); if (m != null && m >= 12) return undefined; return offspringForm.weaningDate || undefined; })();
         const calfData = {
           name: offspringForm.name || undefined,
           tag: offspringForm.tag || undefined,
@@ -924,6 +934,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         dob: "",
         weaningDate: "",
         stillborn: false,
+        sireId: "",
+        sireName: "",
+        color: "",
+        markings: "",
       });
     }
 
@@ -2758,6 +2772,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         dob: "",
                         weaningDate: "",
                         stillborn: false,
+                        sireId: "",
+                        sireName: "",
+                        color: "",
+                        markings: "",
                       });
                     setAddCalfMode("register");
                     setLinkExistingSearch("");
@@ -2784,7 +2802,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             </div>
                           </div>
                           <div style={{ display: "flex", gap: "6px" }}>
-                            <Btn size="sm" variant="ghost" onClick={() => { const sp = c.species || a.species || ""; setEditingOffspringId(c.id); setOffspringForm({ name: c.name || "", tag: c.tag || "", sex: (c.sex && String(c.sex).trim()) ? c.sex : getOffspringDefaultSex(sp), species: sp, birthWeight: c.birthWeight != null ? String(c.birthWeight) : "", dob: c.dob || "", weaningDate: c.weaningDate || "", stillborn: !!c.stillborn }); setShowOffspringForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { const sp = c.species || a.species || ""; setEditingOffspringId(c.id); (() => { const an = (animals || []).find(x => x.id === c.id); const sireId = c.sireId || (c.sireName && !c.sireId ? "outside" : ""); const sireName = c.sireName || ""; setOffspringForm({ name: c.name || "", tag: c.tag || "", sex: (c.sex && String(c.sex).trim()) ? c.sex : getOffspringDefaultSex(sp), species: sp, birthWeight: c.birthWeight != null ? String(c.birthWeight) : "", dob: c.dob || "", weaningDate: c.weaningDate || "", stillborn: !!c.stillborn, sireId, sireName, color: c.color || an?.color || "", markings: c.markings || an?.markings || "" }); })(); setShowOffspringForm(true); }}>Edit</Btn>
                             <Btn size="sm" variant="ghost" onClick={() => deleteOffspring(c.id)}>Delete</Btn>
                           </div>
                         </div>
@@ -2824,7 +2842,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             cursor: "pointer",
                           }}
                         >
-                          Link Existing Animal
+                          {a.species === "Horse" ? "Link Existing Horse" : "Link Existing Animal"}
                         </button>
                         <button
                           type="button"
@@ -2840,13 +2858,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             cursor: "pointer",
                           }}
                         >
-                          Register New Calf
+                          {a.species === "Horse" ? "Register New Foal" : "Register New Calf"}
                         </button>
                       </div>
                     )}
                     {!editingOffspringId && addCalfMode === "link" && (
                       <div style={{ marginBottom: "14px" }}>
-                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>Choose a calf with no dam (under 12 months or sex term contains &quot;Calf&quot;)</label>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>{a.species === "Horse" ? "Choose a foal with no dam (under 12 months or sex term Colt/Filly)" : "Choose a calf with no dam (under 12 months or sex term contains \"Calf\")"}</label>
                         <Input
                           placeholder="Search by name, tag, or species..."
                           value={linkExistingSearch}
@@ -2867,7 +2885,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>No matches. Try a different search.</p>
                         )}
                         {linkableAnimals.length === 0 && (
-                          <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>No eligible calves (same species, no dam, under 12 months or sex term contains &quot;Calf&quot;).</p>
+                          <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>No eligible {a.species === "Horse" ? "foals" : "calves"} (same species, no dam, under 12 months or sex term contains {a.species === "Horse" ? "\"Colt\"/\"Filly\"" : "\"Calf\""}).</p>
                         )}
                         {linkExistingAnimalId && (
                           <Btn size="sm" onClick={() => linkExistingAsOffspring(linkExistingAnimalId)} style={{ marginTop: "10px" }}>
@@ -2919,13 +2937,51 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         value={offspringForm.dob}
                         onChange={e => setOffspringForm(p => ({ ...p, dob: e.target.value }))}
                       />
-                      {(!editingOffspringId || getAgeInMonths(offspringForm.dob) == null || getAgeInMonths(offspringForm.dob) < 12) && (
+                      {a.species !== "Horse" && (!editingOffspringId || getAgeInMonths(offspringForm.dob) == null || getAgeInMonths(offspringForm.dob) < 12) && (
                       <Input
                         label="Target Weaning Date"
                         type="date"
                         value={offspringForm.weaningDate}
                         onChange={e => setOffspringForm(p => ({ ...p, weaningDate: e.target.value }))}
                       />
+                      )}
+                      {a.species === "Horse" && (
+                        <>
+                          <div>
+                            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>Sire</label>
+                            <Select
+                              value={offspringForm.sireId ?? ""}
+                              onChange={e => setOffspringForm(p => ({ ...p, sireId: e.target.value || "", sireName: e.target.value === "outside" ? p.sireName : "" }))}
+                              style={{ width: "100%" }}
+                            >
+                              <option value="">— Select sire —</option>
+                              {(getBreedingMalesForSpecies(animals, "Horse") || []).map(st => (
+                                <option key={st.id} value={st.id}>{getAnimalName(st)}{st.tag ? ` #${st.tag}` : ""}</option>
+                              ))}
+                              <option value="outside">Outside stallion (not in herd)</option>
+                            </Select>
+                            {offspringForm.sireId === "outside" && (
+                              <Input
+                                placeholder="Stallion name"
+                                value={offspringForm.sireName || ""}
+                                onChange={e => setOffspringForm(p => ({ ...p, sireName: e.target.value }))}
+                                style={{ marginTop: "8px" }}
+                              />
+                            )}
+                          </div>
+                          <Input
+                            label="Color"
+                            value={offspringForm.color || ""}
+                            onChange={e => setOffspringForm(p => ({ ...p, color: e.target.value }))}
+                            placeholder="e.g. Bay, Chestnut, Gray"
+                          />
+                          <Input
+                            label="Markings"
+                            value={offspringForm.markings || ""}
+                            onChange={e => setOffspringForm(p => ({ ...p, markings: e.target.value }))}
+                            placeholder="e.g. Star, sock LF"
+                          />
+                        </>
                       )}
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
                         <input

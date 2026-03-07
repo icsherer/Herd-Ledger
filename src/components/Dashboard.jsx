@@ -1,8 +1,8 @@
 import { TIPS, SPECIES, DEFAULT_TAB_VISIBILITY, PASTURE_SPECIES } from "../lib/constants.js";
-import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, progress, breedingDateForProgress, formatCompactDollar } from "../lib/helpers.js";
+import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, progress, breedingDateForProgress, formatCompactDollar, getNextExpectedHeatDate, isFemale } from "../lib/helpers.js";
 import { Card, Badge, ProgressBar } from "./ui.jsx";
 
-export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, expenses, tasks, settings }) {
+export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, setAnimalsFilterHeatDue, expenses, tasks, settings }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
   const currentYear = today.getFullYear();
@@ -16,6 +16,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
   const activeAnimals = animals.filter(a => !a.deceased && !a.sale);
   const deceasedCount = animals.filter(a => a.deceased).length;
   const soldCount = animals.filter(a => a.sale).length;
+  const cullCount = (animals || []).filter(a => a.cull && !a.deceased && !a.sale).length;
   const speciesCounts = activeAnimals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
   const activeGestations = gestations.filter(g => g.status !== "Delivered");
 
@@ -40,6 +41,14 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
       return expected >= todayStrDash && expected <= todayPlus7Str;
     })
     .length;
+
+  const activeGestationAnimalIds = new Set((activeGestations || []).map(g => g.animalId));
+  const heatDueNext7 = (activeAnimals || []).filter(a => {
+    if (!isFemale(a)) return false;
+    if (activeGestationAnimalIds.has(a.id)) return false;
+    const next = getNextExpectedHeatDate(a);
+    return next && next >= todayStrDash && next <= todayPlus7Str;
+  });
 
   const upcoming = activeGestations
     .map(g => {
@@ -66,7 +75,8 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
       {/* Top stats row */}
       <div className="hl-dash-stats">
         {[
-          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}${soldCount > 0 ? ` · ${soldCount} sold` : ""}`, icon: "🐄", onClick: () => { setAnimalsSearch?.(""); setTab?.("animals"); } },
+          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}${soldCount > 0 ? ` · ${soldCount} sold` : ""}${cullCount > 0 ? ` · ${cullCount} marked for cull` : ""}`, icon: "🐄", onClick: () => { setAnimalsSearch?.(""); setTab?.("animals"); } },
+          { label: "Marked for Cull", value: cullCount, sub: cullCount === 1 ? "animal to cull" : "animals to cull", icon: "⚠️", onClick: () => setTab?.("animals"), alert: cullCount > 0 },
           { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅", onClick: () => setTab?.("gestation") },
           { label: "Due This Month",value: upcoming.length, sub: overdue.length > 0 ? `${overdue.length} overdue` : "none overdue", icon: "⚠️", alert: overdue.length > 0, onClick: () => setTab?.("gestation") },
           ...((settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY).weaning !== false ? [{
@@ -76,6 +86,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
             icon: "🥛",
             onClick: () => setTab?.("weaning"),
           }] : []),
+          { label: "Heat Due (7 days)", value: heatDueNext7.length, sub: "plan breeding", icon: "🔥", onClick: () => { setAnimalsFilterHeatDue?.(true); setTab?.("animals"); } },
           { label: "Financials (this month)", value: (() => { const net = incomeThisMonth - expensesThisMonth; return net >= 0 ? `+${formatCompactDollar(net)}` : formatCompactDollar(net); })(), sub: `Income ${formatCompactDollar(incomeThisMonth)} · Expenses ${formatCompactDollar(expensesThisMonth)}`, icon: "💰", onClick: () => setTab?.("expenses"), large: false },
         ].map((s, i) => (
           <Card

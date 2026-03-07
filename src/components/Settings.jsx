@@ -1,8 +1,15 @@
-import { DEFAULT_TAB_VISIBILITY, TAB_OPTIONS, SPECIES } from "../lib/constants.js";
-import { Card, Input, Select } from "./ui.jsx";
+import { useState } from "react";
+import { DEFAULT_TAB_VISIBILITY, TAB_OPTIONS, SPECIES, VACCINE_ROUTES } from "../lib/constants.js";
+import { Card, Input, Select, Btn } from "./ui.jsx";
+
+const emptyVaccine = () => ({ vaccineName: "", dosage: "", route: "IM", boosterIntervalDays: "", trackBooster: false });
+const emptyProtocol = () => ({ id: "", name: "", vaccines: [emptyVaccine()] });
 
 export default function Settings({ settings, setSettings, onLogout, setTab }) {
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
+  const protocols = settings?.vaccinationProtocols ?? [];
+  const [protocolForm, setProtocolForm] = useState(null); // null | { id, name, vaccines } for add/edit
+  const setProtocols = (next) => setSettings(prev => ({ ...prev, vaccinationProtocols: next }));
   const setVisibility = (id, value) => {
     setSettings(prev => ({
       ...prev,
@@ -54,6 +61,74 @@ export default function Settings({ settings, setSettings, onLogout, setTab }) {
           >
             {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
           </Select>
+        </Card>
+
+        <Card style={{ padding: "24px", marginBottom: "20px" }}>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Vaccination Protocols</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>Create named templates (e.g. Spring Working) with vaccine name, dosage, route, and booster interval. Use them when logging vaccinations on animal profiles or in bulk.</p>
+          {protocols.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
+              {protocols.map(p => (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "14px" }}>{p.name || "Unnamed"}</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>{p.vaccines?.length ?? 0} vaccine{(p.vaccines?.length ?? 0) !== 1 ? "s" : ""}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Btn size="sm" variant="ghost" onClick={() => setProtocolForm({ id: p.id, name: p.name || "", vaccines: (p.vaccines || []).length ? p.vaccines.map(v => ({ vaccineName: v.vaccineName || "", dosage: v.dosage || "", route: v.route || "IM", boosterIntervalDays: v.boosterIntervalDays != null ? String(v.boosterIntervalDays) : "", trackBooster: !!v.trackBooster })) : [emptyVaccine()] })}>Edit</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { if (confirm("Delete this protocol?")) setProtocols(protocols.filter(x => x.id !== p.id)); }}>Delete</Btn>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!protocolForm ? (
+            <Btn variant="secondary" onClick={() => setProtocolForm(emptyProtocol())}>Add Protocol</Btn>
+          ) : (
+            <div style={{ padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
+              <div style={{ marginBottom: "12px" }}>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Protocol name</label>
+                <Input value={protocolForm.name} onChange={e => setProtocolForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Spring Working" />
+              </div>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "8px" }}>Vaccines</div>
+              {(protocolForm.vaccines || []).map((v, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto auto auto auto", gap: "8px", alignItems: "end", marginBottom: "10px" }}>
+                  <Input placeholder="Vaccine name" value={v.vaccineName} onChange={e => setProtocolForm(p => ({ ...p, vaccines: p.vaccines.map((x, j) => j === i ? { ...x, vaccineName: e.target.value } : x) }))} />
+                  <Input placeholder="Dosage" value={v.dosage} onChange={e => setProtocolForm(p => ({ ...p, vaccines: p.vaccines.map((x, j) => j === i ? { ...x, dosage: e.target.value } : x) }))} />
+                  <Select value={v.route} onChange={e => setProtocolForm(p => ({ ...p, vaccines: p.vaccines.map((x, j) => j === i ? { ...x, route: e.target.value } : x) }))} style={{ minWidth: "72px" }}>
+                    {VACCINE_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                  </Select>
+                  <Input type="number" min={0} placeholder="Booster days" value={v.boosterIntervalDays} onChange={e => setProtocolForm(p => ({ ...p, vaccines: p.vaccines.map((x, j) => j === i ? { ...x, boosterIntervalDays: e.target.value } : x) }))} style={{ width: "90px" }} title="Booster interval (days)" />
+                  <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", whiteSpace: "nowrap", cursor: "pointer" }} title="Track booster">
+                    <input type="checkbox" checked={!!v.trackBooster} onChange={e => setProtocolForm(p => ({ ...p, vaccines: p.vaccines.map((x, j) => j === i ? { ...x, trackBooster: e.target.checked } : x) }))} style={{ width: "16px", height: "16px", accentColor: "var(--green)" }} />
+                    Track booster
+                  </label>
+                  <button type="button" onClick={() => setProtocolForm(p => ({ ...p, vaccines: p.vaccines.filter((_, j) => j !== i) }))} style={{ padding: "8px 10px", background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px" }} title="Remove vaccine">×</button>
+                </div>
+              ))}
+              <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "12px" }}>
+                <Btn size="sm" variant="ghost" onClick={() => setProtocolForm(p => ({ ...p, vaccines: [...(p.vaccines || []), emptyVaccine()] }))}>+ Add vaccine</Btn>
+                <Btn size="sm" onClick={() => {
+                  const name = (protocolForm.name || "").trim();
+                  if (!name) return;
+                  const vaccines = (protocolForm.vaccines || []).map(v => ({
+                    vaccineName: (v.vaccineName || "").trim(),
+                    dosage: (v.dosage || "").trim(),
+                    route: v.route || "IM",
+                    boosterIntervalDays: v.boosterIntervalDays !== "" && v.boosterIntervalDays != null ? parseInt(String(v.boosterIntervalDays), 10) : undefined,
+                    trackBooster: !!v.trackBooster,
+                  })).filter(v => v.vaccineName);
+                  if (vaccines.length === 0) return;
+                  const id = protocolForm.id || Date.now().toString();
+                  const newProtocol = { id, name, vaccines };
+                  const next = protocolForm.id ? protocols.map(p => p.id === id ? newProtocol : p) : [...protocols, newProtocol];
+                  setProtocols(next);
+                  setProtocolForm(null);
+                }}>Save Protocol</Btn>
+                <Btn size="sm" variant="ghost" onClick={() => setProtocolForm(null)}>Cancel</Btn>
+              </div>
+            </div>
+          )}
         </Card>
 
         <Card style={{ padding: "24px", marginBottom: "20px" }}>

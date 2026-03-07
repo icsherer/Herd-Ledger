@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES } from "../lib/constants.js";
-import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault } from "../lib/helpers.js";
+import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, CULL_REASONS, VACCINE_ROUTES, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES } from "../lib/constants.js";
+import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring }) {
+export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, filterHeatDue = false, setFilterHeatDue, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring }) {
   const [showAdd, setShowAdd] = useState(false);
   const forceList = (animals || []).length > 50;
   const viewMode = forceList ? "list" : (settings?.animalsViewMode || "tile");
@@ -28,6 +28,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [showOffspringForm, setShowOffspringForm] = useState(false);
   const [editingOffspringId, setEditingOffspringId] = useState(null);
   const [linkExistingAnimalId, setLinkExistingAnimalId] = useState(null);
+  const [addCalfMode, setAddCalfMode] = useState("register"); // "link" | "register"
+  const [linkExistingSearch, setLinkExistingSearch] = useState("");
   const [offspringForm, setOffspringForm] = useState({
     name: "",
     tag: "",
@@ -53,16 +55,23 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     nextDueDate: "",
     administeredBy: "Owner",
     notes: "",
+    dosage: "",
+    route: "IM",
+    boosterIntervalDays: "",
   });
+  const [vaccinationProtocolId, setVaccinationProtocolId] = useState("");
   const [showDeceasedAnimals, setShowDeceasedAnimals] = useState(false);
   const [showArchivedAnimals, setShowArchivedAnimals] = useState(false);
   const [filterSpecies, setFilterSpecies] = useState("All Species");
   const [filterSexStatus, setFilterSexStatus] = useState("All");
   const [filterPasture, setFilterPasture] = useState("All Pastures");
+  const [filterCull, setFilterCull] = useState("All");
   const [sortBy, setSortBy] = useState("dateAddedNewest");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [showBreedingForm, setShowBreedingForm] = useState(false);
   const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
+  const [showHeatForm, setShowHeatForm] = useState(false);
+  const [heatForm, setHeatForm] = useState({ observedDate: "", intensity: "Moderate", notes: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
   const [moveForm, setMoveForm] = useState({ pastureName: "", dateMovedIn: "", notes: "" });
   const [showWeightForm, setShowWeightForm] = useState(false);
@@ -75,6 +84,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [bulkForm, setBulkForm] = useState({});
   const [showSaleForm, setShowSaleForm] = useState(false);
   const [saleForm, setSaleForm] = useState({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" });
+  const [showCullForm, setShowCullForm] = useState(false);
+  const [cullForm, setCullForm] = useState({ reason: "", notes: "", targetCullDate: "" });
   const [showImportModal, setShowImportModal] = useState(false);
   const [importStep, setImportStep] = useState(1); // 1=Upload, 2=Map, 3=Preview, 4=Duplicates, 5=Result
   const [importFile, setImportFile] = useState(null);
@@ -86,6 +97,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [importPreviewRowIndex, setImportPreviewRowIndex] = useState(0); // 0-4 for first 5 rows
   const [showImportInstructions, setShowImportInstructions] = useState(false);
   const importFileInputRef = useRef(null);
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [duplicateConfirmExisting, setDuplicateConfirmExisting] = useState(null);
+
+  useEffect(() => {
+    setShowCullForm(false);
+    setCullForm({ reason: "", notes: "", targetCullDate: "" });
+  }, [viewingAnimal?.id]);
 
   const IMPORT_FUZZY_ALIASES = {
     "Name": ["name", "cow name", "animal name", "id", "animal id", "identification", "nickname"],
@@ -472,7 +490,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setImportPreviewRowIndex(0);
   }
 
-  function add() {
+  function findDuplicateAnimal(formData) {
+    const tag = (formData.tag || "").trim();
+    const name = (formData.name || "").trim();
+    const species = (formData.species || "").trim().toLowerCase();
+    if (!tag && !name) return null;
+    return (animals || []).find(a => {
+      if (tag && (a.tag || "").toString().trim().toLowerCase() === tag.toLowerCase()) return true;
+      if (name && species && (a.name || "").trim().toLowerCase() === name.toLowerCase() && (a.species || "").toLowerCase() === species) return true;
+      return false;
+    }) || null;
+  }
+
+  function addSubmit() {
     if (!form.name) return;
     const { currentPasture, purchasePrice: _pp, ...rest } = form;
     const newAnimal = {
@@ -498,6 +528,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setAnimals(p => [...p, newAnimal]);
     setForm(emptyForm());
     setShowAdd(false);
+    setShowDuplicateConfirm(false);
+    setDuplicateConfirmExisting(null);
+  }
+
+  function add() {
+    if (!form.name) return;
+    const existing = findDuplicateAnimal(form);
+    if (existing) {
+      setDuplicateConfirmExisting(existing);
+      setShowDuplicateConfirm(true);
+      return;
+    }
+    addSubmit();
   }
 
   function submitBulkRegister() {
@@ -540,24 +583,29 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   function saveEdit() {
     if (!editingId) return;
+    const current = (animals || []).find(x => x.id === editingId) || viewing;
+    if (!current) return;
     const purchasePriceNum = form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined;
     const opts = getSexOptions(form.species);
-    const validSex = (form.sex && opts.includes(form.sex)) ? form.sex : (viewing?.sex && opts.includes(viewing.sex) ? viewing.sex : opts[0]);
+    const validSex = (form.sex && opts.includes(form.sex)) ? form.sex : (current.sex && opts.includes(current.sex) ? current.sex : opts[0]);
+    const dob = (form.dob || "").trim() || undefined;
+    const months = getAgeInMonths(dob);
+    const targetWeaningDate = (months != null && months >= 12) ? undefined : ((form.targetWeaningDate || "").trim() || undefined);
     const updated = {
-      ...viewing,
-      name: form.name || undefined,
+      ...current,
+      name: (form.name || "").trim() || undefined,
       species: form.species,
       sex: validSex,
-      dob: form.dob || undefined,
-      breed: form.breed || undefined,
-      tag: form.tag || undefined,
-      notes: form.notes || undefined,
-      color: form.color?.trim() || undefined,
+      dob,
+      breed: (form.breed || "").trim() || undefined,
+      tag: (form.tag || "").trim() || undefined,
+      notes: (form.notes || "").trim() || undefined,
+      color: (form.color || "").trim() || undefined,
       acquisitionType: form.acquisitionType || "Home Raised",
       purchasePrice: purchasePriceNum,
-      purchaseDate: form.purchaseDate?.trim() || undefined,
-      purchasedFrom: form.purchasedFrom?.trim() || undefined,
-      targetWeaningDate: form.targetWeaningDate?.trim() || undefined,
+      purchaseDate: (form.purchaseDate || "").trim() || undefined,
+      purchasedFrom: (form.purchasedFrom || "").trim() || undefined,
+      targetWeaningDate,
     };
     setAnimals(prev => prev.map(x => (x.id === editingId ? updated : x)));
     setViewing(updated);
@@ -593,6 +641,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     return (gestations || []).some(g => g.animalId === animalId && g.status !== "Delivered");
   }
 
+  const todayStrForHeat = new Date().toISOString().split("T")[0];
+  const todayPlus7ForHeat = (() => { const d = new Date(); d.setDate(d.getDate() + 7); return d.toISOString().split("T")[0]; })();
+  const heatDueNext7Ids = new Set(
+    (filterHeatDue ? (animals || []) : []).filter(a => {
+      if (!isFemale(a)) return false;
+      if (hasActiveGestation(a.id)) return false;
+      const next = getNextExpectedHeatDate(a);
+      return next && next >= todayStrForHeat && next <= todayPlus7ForHeat;
+    }).map(a => a.id)
+  );
+
   const filtered = (animals || []).filter(a => {
     const showByDeceased = showDeceasedAnimals ? true : !a.deceased;
     const showByArchived = showArchivedAnimals ? true : !a.sale;
@@ -627,6 +686,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       if (filterSexStatus === "Bred/Pregnant" && !bredPregnant) return false;
       if (filterSexStatus === "Open" && !open) return false;
     }
+
+    if (filterCull === "Marked for Cull" && !a.cull) return false;
+
+    if (filterHeatDue && !heatDueNext7Ids.has(a.id)) return false;
 
     return true;
   });
@@ -670,13 +733,30 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   });
 
   if (viewing) {
-    const a = viewing;
+    const a = (animals || []).find(x => x.id === viewing?.id) ?? viewing;
     const offspringForMother = (offspring && offspring[a.id]) || [];
 
-    const linkableAnimals = (animals || []).filter(
-      an => an.species === a.species && an.id !== a.id && !an.deceased && !an.sale
-        && !(offspringForMother || []).some(c => c.id === an.id)
-    );
+    const linkableAnimals = (animals || []).filter(an => {
+      if (an.motherId || an.species !== a.species || an.id === a.id || an.deceased || an.sale) return false;
+      if ((offspringForMother || []).some(c => c.id === an.id)) return false;
+      const months = getAgeInMonths(an.dob);
+      const term = getAgeBasedSexTerm({ ...an, species: an.species || a.species }, []);
+      const termHasCalf = term && String(term).toLowerCase().includes("calf");
+      if (months != null && months >= 12) return false;
+      if (months != null && months < 12) return true;
+      return !!termHasCalf;
+    });
+    const linkExistingSearchLower = (linkExistingSearch || "").trim().toLowerCase();
+    const linkableFiltered = linkExistingSearchLower
+      ? linkableAnimals.filter(an => {
+          const name = getAnimalName(an);
+          const tag = (an.tag || "").toString();
+          const species = (an.species || "").toString();
+          return name.toLowerCase().includes(linkExistingSearchLower)
+            || tag.toLowerCase().includes(linkExistingSearchLower)
+            || species.toLowerCase().includes(linkExistingSearchLower);
+        })
+      : linkableAnimals;
 
     function linkExistingAsOffspring(existingId) {
       const existing = animals.find(an => an.id === existingId);
@@ -698,6 +778,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       }));
       setShowOffspringForm(false);
       setLinkExistingAnimalId(null);
+      setAddCalfMode("register");
+      setLinkExistingSearch("");
     }
 
     function deleteOffspring(offspringId) {
@@ -727,7 +809,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         species: motherSpecies,
         birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
         dob: offspringForm.dob || undefined,
-        weaningDate: offspringForm.weaningDate || undefined,
+        weaningDate: (() => { const m = getAgeInMonths(offspringForm.dob); if (m != null && m >= 12) return undefined; return offspringForm.weaningDate || undefined; })(),
         stillborn,
         createdAt: isEdit ? (offspringForMother.find(c => c.id === editingOffspringId)?.createdAt) : new Date().toISOString(),
       };
@@ -767,12 +849,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         }
       }
       if (rec.dob) {
+        const calfWeaningDate = (() => { const m = getAgeInMonths(offspringForm.dob); if (m != null && m >= 12) return undefined; return offspringForm.weaningDate || undefined; })();
         const calfData = {
           name: offspringForm.name || undefined,
           tag: offspringForm.tag || undefined,
           sex: effectiveSex,
           birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
-          weaningDate: offspringForm.weaningDate || undefined,
+          weaningDate: calfWeaningDate,
           stillborn,
           recordedAt: new Date().toISOString(),
           ...(!stillborn && { animalId: rec.id }),
@@ -879,42 +962,115 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       setViewing(prev => (prev && prev.id === animalId ? { ...prev, sale: updatedSale } : prev));
     }
 
+    function addDays(dateStr, days) {
+      if (!dateStr || !Number.isInteger(days)) return undefined;
+      const d = new Date(dateStr + "T12:00:00");
+      d.setDate(d.getDate() + days);
+      return d.toISOString().split("T")[0];
+    }
+
     function saveVaccination() {
+      const dateGiven = vaccinationForm.dateGiven?.trim();
+      const protocol = vaccinationProtocolId ? (settings?.vaccinationProtocols ?? []).find(p => p.id === vaccinationProtocolId) : null;
+      const editingRec = a.vaccinations?.find(v => v.id === editingVaccinationId);
+      const isEditingProtocolEntry = !!editingRec?.protocolName;
+
+      if (isEditingProtocolEntry && editingVaccinationId) {
+        const rec = { ...editingRec, dateGiven: dateGiven || undefined, notes: vaccinationForm.notes?.trim() || undefined, administeredBy: vaccinationForm.administeredBy || undefined };
+        const nextList = (a.vaccinations || []).map(v => (v.id === editingVaccinationId ? rec : v));
+        setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an)));
+        setViewing(prev => (prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev));
+        setShowVaccinationForm(false);
+        setEditingVaccinationId(null);
+        setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" });
+        setVaccinationProtocolId("");
+        return;
+      }
+
+      if (!editingVaccinationId && protocol?.vaccines?.length && dateGiven) {
+        const withBooster = protocol.vaccines.filter(v => v.trackBooster);
+        const noBooster = protocol.vaccines.filter(v => !v.trackBooster);
+        const newEntries = [];
+        if (withBooster.length === 0) {
+          newEntries.push({
+            id: Date.now().toString(),
+            protocolName: protocol.name,
+            vaccineNames: protocol.vaccines.map(v => (v.vaccineName || "").trim()).filter(Boolean).join(", "),
+            dateGiven,
+            notes: vaccinationForm.notes?.trim() || undefined,
+            administeredBy: vaccinationForm.administeredBy || undefined,
+          });
+        } else {
+          if (noBooster.length > 0) {
+            newEntries.push({
+              id: Date.now().toString(),
+              protocolName: protocol.name,
+              vaccineNames: noBooster.map(v => (v.vaccineName || "").trim()).filter(Boolean).join(", "),
+              dateGiven,
+              notes: vaccinationForm.notes?.trim() || undefined,
+              administeredBy: vaccinationForm.administeredBy || undefined,
+            });
+          }
+          withBooster.forEach((v, idx) => {
+            const boosterDays = v.boosterIntervalDays != null ? Number(v.boosterIntervalDays) : undefined;
+            const nextDue = Number.isInteger(boosterDays) ? addDays(dateGiven, boosterDays) : undefined;
+            newEntries.push({
+              id: Date.now().toString() + "-" + idx,
+              vaccineName: (v.vaccineName || "").trim() || undefined,
+              dateGiven,
+              nextDueDate: nextDue,
+              dosage: (v.dosage || "").trim() || undefined,
+              route: v.route || undefined,
+              boosterIntervalDays: boosterDays,
+              notes: vaccinationForm.notes?.trim() || undefined,
+              administeredBy: vaccinationForm.administeredBy || undefined,
+            });
+          });
+        }
+        const nextList = [...(a.vaccinations || []), ...newEntries];
+        setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an)));
+        setViewing(prev => (prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev));
+        setShowVaccinationForm(false);
+        setEditingVaccinationId(null);
+        setVaccinationProtocolId("");
+        setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" });
+        return;
+      }
+
+      const boosterDays = vaccinationForm.boosterIntervalDays !== "" ? parseInt(vaccinationForm.boosterIntervalDays, 10) : undefined;
+      const nextDue = vaccinationForm.nextDueDate?.trim() || (vaccinationForm.dateGiven?.trim() && Number.isInteger(boosterDays) ? addDays(vaccinationForm.dateGiven, boosterDays) : undefined);
       const rec = editingVaccinationId
         ? {
             id: editingVaccinationId,
             vaccineName: vaccinationForm.vaccineName || undefined,
             dateGiven: vaccinationForm.dateGiven || undefined,
-            nextDueDate: vaccinationForm.nextDueDate || undefined,
+            nextDueDate: nextDue || undefined,
             administeredBy: vaccinationForm.administeredBy || undefined,
             notes: vaccinationForm.notes || undefined,
+            dosage: vaccinationForm.dosage?.trim() || undefined,
+            route: vaccinationForm.route || undefined,
+            boosterIntervalDays: boosterDays,
           }
         : {
             id: Date.now().toString(),
             vaccineName: vaccinationForm.vaccineName || undefined,
             dateGiven: vaccinationForm.dateGiven || undefined,
-            nextDueDate: vaccinationForm.nextDueDate || undefined,
+            nextDueDate: nextDue || undefined,
             administeredBy: vaccinationForm.administeredBy || undefined,
             notes: vaccinationForm.notes || undefined,
+            dosage: vaccinationForm.dosage?.trim() || undefined,
+            route: vaccinationForm.route || undefined,
+            boosterIntervalDays: boosterDays,
           };
       const nextList = editingVaccinationId
         ? (a.vaccinations || []).map(v => (v.id === editingVaccinationId ? rec : v))
         : [...(a.vaccinations || []), rec];
-      setAnimals(prev =>
-        prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an))
-      );
-      setViewing(prev =>
-        prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev
-      );
+      setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an)));
+      setViewing(prev => (prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev));
       setShowVaccinationForm(false);
       setEditingVaccinationId(null);
-      setVaccinationForm({
-        vaccineName: "",
-        dateGiven: "",
-        nextDueDate: "",
-        administeredBy: "Owner",
-        notes: "",
-      });
+      setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" });
+      setVaccinationProtocolId("");
     }
 
     function deleteVaccination(vaccinationId) {
@@ -1046,6 +1202,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const dueEnd = breedingForm.runningWithBull ? dueDate(end, totalDays) : dueStart;
       const sireDisplay = breedingForm.sireAnimalId === "unknown" ? "Unknown" : (breedingForm.sire || undefined);
       const sireId = breedingForm.sireAnimalId && breedingForm.sireAnimalId !== "unknown" ? breedingForm.sireAnimalId : undefined;
+      const recordId = Date.now().toString();
+      const breedingDateMs = new Date(start + "T12:00:00").getTime();
+      const recentHeats = (a.heatCycles || [])
+        .filter(h => {
+          const heatMs = new Date((h.observedDate || "") + "T12:00:00").getTime();
+          const diffDays = (breedingDateMs - heatMs) / 86400000;
+          return diffDays >= 0 && diffDays <= 5;
+        })
+        .sort((x, y) => (y.observedDate || "").localeCompare(x.observedDate || ""));
+      const linkedHeat = recentHeats[0] || null;
       const record = {
         animalId: a.id,
         breedingDate: start,
@@ -1055,17 +1221,68 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         sire: sireDisplay,
         ...(sireId && { sireAnimalId: sireId }),
         notes: breedingForm.notes,
-        id: Date.now().toString(),
+        id: recordId,
         gestationDays: totalDays,
         status: "Active",
         createdAt: new Date().toISOString(),
+        ...(linkedHeat && { linkedHeatCycleId: linkedHeat.id, linkedHeatObservedDate: linkedHeat.observedDate }),
       };
       setGestations(p => [...p, record]);
+      if (linkedHeat) {
+        setAnimals(prev => prev.map(x => x.id === a.id ? { ...x, heatCycles: (x.heatCycles || []).map(h => h.id === linkedHeat.id ? { ...h, linkedGestationId: recordId } : h) } : x));
+      }
       setShowBreedingForm(false);
       setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
     }
 
+    function saveHeat() {
+      if (!heatForm.observedDate) return;
+      const record = {
+        id: Date.now().toString(),
+        observedDate: heatForm.observedDate,
+        intensity: heatForm.intensity || "Moderate",
+        notes: (heatForm.notes || "").trim(),
+      };
+      setAnimals(prev => prev.map(x => x.id === a.id ? { ...x, heatCycles: [...(x.heatCycles || []), record] } : x));
+      setShowHeatForm(false);
+      setHeatForm({ observedDate: "", intensity: "Moderate", notes: "" });
+    }
+
     const breedingSireOptions = getBreedingMalesForSpecies(animals, a.species);
+    const heatCyclesSorted = [...(a.heatCycles || [])].sort((x, y) => (y.observedDate || "").localeCompare(x.observedDate || ""));
+    const nextExpectedHeat = getNextExpectedHeatDate(a);
+    const gestationsForLinking = (gestations || []).filter(g => g.animalId === a.id);
+    const heatDaysSince = (idx) => {
+      if (idx >= heatCyclesSorted.length - 1) return null;
+      const curr = heatCyclesSorted[idx]?.observedDate;
+      const prev = heatCyclesSorted[idx + 1]?.observedDate;
+      if (!curr || !prev) return null;
+      const d1 = new Date(curr + "T12:00:00");
+      const d2 = new Date(prev + "T12:00:00");
+      return Math.round((d1 - d2) / 86400000);
+    };
+    const HEAT_LINK_DAYS = 5;
+    const gestationForHeat = (heatObservedDate, heatRecord) => {
+      if (heatRecord?.linkedGestationId) {
+        const g = gestationsForLinking.find(gr => gr.id === heatRecord.linkedGestationId);
+        if (g) return g;
+      }
+      const h = new Date(heatObservedDate + "T12:00:00");
+      return gestationsForLinking.find(g => {
+        const b = g.breedingDate ? new Date(g.breedingDate + "T12:00:00") : null;
+        if (!b) return false;
+        const diff = (b - h) / 86400000;
+        return diff >= 0 && diff <= HEAT_LINK_DAYS;
+      });
+    };
+    const heatForGestation = (g) => {
+      if (g.linkedHeatObservedDate) return { observedDate: g.linkedHeatObservedDate };
+      const b = g.breedingDate ? new Date(g.breedingDate + "T12:00:00") : null;
+      if (!b) return null;
+      const heatsBefore = (a.heatCycles || []).filter(h => new Date((h.observedDate || "") + "T12:00:00") <= b).sort((x, y) => (y.observedDate || "").localeCompare(x.observedDate || ""));
+      const match = heatsBefore.find(h => (b - new Date((h.observedDate || "") + "T12:00:00")) / 86400000 <= HEAT_LINK_DAYS);
+      return match || null;
+    };
 
     const vaccinationsSorted = [...(a.vaccinations || [])].sort((x, y) => {
       const d1 = x.dateGiven || "";
@@ -1191,6 +1408,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <div className="hl-detail-meta" style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{(() => { const runningWith = getRunningWithMaleForFemale(a, animals); return runningWith ? ` · Running with ${getAnimalName(runningWith)}` : ""; })()}</div>
             </div>
             <div className="hl-detail-badges" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              {a.cull && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>}
               {getRunningWithMaleForFemale(a, animals) && <Badge color="var(--brass2)" style={{ background: "rgba(201,149,42,0.2)", color: "var(--brass)" }}>Running with {getAnimalName(getRunningWithMaleForFemale(a, animals))}</Badge>}
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
               {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
@@ -1227,6 +1445,58 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   </>
                 )}
               </div>
+            </div>
+
+            <div className="hl-profile-section" style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Cull</div>
+              {showCullForm ? (
+                <Card style={{ padding: "18px 20px", marginBottom: "0", borderLeft: "3px solid var(--danger2)" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{a.cull ? "Edit Cull Flag" : "Mark for Cull"}</div>
+                  <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Reason</label>
+                      <Select value={cullForm.reason} onChange={e => setCullForm(p => ({ ...p, reason: e.target.value }))} style={{ width: "100%" }}>
+                        <option value="">— Select reason —</option>
+                        {CULL_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </Select>
+                    </div>
+                    <Input label="Target cull date (optional)" type="date" value={cullForm.targetCullDate} onChange={e => setCullForm(p => ({ ...p, targetCullDate: e.target.value }))} />
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Notes</label>
+                    <Textarea value={cullForm.notes} onChange={e => setCullForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes..." />
+                  </div>
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+                    <Btn size="sm" onClick={() => {
+                      if (!cullForm.reason) return;
+                      const cullRec = { reason: cullForm.reason, notes: (cullForm.notes || "").trim() || undefined, targetCullDate: (cullForm.targetCullDate || "").trim() || undefined };
+                      const updated = { ...a, cull: cullRec };
+                      setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                      setViewing(updated);
+                      setShowCullForm(false);
+                      setCullForm({ reason: "", notes: "", targetCullDate: "" });
+                    }}>Save</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowCullForm(false); setCullForm({ reason: "", notes: "", targetCullDate: "" }); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              ) : a.cull ? (
+                <div style={{ padding: "16px 18px", borderRadius: "var(--radius)", background: "rgba(180, 60, 60, 0.08)", borderLeft: "4px solid var(--danger2)", marginBottom: "10px" }}>
+                  <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--danger2)", marginBottom: "8px" }}>Marked for cull</div>
+                  <div style={{ fontSize: "14px", color: "var(--ink2)", marginBottom: "4px" }}><strong>Reason:</strong> {a.cull.reason || "—"}</div>
+                  {a.cull.notes && <div style={{ fontSize: "14px", color: "var(--ink2)", marginBottom: "4px" }}><strong>Notes:</strong> {a.cull.notes}</div>}
+                  {a.cull.targetCullDate && <div style={{ fontSize: "14px", color: "var(--ink2)" }}><strong>Target date:</strong> {fmt(a.cull.targetCullDate)}</div>}
+                  <div style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
+                    <Btn size="sm" variant="secondary" onClick={() => { setCullForm({ reason: a.cull.reason || "", notes: a.cull.notes || "", targetCullDate: a.cull.targetCullDate || "" }); setShowCullForm(true); }}>Edit Cull Flag</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => {
+                      const updated = { ...a, cull: undefined };
+                      setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                      setViewing(updated);
+                    }}>Remove Cull Flag</Btn>
+                  </div>
+                </div>
+              ) : (
+                <Btn variant="secondary" onClick={() => { setCullForm({ reason: CULL_REASONS[0] || "", notes: "", targetCullDate: "" }); setShowCullForm(true); }}>Mark for Cull</Btn>
+              )}
             </div>
 
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
@@ -1280,6 +1550,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               )}
             </div>
 
+            {(getAgeInMonths(a.dob) == null || getAgeInMonths(a.dob) < 12) && (
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Weaning</div>
               {a.weaningDate ? (
@@ -1303,6 +1574,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 </div>
               )}
             </div>
+            )}
 
             {a.species === "Cattle" && !a.deceased && !a.sale && (
               <div className="hl-profile-section" style={{ marginTop: "24px" }}>
@@ -1724,6 +1996,71 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                 )}
 
+                {isFemale(a) && a.species !== "Mule" && (() => {
+                  const hasConfirmedPregnancy = (animalId) => {
+                    const g = (gestations || []).find(gr => gr.animalId === animalId && gr.status !== "Delivered");
+                    if (!g?.breedingDate) return false;
+                    const breedingMs = new Date(g.breedingDate + "T12:00:00").getTime();
+                    const thirtyDaysAgo = Date.now() - 30 * 86400000;
+                    return breedingMs <= thirtyDaysAgo;
+                  };
+                  return !hasConfirmedPregnancy(a.id);
+                })() && (
+                  <div style={{ marginBottom: "24px" }}>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Heat Cycles</div>
+                    {nextExpectedHeat && (
+                      <div style={{ marginBottom: "12px", padding: "10px 14px", background: "rgba(201,149,42,0.12)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)", fontSize: "14px" }}>
+                        <strong>Next expected heat:</strong> {fmt(nextExpectedHeat)}
+                      </div>
+                    )}
+                    {!showHeatForm ? (
+                      <div style={{ marginBottom: "12px" }}>
+                        <Btn size="sm" variant="secondary" onClick={() => {
+                          setHeatForm({ observedDate: new Date().toISOString().split("T")[0], intensity: "Moderate", notes: "" });
+                          setShowHeatForm(true);
+                        }}>Log Heat</Btn>
+                      </div>
+                    ) : (
+                      <Card style={{ padding: "24px", borderLeft: "4px solid var(--brass)", marginBottom: "16px" }}>
+                        <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Log Heat</div>
+                        <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+                          <Input label="Observed date *" type="date" value={heatForm.observedDate} onChange={e => setHeatForm(p => ({ ...p, observedDate: e.target.value }))} />
+                          <Select label="Intensity" value={heatForm.intensity} onChange={e => setHeatForm(p => ({ ...p, intensity: e.target.value }))}>
+                            <option value="Strong">Strong</option>
+                            <option value="Moderate">Moderate</option>
+                            <option value="Weak">Weak</option>
+                          </Select>
+                        </div>
+                        <Textarea label="Notes" value={heatForm.notes} onChange={e => setHeatForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+                        <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                          <Btn onClick={saveHeat} disabled={!heatForm.observedDate}>Save</Btn>
+                          <Btn variant="secondary" onClick={() => { setShowHeatForm(false); setHeatForm({ observedDate: "", intensity: "Moderate", notes: "" }); }}>Cancel</Btn>
+                        </div>
+                      </Card>
+                    )}
+                    {heatCyclesSorted.length > 0 && (
+                      <div style={{ marginTop: "12px" }}>
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "8px" }}>Heat cycle history</div>
+                        <div style={{ fontSize: "14px" }}>
+                          {heatCyclesSorted.map((h, idx) => {
+                            const linkedGestation = gestationForHeat(h.observedDate, h);
+                            return (
+                              <div key={h.id} style={{ padding: "8px 0", borderBottom: "1px solid #EDE6D6" }}>
+                                {fmt(h.observedDate)} · {h.intensity || "—"}
+                                {heatDaysSince(idx) != null && <span style={{ color: "var(--muted)", marginLeft: "6px" }}>({heatDaysSince(idx)} days since last heat)</span>}
+                                {h.notes && <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>{h.notes}</div>}
+                                {linkedGestation && (
+                                  <div style={{ fontSize: "12px", color: "var(--green)", marginTop: "2px" }}>Breeding logged on {fmt(linkedGestation.breedingDate)}{linkedGestation.status !== "Delivered" ? " (active pregnancy)" : ""}</div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {promptAddOffspring?.animalId === a.id && setPromptAddOffspring && (
                   <div style={{ marginBottom: "16px", padding: "14px 16px", background: "rgba(34, 139, 34, 0.12)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--green)" }}>
                     <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink2)", marginBottom: "8px" }}>You recorded a live birth. Add the calf to your herd?</div>
@@ -1785,6 +2122,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         weaningDate: "",
                         stillborn: false,
                       });
+                    setAddCalfMode("register");
+                    setLinkExistingSearch("");
+                    setLinkExistingAnimalId(null);
                     }}
                   >
                     + Add {getOffspringTerm(a.species)}
@@ -1815,10 +2155,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           {(c.sex || c.dob) && (() => { const term = getAgeBasedSexTerm({ ...c, species: c.species || a.species }, []); return term !== "—" ? <span>{term}</span> : null; })()}
                           {c.birthWeight && <span>{(c.sex || c.dob) ? " · " : ""}{c.birthWeight} lbs at birth</span>}
                         </div>
-                        {(c.dob || c.weaningDate) && (
+                        {(c.dob || (c.weaningDate && (getAgeInMonths(c.dob) == null || getAgeInMonths(c.dob) < 12))) && (
                           <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>
                             {c.dob && <span>Born {fmt(c.dob)}</span>}
-                            {c.weaningDate && <span>{c.dob ? " · " : ""}Wean {fmt(c.weaningDate)}</span>}
+                            {c.weaningDate && (getAgeInMonths(c.dob) == null || getAgeInMonths(c.dob) < 12) && <span>{c.dob ? " · " : ""}Wean {fmt(c.weaningDate)}</span>}
                           </div>
                         )}
                       </div>
@@ -1831,19 +2171,67 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
                       {editingOffspringId ? `Edit ${getOffspringTerm(a.species)}` : `Add ${getOffspringTerm(a.species)}`}
                     </div>
-                    {!editingOffspringId && linkableAnimals.length > 0 && (
+                    {!editingOffspringId && (
+                      <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          onClick={() => setAddCalfMode("link")}
+                          style={{
+                            padding: "10px 16px",
+                            borderRadius: "var(--radius)",
+                            border: addCalfMode === "link" ? "2px solid var(--brass)" : "1px solid var(--cream2)",
+                            background: addCalfMode === "link" ? "rgba(180, 140, 80, 0.12)" : "var(--cream)",
+                            fontWeight: 600,
+                            fontSize: "14px",
+                            color: addCalfMode === "link" ? "var(--ink2)" : "var(--muted)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Link Existing Animal
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setAddCalfMode("register")}
+                          style={{
+                            padding: "10px 16px",
+                            borderRadius: "var(--radius)",
+                            border: addCalfMode === "register" ? "2px solid var(--brass)" : "1px solid var(--cream2)",
+                            background: addCalfMode === "register" ? "rgba(180, 140, 80, 0.12)" : "var(--cream)",
+                            fontWeight: 600,
+                            fontSize: "14px",
+                            color: addCalfMode === "register" ? "var(--ink2)" : "var(--muted)",
+                            cursor: "pointer",
+                          }}
+                        >
+                          Register New Calf
+                        </button>
+                      </div>
+                    )}
+                    {!editingOffspringId && addCalfMode === "link" && (
                       <div style={{ marginBottom: "14px" }}>
-                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>Link existing animal (optional)</label>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>Choose a calf with no dam (under 12 months or sex term contains &quot;Calf&quot;)</label>
+                        <Input
+                          placeholder="Search by name, tag, or species..."
+                          value={linkExistingSearch}
+                          onChange={e => setLinkExistingSearch(e.target.value)}
+                          style={{ marginBottom: "8px" }}
+                        />
                         <select
                           value={linkExistingAnimalId || ""}
                           onChange={e => setLinkExistingAnimalId(e.target.value || null)}
                           style={{ width: "100%", padding: "10px 12px", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", fontSize: "14px" }}
                         >
-                          <option value="">— Add new {getOffspringTerm(a.species).toLowerCase()} —</option>
-                          {linkableAnimals.map(an => (
+                          <option value="">— Select animal —</option>
+                          {linkableFiltered.map(an => (
                             <option key={an.id} value={an.id}>{getAnimalName(an)}{an.tag ? ` #${an.tag}` : ""} · {an.species}</option>
                           ))}
                         </select>
+                        {linkableFiltered.length === 0 && linkableAnimals.length > 0 && (
+                          <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>No matches. Try a different search.</p>
+                        )}
+                        {linkableAnimals.length === 0 && (
+                          <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>No eligible calves (same species, no dam, under 12 months or sex term contains &quot;Calf&quot;).</p>
+                        )}
                         {linkExistingAnimalId && (
                           <Btn size="sm" onClick={() => linkExistingAsOffspring(linkExistingAnimalId)} style={{ marginTop: "10px" }}>
                             Link as offspring
@@ -1851,6 +2239,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         )}
                       </div>
                     )}
+                    {((!editingOffspringId && addCalfMode === "register") || editingOffspringId) && (
+                    <>
                     <div className="hl-form-grid-3 hl-offspring-form-grid" style={{ marginBottom: "12px", minWidth: 0, width: "100%" }}>
                       <Input
                         label={`${getOffspringTerm(a.species)} Name`}
@@ -1892,12 +2282,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         value={offspringForm.dob}
                         onChange={e => setOffspringForm(p => ({ ...p, dob: e.target.value }))}
                       />
+                      {(!editingOffspringId || getAgeInMonths(offspringForm.dob) == null || getAgeInMonths(offspringForm.dob) < 12) && (
                       <Input
                         label="Target Weaning Date"
                         type="date"
                         value={offspringForm.weaningDate}
                         onChange={e => setOffspringForm(p => ({ ...p, weaningDate: e.target.value }))}
                       />
+                      )}
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
                         <input
                           type="checkbox"
@@ -1932,6 +2324,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         Cancel
                       </Btn>
                     </div>
+                    </>
+                    )}
                   </Card>
                 )}
               </div>
@@ -1948,6 +2342,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   variant="secondary"
                   onClick={() => {
                     setEditingVaccinationId(null);
+                    setVaccinationProtocolId("");
                     setShowVaccinationForm(true);
                     setVaccinationForm({
                       vaccineName: "",
@@ -1955,6 +2350,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       nextDueDate: "",
                       administeredBy: "Owner",
                       notes: "",
+                      dosage: "",
+                      route: "IM",
+                      boosterIntervalDays: "",
                     });
                   }}
                 >
@@ -1969,86 +2367,111 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               {vaccinationsSorted.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "8px" }}>
                   {vaccinationsSorted.map(v => (
-                    <div key={v.id} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--green3)" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
-                        <div style={{ fontWeight: 600, fontSize: "14px" }}>{v.vaccineName || "Unnamed vaccine"}</div>
-                        <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                          <Btn size="sm" variant="ghost" onClick={() => { setEditingVaccinationId(v.id); setVaccinationForm({ vaccineName: v.vaccineName || "", dateGiven: v.dateGiven || "", nextDueDate: v.nextDueDate || "", administeredBy: v.administeredBy || "Owner", notes: v.notes || "" }); setShowVaccinationForm(true); }}>Edit</Btn>
-                          <Btn size="sm" variant="ghost" onClick={() => deleteVaccination(v.id)}>Delete</Btn>
+                    <div key={v.id} style={{ padding: v.protocolName ? "10px 14px" : "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--green3)" }}>
+                      {v.protocolName ? (
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                          <div style={{ fontSize: "14px", color: "var(--ink2)" }}>
+                            <span style={{ fontWeight: 600 }}>{v.protocolName}</span>
+                            {v.vaccineNames && <span> — {v.vaccineNames}</span>}
+                            {v.dateGiven && <span> — {fmt(v.dateGiven)}</span>}
+                          </div>
+                          <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingVaccinationId(v.id); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: "", dateGiven: v.dateGiven || "", nextDueDate: "", administeredBy: v.administeredBy || "Owner", notes: v.notes || "", dosage: "", route: "IM", boosterIntervalDays: "" }); setShowVaccinationForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => deleteVaccination(v.id)}>Delete</Btn>
+                          </div>
                         </div>
-                      </div>
-                      <div style={{ fontSize: "12px", color: "var(--muted)" }}>
-                        {v.dateGiven && <span>Given {fmt(v.dateGiven)}</span>}
-                        {v.nextDueDate && <span>{v.dateGiven ? " · " : ""}Next due {fmt(v.nextDueDate)}</span>}
-                        {v.administeredBy && <span>{v.dateGiven || v.nextDueDate ? " · " : ""}{v.administeredBy}</span>}
-                      </div>
+                      ) : (
+                        <>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
+                            <div style={{ fontWeight: 600, fontSize: "14px" }}>{v.vaccineName || "Unnamed vaccine"}</div>
+                            <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                              <Btn size="sm" variant="ghost" onClick={() => { setEditingVaccinationId(v.id); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: v.vaccineName || "", dateGiven: v.dateGiven || "", nextDueDate: v.nextDueDate || "", administeredBy: v.administeredBy || "Owner", notes: v.notes || "", dosage: v.dosage || "", route: v.route || "IM", boosterIntervalDays: v.boosterIntervalDays != null ? String(v.boosterIntervalDays) : "" }); setShowVaccinationForm(true); }}>Edit</Btn>
+                              <Btn size="sm" variant="ghost" onClick={() => deleteVaccination(v.id)}>Delete</Btn>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: "12px", color: "var(--muted)" }}>
+                            {v.dateGiven && <span>Given {fmt(v.dateGiven)}</span>}
+                            {v.nextDueDate && <span style={{ color: "#c45c26" }}>{v.dateGiven ? " · " : ""}Booster due: {fmt(v.nextDueDate)}</span>}
+                            {(v.dosage || v.route) && <span>{v.dateGiven || v.nextDueDate ? " · " : ""}{[v.dosage, v.route].filter(Boolean).join(" ")}</span>}
+                            {v.administeredBy && <span>{v.dateGiven || v.nextDueDate || v.dosage || v.route ? " · " : ""}{v.administeredBy}</span>}
+                          </div>
+                        </>
+                      )}
                       {v.notes && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "6px" }}>{v.notes}</div>}
                     </div>
                   ))}
                 </div>
               )}
 
-              {showVaccinationForm && (
+              {showVaccinationForm && (() => {
+                const editingRec = a.vaccinations?.find(v => v.id === editingVaccinationId);
+                const isProtocolMode = !!vaccinationProtocolId || !!editingRec?.protocolName;
+                const protocol = vaccinationProtocolId ? (settings?.vaccinationProtocols ?? []).find(p => p.id === vaccinationProtocolId) : null;
+                const protocolName = editingRec?.protocolName || protocol?.name || "";
+                const vaccineNames = editingRec?.vaccineNames || (protocol?.vaccines?.map(v => (v.vaccineName || "").trim()).filter(Boolean).join(", ") || "");
+                return (
                 <Card style={{ padding: "18px 20px", marginTop: "14px", borderLeft: "3px solid var(--green3)" }}>
                   <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
                     {editingVaccinationId ? "Edit Vaccination" : "Add Vaccination"}
                   </div>
-                  <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                    <Input
-                      label="Vaccine name"
-                      value={vaccinationForm.vaccineName}
-                      onChange={e => setVaccinationForm(p => ({ ...p, vaccineName: e.target.value }))}
-                      placeholder="e.g. Clostridial 7-way"
-                    />
-                    <Input
-                      label="Date given"
-                      type="date"
-                      value={vaccinationForm.dateGiven}
-                      onChange={e => setVaccinationForm(p => ({ ...p, dateGiven: e.target.value }))}
-                    />
-                    <Input
-                      label="Next due date"
-                      type="date"
-                      value={vaccinationForm.nextDueDate}
-                      onChange={e => setVaccinationForm(p => ({ ...p, nextDueDate: e.target.value }))}
-                    />
-                    <Select
-                      label="Administered by"
-                      value={vaccinationForm.administeredBy}
-                      onChange={e => setVaccinationForm(p => ({ ...p, administeredBy: e.target.value }))}
-                    >
-                      <option>Owner</option>
-                      <option>Vet</option>
-                    </Select>
-                  </div>
-                  <Textarea
-                    label="Notes"
-                    value={vaccinationForm.notes}
-                    onChange={e => setVaccinationForm(p => ({ ...p, notes: e.target.value }))}
-                    rows={2}
-                  />
+                  {(settings?.vaccinationProtocols ?? []).length > 0 && !editingVaccinationId && (
+                    <div style={{ marginBottom: "12px" }}>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Use Protocol</label>
+                      <Select value={vaccinationProtocolId} onChange={e => {
+                        const id = e.target.value || "";
+                        setVaccinationProtocolId(id);
+                        if (id) setVaccinationForm(p => ({ ...p, vaccineName: "", dosage: "", route: "IM", boosterIntervalDays: "", nextDueDate: "" }));
+                      }} style={{ width: "100%" }}>
+                        <option value="">— None —</option>
+                        {(settings?.vaccinationProtocols ?? []).map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </Select>
+                    </div>
+                  )}
+                  {isProtocolMode ? (
+                    <>
+                      {protocolName && (
+                        <div style={{ marginBottom: "12px", padding: "10px 12px", background: "var(--cream)", borderRadius: "var(--radius)", fontSize: "14px" }}>
+                          <div style={{ fontWeight: 600, color: "var(--ink2)" }}>{protocolName}</div>
+                          {vaccineNames && <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "2px" }}>{vaccineNames}</div>}
+                        </div>
+                      )}
+                      <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                        <Input label="Date given" type="date" value={vaccinationForm.dateGiven} onChange={e => setVaccinationForm(p => ({ ...p, dateGiven: e.target.value }))} />
+                        <Select label="Administered by" value={vaccinationForm.administeredBy} onChange={e => setVaccinationForm(p => ({ ...p, administeredBy: e.target.value }))}>
+                          <option>Owner</option>
+                          <option>Vet</option>
+                        </Select>
+                      </div>
+                      <Textarea label="Notes" value={vaccinationForm.notes} onChange={e => setVaccinationForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+                    </>
+                  ) : (
+                    <>
+                      <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                        <Input label="Vaccine name" value={vaccinationForm.vaccineName} onChange={e => setVaccinationForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder="e.g. Clostridial 7-way" />
+                        <Input label="Date given" type="date" value={vaccinationForm.dateGiven} onChange={e => setVaccinationForm(p => ({ ...p, dateGiven: e.target.value }))} />
+                        <Input label="Next due / Booster date" type="date" value={vaccinationForm.nextDueDate} onChange={e => setVaccinationForm(p => ({ ...p, nextDueDate: e.target.value }))} />
+                        <Input label="Dosage" value={vaccinationForm.dosage} onChange={e => setVaccinationForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 2 mL" />
+                        <Select label="Route" value={vaccinationForm.route} onChange={e => setVaccinationForm(p => ({ ...p, route: e.target.value }))}>
+                          {VACCINE_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+                        </Select>
+                        <Input label="Booster interval (days)" type="number" min={0} value={vaccinationForm.boosterIntervalDays} onChange={e => setVaccinationForm(p => ({ ...p, boosterIntervalDays: e.target.value }))} placeholder="e.g. 365" />
+                        <Select label="Administered by" value={vaccinationForm.administeredBy} onChange={e => setVaccinationForm(p => ({ ...p, administeredBy: e.target.value }))}>
+                          <option>Owner</option>
+                          <option>Vet</option>
+                        </Select>
+                      </div>
+                      <Textarea label="Notes" value={vaccinationForm.notes} onChange={e => setVaccinationForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+                    </>
+                  )}
                   <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                     <Btn size="sm" onClick={saveVaccination}>{editingVaccinationId ? "Save Changes" : "Save Vaccination"}</Btn>
-                    <Btn
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => {
-                        setShowVaccinationForm(false);
-                        setEditingVaccinationId(null);
-                        setVaccinationForm({
-                          vaccineName: "",
-                          dateGiven: "",
-                          nextDueDate: "",
-                          administeredBy: "Owner",
-                          notes: "",
-                        });
-                      }}
-                    >
-                      Cancel
-                    </Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowVaccinationForm(false); setEditingVaccinationId(null); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" }); }}>Cancel</Btn>
                   </div>
                 </Card>
-              )}
+                );
+              })()}
             </div>
 
             {/* Sale */}
@@ -2219,7 +2642,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             <div style={{ fontSize: "14px" }}>
               {[...(a.vaccinations || [])].sort((x, y) => (y.dateGiven || "").localeCompare(x.dateGiven || "")).map((v, i) => (
                 <div key={i} style={{ padding: "8px 0", borderBottom: i < a.vaccinations.length - 1 ? "1px solid #EDE6D6" : "none" }}>
-                  <strong>{v.vaccineName || "Vaccine"}</strong> — Given {fmt(v.dateGiven)}{v.nextDueDate ? ` · Next due ${fmt(v.nextDueDate)}` : ""}{v.administeredBy ? ` · ${v.administeredBy}` : ""}
+                  {v.protocolName ? (
+                    <><strong>{v.protocolName}</strong>{v.vaccineNames ? ` — ${v.vaccineNames}` : ""}{v.dateGiven ? ` — ${fmt(v.dateGiven)}` : ""}{v.administeredBy ? ` · ${v.administeredBy}` : ""}</>
+                  ) : (
+                    <><strong>{v.vaccineName || "Vaccine"}</strong> — Given {fmt(v.dateGiven)}{v.nextDueDate ? <span style={{ color: "#c45c26" }}> · Booster due: {fmt(v.nextDueDate)}</span> : ""}{(v.dosage || v.route) ? ` · ${[v.dosage, v.route].filter(Boolean).join(" ")}` : ""}{v.administeredBy ? ` · ${v.administeredBy}` : ""}</>
+                  )}
                   {v.notes && <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "4px" }}>{v.notes}</div>}
                 </div>
               ))}
@@ -2248,7 +2675,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   {c.stillborn ? "Stillborn" : (c.name || "Unnamed")}{!c.stillborn && c.tag ? ` #${c.tag}` : ""}
                   {(() => { const term = getAgeBasedSexTerm({ ...c, species: c.species || a.species }, []); return term !== "—" ? ` · ${term}` : null; })()}
                   {c.dob && ` · Born ${fmt(c.dob)}`}
-                  {c.weaningDate && ` · Wean ${fmt(c.weaningDate)}`}
+                  {c.weaningDate && (getAgeInMonths(c.dob) == null || getAgeInMonths(c.dob) < 12) && ` · Wean ${fmt(c.weaningDate)}`}
                 </div>
               ))}
             </div>
@@ -2265,6 +2692,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 {gestationsForAnimal.map(g => {
                   const sireAnimal = g.sireAnimalId ? animals.find(m => m.id === g.sireAnimalId) : null;
                   const sireLabel = g.sire || (sireAnimal ? getAnimalName(sireAnimal) : null) || "Unknown";
+                  const linkedHeat = heatForGestation(g);
                   return (
                     <div key={g.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
                       {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${fmt(g.dueDate)}`}
@@ -2276,6 +2704,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         )}</>
                       )}
                       {g.calf && (g.calf.stillborn ? " · Stillborn" : (g.calf.name ? ` · ${getOffspringTerm(a.species)}: ${g.calf.name}` : ""))}
+                      {linkedHeat && <div style={{ fontSize: "12px", color: "var(--green)", marginTop: "2px" }}>Following heat observed on {fmt(linkedHeat.observedDate)}</div>}
                     </div>
                   );
                 })}
@@ -2381,13 +2810,81 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const inFeedlotIds = new Set((feederPrograms || []).map(f => f.animalId));
   const selectedCattleForFeedlot = selectedAnimals.filter(an => an.species === "Cattle" && !inFeedlotIds.has(an.id));
 
+  function addDaysBulk(dateStr, days) {
+    if (!dateStr || !Number.isInteger(days)) return undefined;
+    const d = new Date(dateStr + "T12:00:00");
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split("T")[0];
+  }
+
   function saveBulkVaccination() {
+    const dateGiven = bulkForm.dateGiven?.trim();
+    const protocol = bulkForm.protocolId ? (settings?.vaccinationProtocols ?? []).find(p => p.id === bulkForm.protocolId) : null;
+
+    if (protocol?.vaccines?.length && dateGiven) {
+      const withBooster = protocol.vaccines.filter(v => v.trackBooster);
+      const noBooster = protocol.vaccines.filter(v => !v.trackBooster);
+      const notes = bulkForm.notes?.trim() || undefined;
+      const administeredBy = bulkForm.administeredBy || undefined;
+      setAnimals(prev =>
+        prev.map(an => {
+          if (!selectedIds.includes(an.id)) return an;
+          const newEntries = [];
+          if (withBooster.length === 0) {
+            newEntries.push({
+              id: Date.now().toString() + "-" + an.id,
+              protocolName: protocol.name,
+              vaccineNames: protocol.vaccines.map(v => (v.vaccineName || "").trim()).filter(Boolean).join(", "),
+              dateGiven,
+              notes,
+              administeredBy,
+            });
+          } else {
+            if (noBooster.length > 0) {
+              newEntries.push({
+                id: Date.now().toString() + "-" + an.id + "-c",
+                protocolName: protocol.name,
+                vaccineNames: noBooster.map(v => (v.vaccineName || "").trim()).filter(Boolean).join(", "),
+                dateGiven,
+                notes,
+                administeredBy,
+              });
+            }
+            withBooster.forEach((v, idx) => {
+              const boosterDays = v.boosterIntervalDays != null ? Number(v.boosterIntervalDays) : undefined;
+              const nextDue = Number.isInteger(boosterDays) ? addDaysBulk(dateGiven, boosterDays) : undefined;
+              newEntries.push({
+                id: Date.now().toString() + "-" + an.id + "-" + idx,
+                vaccineName: (v.vaccineName || "").trim() || undefined,
+                dateGiven,
+                nextDueDate: nextDue,
+                dosage: (v.dosage || "").trim() || undefined,
+                route: v.route || undefined,
+                boosterIntervalDays: boosterDays,
+                notes,
+                administeredBy,
+              });
+            });
+          }
+          return { ...an, vaccinations: [...(an.vaccinations || []), ...newEntries] };
+        })
+      );
+      setBulkFormType(null);
+      setBulkForm({});
+      return;
+    }
+
+    const boosterDays = bulkForm.boosterIntervalDays !== "" ? parseInt(bulkForm.boosterIntervalDays, 10) : undefined;
+    const nextDue = bulkForm.nextDueDate?.trim() || (bulkForm.dateGiven?.trim() && Number.isInteger(boosterDays) ? addDaysBulk(bulkForm.dateGiven, boosterDays) : undefined);
     const rec = {
       vaccineName: bulkForm.vaccineName || undefined,
       dateGiven: bulkForm.dateGiven || undefined,
-      nextDueDate: bulkForm.nextDueDate || undefined,
+      nextDueDate: nextDue || undefined,
       administeredBy: bulkForm.administeredBy || undefined,
       notes: bulkForm.notes || undefined,
+      dosage: bulkForm.dosage?.trim() || undefined,
+      route: bulkForm.route || undefined,
+      boosterIntervalDays: boosterDays,
     };
     setAnimals(prev =>
       prev.map(an => {
@@ -2404,10 +2901,21 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     const start = bulkForm.breedingDate;
     const end = bulkForm.runningWithBull ? bulkForm.breedingDateEnd : bulkForm.breedingDate;
     if (!start || (bulkForm.runningWithBull && !end)) return;
+    const breedingDateMs = new Date(start + "T12:00:00").getTime();
+    const HEAT_LINK_DAYS_BULK = 5;
     const newRecords = selectedFemales.map(an => {
       const totalDays = SPECIES[an.species]?.days || 150;
       const dueStart = dueDate(start, totalDays);
       const dueEnd = bulkForm.runningWithBull ? dueDate(end, totalDays) : dueStart;
+      const recentHeats = (an.heatCycles || [])
+        .filter(h => {
+          const heatMs = new Date((h.observedDate || "") + "T12:00:00").getTime();
+          const diffDays = (breedingDateMs - heatMs) / 86400000;
+          return diffDays >= 0 && diffDays <= HEAT_LINK_DAYS_BULK;
+        })
+        .sort((x, y) => (y.observedDate || "").localeCompare(x.observedDate || ""));
+      const linkedHeat = recentHeats[0] || null;
+      const recordId = Date.now().toString() + "-" + an.id;
       return {
         animalId: an.id,
         breedingDate: start,
@@ -2416,13 +2924,22 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         ...(bulkForm.runningWithBull && { dueDateStart: dueStart, dueDateEnd: dueEnd }),
         sire: bulkForm.sire,
         notes: bulkForm.notes,
-        id: Date.now().toString() + "-" + an.id,
+        id: recordId,
         gestationDays: totalDays,
         status: "Active",
         createdAt: new Date().toISOString(),
+        ...(linkedHeat && { linkedHeatCycleId: linkedHeat.id, linkedHeatObservedDate: linkedHeat.observedDate }),
       };
     });
     setGestations(p => [...p, ...newRecords]);
+    const heatUpdates = newRecords.filter(r => r.linkedHeatCycleId).map(r => ({ animalId: r.animalId, heatId: r.linkedHeatCycleId, gestationId: r.id }));
+    if (heatUpdates.length > 0) {
+      setAnimals(prev => prev.map(x => {
+        const upd = heatUpdates.find(u => u.animalId === x.id);
+        if (!upd) return x;
+        return { ...x, heatCycles: (x.heatCycles || []).map(h => h.id === upd.heatId ? { ...h, linkedGestationId: upd.gestationId } : h) };
+      }));
+    }
     setBulkFormType(null);
     setBulkForm({});
   }
@@ -2587,12 +3104,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
       {/* Filter & Sort bar (desktop: full bar; mobile: button that opens bottom sheet) */}
       {(() => {
-        const activeFilterCount = (search.trim() ? 1 : 0) + (filterSpecies !== "All Species" ? 1 : 0) + (filterSexStatus !== "All" ? 1 : 0) + (filterPasture !== "All Pastures" ? 1 : 0);
+        const activeFilterCount = (search.trim() ? 1 : 0) + (filterSpecies !== "All Species" ? 1 : 0) + (filterSexStatus !== "All" ? 1 : 0) + (filterPasture !== "All Pastures" ? 1 : 0) + (filterCull !== "All" ? 1 : 0) + (filterHeatDue ? 1 : 0);
         const clearFilters = () => {
           setSearch("");
           setFilterSpecies("All Species");
           setFilterSexStatus("All");
           setFilterPasture("All Pastures");
+          setFilterCull("All");
+          setFilterHeatDue?.(false);
         };
 
         const filterControls = (
@@ -2617,6 +3136,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <option value="No Pasture Assigned">No Pasture Assigned</option>
               {pastureNamesForFilter.map(p => <option key={p} value={p}>{p}</option>)}
             </Select>
+            <Select value={filterCull} onChange={e => setFilterCull(e.target.value)} style={{ minWidth: "140px" }}>
+              <option value="All">All</option>
+              <option value="Marked for Cull">Marked for Cull</option>
+            </Select>
             <Select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ minWidth: "160px" }}>
               <option value="dateAddedNewest">Date Added (newest first)</option>
               <option value="nameAZ">Name A–Z</option>
@@ -2638,6 +3161,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         return (
           <>
             <div className="hl-animals-filter-bar" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
+              {filterHeatDue && (
+                <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 10px", borderRadius: "var(--radius)", background: "rgba(201,149,42,0.18)", border: "1px solid var(--brass2)", fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>
+                  Heat due (7 days)
+                  <button type="button" onClick={() => setFilterHeatDue?.(false)} style={{ background: "none", border: "none", padding: "0 2px", cursor: "pointer", fontSize: "16px", lineHeight: 1, color: "var(--muted)" }} aria-label="Clear heat due filter">×</button>
+                </span>
+              )}
               {filterControls}
             </div>
             <div className="hl-animals-filter-bar-mobile" style={{ display: "none", marginBottom: "20px" }}>
@@ -2692,6 +3221,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       </Select>
                     </div>
                     <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Cull</label>
+                      <Select value={filterCull} onChange={e => setFilterCull(e.target.value)} style={{ width: "100%" }}>
+                        <option value="All">All</option>
+                        <option value="Marked for Cull">Marked for Cull</option>
+                      </Select>
+                    </div>
+                    <div>
                       <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Sort by</label>
                       <Select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ width: "100%" }}>
                         <option value="dateAddedNewest">Date Added (newest first)</option>
@@ -2720,7 +3256,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             <Btn size="sm" variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
           <div className="hl-bulk-toolbar-actions">
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "" }); }}>
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" }); }}>
               <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 2v4M14 2v4"/><path d="M5 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"/><path d="M12 14v4"/><path d="M9 18h6"/></svg></span>
               <span className="hl-bulk-action-label">Vaccination</span>
             </button>
@@ -2828,25 +3364,64 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         </div>
       )}
 
-      {bulkFormType === "vaccination" && (
+      {bulkFormType === "vaccination" && (() => {
+        const bulkProtocol = bulkForm.protocolId ? (settings?.vaccinationProtocols ?? []).find(p => p.id === bulkForm.protocolId) : null;
+        const bulkProtocolMode = !!bulkProtocol?.vaccines?.length;
+        return (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Apply Vaccination ({selectedIds.length} animals)</div>
-          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-            <Input label="Vaccine name" value={bulkForm.vaccineName} onChange={e => setBulkForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder="e.g. Clostridial 7-way" />
-            <Input label="Date given" type="date" value={bulkForm.dateGiven} onChange={e => setBulkForm(p => ({ ...p, dateGiven: e.target.value }))} />
-            <Input label="Next due date" type="date" value={bulkForm.nextDueDate} onChange={e => setBulkForm(p => ({ ...p, nextDueDate: e.target.value }))} />
-            <Select label="Administered by" value={bulkForm.administeredBy} onChange={e => setBulkForm(p => ({ ...p, administeredBy: e.target.value }))}>
-              <option>Owner</option>
-              <option>Vet</option>
-            </Select>
-          </div>
+          {(settings?.vaccinationProtocols ?? []).length > 0 && (
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Use Protocol</label>
+              <Select value={bulkForm.protocolId || ""} onChange={e => {
+                const id = e.target.value || "";
+                setBulkForm(p => ({ ...p, protocolId: id, vaccineName: "", dosage: "", route: "IM", boosterIntervalDays: "", nextDueDate: "" }));
+              }} style={{ width: "100%" }}>
+                <option value="">— None —</option>
+                {(settings?.vaccinationProtocols ?? []).map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </Select>
+            </div>
+          )}
+          {bulkProtocolMode && bulkProtocol && (
+            <div style={{ marginBottom: "14px", padding: "10px 12px", background: "var(--cream)", borderRadius: "var(--radius)", fontSize: "14px" }}>
+              <div style={{ fontWeight: 600, color: "var(--ink2)" }}>{bulkProtocol.name}</div>
+              <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "2px" }}>{bulkProtocol.vaccines.map(v => (v.vaccineName || "").trim()).filter(Boolean).join(", ")}</div>
+            </div>
+          )}
+          {bulkProtocolMode ? (
+            <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+              <Input label="Date given" type="date" value={bulkForm.dateGiven} onChange={e => setBulkForm(p => ({ ...p, dateGiven: e.target.value }))} />
+              <Select label="Administered by" value={bulkForm.administeredBy} onChange={e => setBulkForm(p => ({ ...p, administeredBy: e.target.value }))}>
+                <option>Owner</option>
+                <option>Vet</option>
+              </Select>
+            </div>
+          ) : (
+            <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+              <Input label="Vaccine name" value={bulkForm.vaccineName} onChange={e => setBulkForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder="e.g. Clostridial 7-way" />
+              <Input label="Date given" type="date" value={bulkForm.dateGiven} onChange={e => setBulkForm(p => ({ ...p, dateGiven: e.target.value }))} />
+              <Input label="Next due / Booster date" type="date" value={bulkForm.nextDueDate} onChange={e => setBulkForm(p => ({ ...p, nextDueDate: e.target.value }))} />
+              <Input label="Dosage" value={bulkForm.dosage} onChange={e => setBulkForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 2 mL" />
+              <Select label="Route" value={bulkForm.route} onChange={e => setBulkForm(p => ({ ...p, route: e.target.value }))}>
+                {VACCINE_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
+              </Select>
+              <Input label="Booster interval (days)" type="number" min={0} value={bulkForm.boosterIntervalDays} onChange={e => setBulkForm(p => ({ ...p, boosterIntervalDays: e.target.value }))} placeholder="e.g. 365" />
+              <Select label="Administered by" value={bulkForm.administeredBy} onChange={e => setBulkForm(p => ({ ...p, administeredBy: e.target.value }))}>
+                <option>Owner</option>
+                <option>Vet</option>
+              </Select>
+            </div>
+          )}
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkVaccination}>Apply to {selectedIds.length} animals</Btn>
             <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
           </div>
         </Card>
-      )}
+        );
+      })()}
 
       {bulkFormType === "breeding" && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
@@ -2991,6 +3566,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <Btn onClick={add}>Register</Btn>
                 <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
               </div>
+              {showDuplicateConfirm && duplicateConfirmExisting && (
+                <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => { setShowDuplicateConfirm(false); setDuplicateConfirmExisting(null); }}>
+                  <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "24px", maxWidth: "400px", boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--cream2)" }} onClick={e => e.stopPropagation()}>
+                    <p style={{ fontSize: "15px", color: "var(--ink2)", marginBottom: "20px", lineHeight: 1.5 }}>
+                      An animal named <strong>{getAnimalName(duplicateConfirmExisting)}</strong> or with tag <strong>{duplicateConfirmExisting.tag ? `#${duplicateConfirmExisting.tag}` : "—"}</strong> already exists in your herd. Are you sure you want to add another?
+                    </p>
+                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                      <Btn variant="secondary" onClick={() => { setShowDuplicateConfirm(false); setDuplicateConfirmExisting(null); }}>Cancel</Btn>
+                      <Btn onClick={addSubmit}>Continue</Btn>
+                    </div>
+                  </div>
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -3084,7 +3672,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     )}
                   </div>
                   <div className="hl-animals-list-cell hl-animals-list-name-dot">
-                    <span className="hl-animals-list-name" style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(a)}</span>
+                    <span className="hl-animals-list-name" style={{ fontWeight: 600, fontSize: "14px" }} title={getAnimalName(a)}>{getAnimalName(a)}</span>
                     {!a.deceased ? (
                       <span className="hl-animals-list-health-dot" style={{ width: "8px", height: "8px", borderRadius: "50%", background: health === "red" ? "var(--danger2)" : health === "yellow" ? "var(--brass2)" : "var(--green3)" }} title={health === "red" ? "Recent illness" : health === "yellow" ? "Treatment in last 30 days" : "No recent issues"} />
                     ) : (
@@ -3094,7 +3682,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div className="hl-animals-list-cell hl-animals-list-species" style={{ fontSize: "13px", color: "var(--muted)" }}>{a.species}</div>
                   <div className="hl-animals-list-cell hl-animals-list-breed" style={{ fontSize: "13px", color: "var(--muted)" }} title={a.breed || undefined}>{a.breed || "—"}</div>
                   <div className="hl-animals-list-cell hl-animals-list-age" style={{ fontSize: "13px", color: "var(--muted)" }}>{ageFromDob(a.dob)}</div>
-                  <div className="hl-animals-list-cell hl-animals-list-status" style={{ fontSize: "13px", color: "var(--muted)" }}>
+                  <div className="hl-animals-list-cell hl-animals-list-status" style={{ fontSize: "13px", color: "var(--muted)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    {a.cull && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff", fontSize: "11px" }}>CULL</Badge>}
                     {activeGest ? (
                       <span style={{ fontWeight: 600, color: "var(--brass)" }} title={`Due ${fmtDueRange(activeGest)}`}>Pregnant</span>
                     ) : (() => {
@@ -3133,9 +3722,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 </div>
               </>
             )}
-            {a.sale && !a.deceased && (
-              <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", zIndex: 1 }}>
-                <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>
+            {(a.cull || (a.sale && !a.deceased)) && (
+              <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                {a.cull && !a.deceased && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>}
+                {a.sale && !a.deceased && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>
@@ -3334,7 +3924,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Preview: how the first rows will appear</div>
                     <p style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>{previewRows.length === 0 ? "No data rows in the first 5 (all blank)." : `Row ${current?.rowIndex ?? 0} of ${previewRows.length} shown. Verify the data looks right.`}</p>
                     {current && (
-                      <div style={{ padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", marginBottom: "16px" }}>
+                      <div style={{ padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid " + (current.duplicate ? "var(--brass)" : "var(--cream2)"), marginBottom: "16px", borderLeft: current.duplicate ? "4px solid var(--brass)" : undefined }}>
+                        {current.duplicate && (
+                          <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--brass)", marginBottom: "10px" }}>Duplicate: matches existing {getAnimalName(current.duplicate)}{current.duplicate.tag ? ` (tag #${current.duplicate.tag})` : ""}</div>
+                        )}
                         {current.error ? (
                           <div style={{ color: "var(--danger2)", fontWeight: 600 }}>Error: {current.error}</div>
                         ) : current.data ? (
@@ -3352,13 +3945,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     )}
                     {previewRows.length > 0 && (
                       <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
-                        {previewRows.map((_, i) => (
-                          <button key={i} type="button" onClick={() => setImportPreviewRowIndex(i)} style={{ width: "32px", height: "32px", borderRadius: "50%", border: "2px solid " + (previewIndex === i ? "var(--brass)" : "var(--cream3)"), background: previewIndex === i ? "var(--cream)" : "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px", color: previewIndex === i ? "var(--ink)" : "var(--muted)" }}>{i + 1}</button>
+                        {previewRows.map((row, i) => (
+                          <button key={i} type="button" onClick={() => setImportPreviewRowIndex(i)} title={row.duplicate ? `Row ${row.rowIndex}: duplicate of ${getAnimalName(row.duplicate)}` : undefined} style={{ width: "32px", height: "32px", borderRadius: "50%", border: "2px solid " + (previewIndex === i ? "var(--brass)" : row.duplicate ? "var(--brass)" : "var(--cream3)"), background: previewIndex === i ? "var(--cream)" : row.duplicate ? "rgba(180, 140, 80, 0.15)" : "#fff", cursor: "pointer", fontWeight: 600, fontSize: "13px", color: previewIndex === i ? "var(--ink)" : row.duplicate ? "var(--brass)" : "var(--muted)" }}>{i + 1}</button>
                         ))}
                       </div>
                     )}
                     <p style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "16px" }}>
-                      {validCount + duplicateRows.length} row{(validCount + duplicateRows.length) !== 1 ? "s" : ""} with data · {errorCount} error{errorCount !== 1 ? "s" : ""} · {blankCount} blank row{blankCount !== 1 ? "s" : ""} skipped
+                      {validCount + duplicateRows.length} row{(validCount + duplicateRows.length) !== 1 ? "s" : ""} with data{duplicateRows.length > 0 ? ` (${duplicateRows.length} duplicate${duplicateRows.length !== 1 ? "s" : ""} — same tag or name + species)` : ""} · {errorCount} error{errorCount !== 1 ? "s" : ""} · {blankCount} blank row{blankCount !== 1 ? "s" : ""} skipped
                     </p>
                     <div style={{ display: "flex", gap: "10px" }}>
                       <Btn onClick={() => duplicateRows.length > 0 ? setImportStep(4) : runImport()}>{duplicateRows.length > 0 ? "Next: Duplicates" : "Import"}</Btn>

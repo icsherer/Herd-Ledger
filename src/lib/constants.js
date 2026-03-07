@@ -21,6 +21,9 @@ export const PASTURE_SPECIES = Object.keys(SPECIES);
 
 export const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes"];
 
+/** Cull flag reason options for "Mark for Cull" on animal profiles. */
+export const CULL_REASONS = ["Prolapse", "Poor Mother", "Reproductive Issue", "Injury", "Age", "Temperament", "Low Production", "Other"];
+
 export const TREATMENT_TYPES = ["Illness", "Injury", "Medication", "Deworming", "Vitamin/Supplement", "Vet Visit", "Other"];
 /** Treatment type → expense category for auto-created expense when cost is entered */
 export const TREATMENT_TYPE_TO_EXPENSE_CATEGORY = {
@@ -117,6 +120,24 @@ export const OFFSPRING_TERM_BY_SPECIES = {
   Cat: "Kitten",
   Chicken: "Chick",
 };
+
+/** Heat cycle length in days (used for next expected heat). Cattle 21, Pigs 21, Sheep 17, Goats 21, Horses 21. */
+export const HEAT_CYCLE_DAYS_BY_SPECIES = {
+  Cattle: 21,
+  Bison: 21,
+  Pig: 21,
+  Sheep: 17,
+  Goat: 21,
+  Horse: 21,
+  Llama: 21,
+  Alpaca: 21,
+  Donkey: 21,
+  Rabbit: 21,
+  Chicken: 21,
+  Dog: 21,
+  Cat: 21,
+};
+export const HEAT_CYCLE_DAYS_DEFAULT = 21;
 
 /** Default weaning age in days from birth (used when animal has no targetWeaningDate). */
 export const WEANING_AGE_DAYS_BY_SPECIES = {
@@ -297,10 +318,14 @@ export const TASK_CATEGORIES = ["Feeding", "Vaccination", "Breeding", "Castratio
 export const TASK_PRIORITIES = ["High", "Medium", "Low"];
 export const RECURRING_OPTIONS = ["One time", "Daily", "Weekly", "Monthly"];
 export const EXPENSE_CATEGORIES = ["Feed", "Veterinary", "Medicine", "Equipment", "Supplies", "Labor", "Fuel", "Land/Lease", "Other"];
+/** Vaccine route options for protocols and vaccination records. */
+export const VACCINE_ROUTES = ["SQ", "IM", "IN", "Oral"];
+
 export const DEFAULT_SETTINGS = {
   farmName: "",
   ownerName: "",
   defaultSpecies: "Cattle",
   tabVisibility: { ...DEFAULT_TAB_VISIBILITY },
   animalsViewMode: "tile",
+  vaccinationProtocols: [],
 };

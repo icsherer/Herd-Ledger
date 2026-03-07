@@ -700,9 +700,10 @@
 
 .hl-animals-list-name {
   flex: 1 1 auto;
-  min-width: min-content;
+  min-width: 0;
   white-space: nowrap;
-  overflow: visible;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hl-animals-list-health-dot {

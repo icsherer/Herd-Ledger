@@ -6,6 +6,8 @@ import {
   OFFSPRING_TERM_BY_SPECIES,
   WEANING_AGE_DAYS_BY_SPECIES,
   WEANING_AGE_DAYS_DEFAULT,
+  HEAT_CYCLE_DAYS_BY_SPECIES,
+  HEAT_CYCLE_DAYS_DEFAULT,
   BREEDING_MALE_SEX_TERMS,
   BREEDING_MALE_TO_SPECIES,
   MOON_ICONS,
@@ -90,21 +92,25 @@ export function getOffspringTerm(species) {
   return OFFSPRING_TERM_BY_SPECIES[species] || "Offspring";
 }
 
-/** Calculated weaning date from DOB + species default only (no targetWeaningDate). */
+/** Calculated weaning date from DOB + species default only (no targetWeaningDate). Returns null if animal is 12+ months or DOB invalid. */
 export function getCalculatedWeaningDate(animal) {
   if (!animal) return null;
-  const dob = (animal.dob || "").trim();
-  if (!dob || !/^\d{4}-\d{2}-\d{2}$/.test(dob)) return null;
+  const months = getAgeInMonths(animal.dob);
+  if (months != null && months >= 12) return null;
+  const birth = parseDateSafe(animal.dob);
+  if (!birth) return null;
   const days = WEANING_AGE_DAYS_BY_SPECIES[animal.species] ?? WEANING_AGE_DAYS_DEFAULT;
-  const d = new Date(dob + "T12:00:00");
+  const d = new Date(birth.getTime());
   d.setDate(d.getDate() + days);
   return d.toISOString().split("T")[0];
 }
 
-/** Expected weaning date for listing: targetWeaningDate if set, else DOB + species default. Returns null if already weaned or no DOB. */
+/** Expected weaning date for listing: targetWeaningDate if set, else DOB + species default. Returns null if already weaned, no DOB, or animal is 12+ months. */
 export function getExpectedWeaningDate(animal) {
   if (!animal) return null;
   if (animal.weaningDate) return null; // already weaned
+  const months = getAgeInMonths(animal.dob);
+  if (months != null && months >= 12) return null;
   const target = (animal.targetWeaningDate || "").trim();
   if (target && /^\d{4}-\d{2}-\d{2}$/.test(target)) return target;
   return getCalculatedWeaningDate(animal);
@@ -112,6 +118,22 @@ export function getExpectedWeaningDate(animal) {
 
 export function isFemale(animal) {
   return animal && SEX_TERM_GENDER[animal.sex] === "Female";
+}
+
+/** Next expected heat date (YYYY-MM-DD) from last logged heat + species cycle; null if no heats. Never returns today — always the next cycle date in the future (or null). */
+export function getNextExpectedHeatDate(animal) {
+  const cycles = (animal?.heatCycles || []).slice().sort((a, b) => (b.observedDate || "").localeCompare(a.observedDate || ""));
+  const last = cycles[0];
+  if (!last?.observedDate) return null;
+  const cycleDays = HEAT_CYCLE_DAYS_BY_SPECIES[animal.species] ?? HEAT_CYCLE_DAYS_DEFAULT;
+  const d = parseDateSafe(last.observedDate);
+  if (!d) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  let next = new Date(d.getTime());
+  next.setDate(next.getDate() + cycleDays);
+  while (next.getTime() <= today.getTime()) next.setDate(next.getDate() + cycleDays);
+  return next.toISOString().split("T")[0];
 }
 
 export function isMale(animal) {
@@ -268,8 +290,9 @@ export function progress(breedingStr, totalDays) {
 }
 
 export function fmt(dateStr) {
-  if (!dateStr) return "—";
-  return new Date(dateStr + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const d = parseDateSafe(dateStr);
+  if (!d) return dateStr ? "Unknown" : "—";
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }
 
 export function createMovementJournalEntry(animal, fromPasture, toPasture, dateMovedIn, notes, movementId) {
@@ -332,9 +355,19 @@ export function breedingDateFromDelivery(deliveryDateStr, gestationDays) {
   return d.toISOString().split("T")[0];
 }
 
+/** Parse YYYY-MM-DD string; return Date or null if invalid or year > maxYear. */
+export function parseDateSafe(dateStr, maxYear = 2100) {
+  if (!dateStr || typeof dateStr !== "string") return null;
+  const s = String(dateStr).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const d = new Date(s + "T12:00:00");
+  if (Number.isNaN(d.getTime()) || d.getFullYear() > maxYear) return null;
+  return d;
+}
+
 export function ageFromDob(dobStr) {
-  if (!dobStr) return "Unknown";
-  const birth = new Date(dobStr + "T12:00:00");
+  const birth = parseDateSafe(dobStr);
+  if (!birth) return "Unknown";
   const now = new Date();
   const months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
   if (now.getDate() < birth.getDate()) return ageFromDobMonths(months - 1);
@@ -350,8 +383,8 @@ export function ageFromDobMonths(months) {
 }
 
 export function getAgeInMonths(dobStr) {
-  if (!dobStr) return null;
-  const birth = new Date(dobStr + "T12:00:00");
+  const birth = parseDateSafe(dobStr);
+  if (!birth) return null;
   const now = new Date();
   let months = (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
   if (now.getDate() < birth.getDate()) months--;
@@ -359,10 +392,10 @@ export function getAgeInMonths(dobStr) {
 }
 
 export function getAgeInWeeks(dobStr) {
-  if (!dobStr) return null;
-  const birth = new Date(dobStr + "T12:00:00").getTime();
+  const birth = parseDateSafe(dobStr);
+  if (!birth) return null;
   const now = Date.now();
-  const weeks = Math.floor((now - birth) / (7 * 86400000));
+  const weeks = Math.floor((now - birth.getTime()) / (7 * 86400000));
   return weeks < 0 ? null : weeks;
 }
 

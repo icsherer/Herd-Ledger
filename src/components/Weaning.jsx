@@ -1,4 +1,4 @@
-import { getExpectedWeaningDate, getAnimalName, fmt } from "../lib/helpers.js";
+import { getExpectedWeaningDate, getAnimalName, fmt, getAgeInMonths } from "../lib/helpers.js";
 import { SPECIES } from "../lib/constants.js";
 import { Card, Btn, SectionTitle } from "./ui.jsx";
 
@@ -20,7 +20,7 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
     .sort((a, b) => (b.expectedDate || "").localeCompare(a.expectedDate || ""));
 
   const past = (animals || [])
-    .filter(a => a.weaningDate)
+    .filter(a => a.weaningDate && (getAgeInMonths(a.dob) == null || getAgeInMonths(a.dob) < 12))
     .sort((a, b) => (b.weaningDate || "").localeCompare(a.weaningDate || ""));
 
   function markAsWeaned(animal, dateStr = todayStr) {

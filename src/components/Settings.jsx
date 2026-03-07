@@ -5,10 +5,13 @@ import { Card, Input, Select, Btn } from "./ui.jsx";
 const emptyVaccine = () => ({ vaccineName: "", dosage: "", route: "IM", boosterIntervalDays: "", trackBooster: false });
 const emptyProtocol = () => ({ id: "", name: "", vaccines: [emptyVaccine()] });
 
-export default function Settings({ settings, setSettings, onLogout, setTab }) {
+const emptyContact = () => ({ id: "", name: "", ranchCompany: "", phone: "", email: "", notes: "" });
+
+export default function Settings({ settings, setSettings, contacts = [], setContacts, onLogout, setTab }) {
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const protocols = settings?.vaccinationProtocols ?? [];
   const [protocolForm, setProtocolForm] = useState(null); // null | { id, name, vaccines } for add/edit
+  const [contactForm, setContactForm] = useState(null); // null | contact for add/edit
   const setProtocols = (next) => setSettings(prev => ({ ...prev, vaccinationProtocols: next }));
   const setVisibility = (id, value) => {
     setSettings(prev => ({
@@ -126,6 +129,53 @@ export default function Settings({ settings, setSettings, onLogout, setTab }) {
                   setProtocolForm(null);
                 }}>Save Protocol</Btn>
                 <Btn size="sm" variant="ghost" onClick={() => setProtocolForm(null)}>Cancel</Btn>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        <Card style={{ padding: "24px", marginBottom: "20px" }}>
+          <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Contacts</div>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>Save seller and buyer contacts (name, ranch/company, phone, email). Use them when entering &quot;Purchased from&quot; or recording a sale.</p>
+          {(contacts || []).length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
+              {(contacts || []).map(c => (
+                <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: "14px" }}>{c.name || "Unnamed"}</div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>{[c.ranchCompany, c.phone, c.email].filter(Boolean).join(" · ") || "No details"}</div>
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    <Btn size="sm" variant="ghost" onClick={() => setContactForm({ id: c.id, name: c.name || "", ranchCompany: c.ranchCompany || "", phone: c.phone || "", email: c.email || "", notes: c.notes || "" })}>Edit</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { if (confirm("Delete this contact?")) setContacts((contacts || []).filter(x => x.id !== c.id)); }}>Delete</Btn>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!contactForm ? (
+            <Btn variant="secondary" onClick={() => setContactForm(emptyContact())}>Add Contact</Btn>
+          ) : (
+            <div style={{ padding: "16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "12px" }}>
+                <Input label="Name" value={contactForm.name} onChange={e => setContactForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. John Smith" />
+                <Input label="Ranch / Company" value={contactForm.ranchCompany} onChange={e => setContactForm(p => ({ ...p, ranchCompany: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                <Input label="Phone" value={contactForm.phone} onChange={e => setContactForm(p => ({ ...p, phone: e.target.value }))} placeholder="e.g. 555-123-4567" />
+                <Input label="Email" value={contactForm.email} onChange={e => setContactForm(p => ({ ...p, email: e.target.value }))} placeholder="e.g. john@example.com" type="email" />
+                <Input label="Notes" value={contactForm.notes} onChange={e => setContactForm(p => ({ ...p, notes: e.target.value }))} placeholder="Optional notes" />
+              </div>
+              <div style={{ display: "flex", gap: "10px" }}>
+                <Btn size="sm" onClick={() => {
+                  const name = (contactForm.name || "").trim();
+                  if (!name) return;
+                  const id = contactForm.id || Date.now().toString();
+                  const newContact = { id, name, ranchCompany: (contactForm.ranchCompany || "").trim(), phone: (contactForm.phone || "").trim(), email: (contactForm.email || "").trim(), notes: (contactForm.notes || "").trim() };
+                  const list = contacts || [];
+                  const next = contactForm.id ? list.map(x => x.id === id ? newContact : x) : [...list, newContact];
+                  setContacts(next);
+                  setContactForm(null);
+                }}>Save Contact</Btn>
+                <Btn size="sm" variant="ghost" onClick={() => setContactForm(null)}>Cancel</Btn>
               </div>
             </div>
           )}

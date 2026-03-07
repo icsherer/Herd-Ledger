@@ -122,6 +122,7 @@ export default function App() {
   const [feederBulkAnimalIds, setFeederBulkAnimalIds] = useState([]);
   const [deliveryGestureId, setDeliveryGestureId] = useState(null);
   const [promptAddOffspring, setPromptAddOffspring] = useState(null);
+  const [contacts, setContacts] = useState([]);
   const initialLoadDone = useRef(false);
 
   const isGuest = user?.isGuest === true;
@@ -189,6 +190,7 @@ export default function App() {
       setExpenses([]);
       setLoadSales([]);
       setTasks([]);
+      setContacts([]);
       initialLoadDone.current = false;
       return;
     }
@@ -214,6 +216,7 @@ export default function App() {
         setExpenses(Array.isArray(data.expenses) ? data.expenses : []);
         setLoadSales(Array.isArray(data.loadSales) ? data.loadSales : []);
         setTasks(Array.isArray(data.tasks) ? data.tasks : []);
+        setContacts(Array.isArray(data.contacts) ? data.contacts : []);
       } catch (_) {
         setAnimals([]);
         setGestations([]);
@@ -222,6 +225,7 @@ export default function App() {
         setSettings({ ...DEFAULT_SETTINGS });
         setFeederPrograms([]);
         setPastures([]);
+        setContacts([]);
       }
       initialLoadDone.current = true;
       return;
@@ -256,6 +260,7 @@ export default function App() {
         setExpenses(Array.isArray(byKey.expenses) ? byKey.expenses : []);
         setLoadSales(Array.isArray(byKey.loadSales) ? byKey.loadSales : []);
         setTasks(Array.isArray(byKey.tasks) ? byKey.tasks : []);
+        setContacts(Array.isArray(byKey.contacts) ? byKey.contacts : []);
         initialLoadDone.current = true;
       });
   }, [user]);
@@ -264,7 +269,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -274,7 +279,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -284,7 +289,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -294,7 +299,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -304,7 +309,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -314,7 +319,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -324,7 +329,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -334,7 +339,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -344,7 +349,7 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
@@ -354,12 +359,22 @@ export default function App() {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
       try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks }));
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
       } catch (_) {}
       return;
     }
     persistToSupabase("tasks", tasks);
   }, [user, tasks, persistToSupabase]);
+  useEffect(() => {
+    if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) {
+      try {
+        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, expenses, loadSales, tasks, contacts }));
+      } catch (_) {}
+      return;
+    }
+    persistToSupabase("contacts", contacts);
+  }, [user, contacts, persistToSupabase]);
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([
@@ -398,7 +413,7 @@ export default function App() {
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
       {tab === "dashboard" && <TabErrorBoundary key="dashboard" setTab={setTab}><Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} setAnimalsFilterHeatDue={setAnimalsFilterHeatDue} expenses={expenses} tasks={tasks} settings={settings} /></TabErrorBoundary>}
-      {tab === "animals"   && <TabErrorBoundary key="animals" setTab={setTab}><Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} filterHeatDue={animalsFilterHeatDue} setFilterHeatDue={setAnimalsFilterHeatDue} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} notes={notes} setNotes={setNotes} setDeliveryGestureId={setDeliveryGestureId} promptAddOffspring={promptAddOffspring} setPromptAddOffspring={setPromptAddOffspring} /></TabErrorBoundary>}
+      {tab === "animals"   && <TabErrorBoundary key="animals" setTab={setTab}><Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} filterHeatDue={animalsFilterHeatDue} setFilterHeatDue={setAnimalsFilterHeatDue} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} notes={notes} setNotes={setNotes} setDeliveryGestureId={setDeliveryGestureId} promptAddOffspring={promptAddOffspring} setPromptAddOffspring={setPromptAddOffspring} contacts={contacts} setContacts={setContacts} /></TabErrorBoundary>}
       {tab === "gestation" && <TabErrorBoundary key="gestation" setTab={setTab}><Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} offspring={offspring} setOffspring={setOffspring} setTab={setTab} setViewingAnimal={setViewingAnimal} deliveryGestureId={deliveryGestureId} setDeliveryGestureId={setDeliveryGestureId} setPromptAddOffspring={setPromptAddOffspring} /></TabErrorBoundary>}
       {tab === "feeder"    && <TabErrorBoundary key="feeder" setTab={setTab}><FeederCattle animals={animals} setAnimals={setAnimals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} /></TabErrorBoundary>}
       {tab === "pastures"  && <TabErrorBoundary key="pastures" setTab={setTab}><Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} gestations={gestations} setGestations={setGestations} notes={notes} setNotes={setNotes} /></TabErrorBoundary>}
@@ -408,7 +423,7 @@ export default function App() {
       {tab === "tasks"     && <TabErrorBoundary key="tasks" setTab={setTab}><Tasks tasks={tasks} setTasks={setTasks} animals={animals} gestations={gestations} offspring={offspring} pastures={pastures} setTab={setTab} /></TabErrorBoundary>}
       {tab === "weaning"   && <TabErrorBoundary key="weaning" setTab={setTab}><Weaning animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} setViewingAnimal={setViewingAnimal} setTab={setTab} /></TabErrorBoundary>}
       {tab === "help"      && <TabErrorBoundary key="help" setTab={setTab}><Help onBack={() => setTab("settings")} /></TabErrorBoundary>}
-      {tab === "settings"  && <TabErrorBoundary key="settings" setTab={setTab}><Settings settings={settings} setSettings={setSettings} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} setTab={setTab} /></TabErrorBoundary>}
+      {tab === "settings"  && <TabErrorBoundary key="settings" setTab={setTab}><Settings settings={settings} setSettings={setSettings} contacts={contacts} setContacts={setContacts} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} setTab={setTab} /></TabErrorBoundary>}
     </div>
   );
 }

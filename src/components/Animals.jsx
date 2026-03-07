@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, CULL_REASONS, VACCINE_ROUTES, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES } from "../lib/constants.js";
+import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, CULL_REASONS, VACCINE_ROUTES, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES, REGISTER_SPECIES_TABS, REGISTER_OTHER_SPECIES, HORSE_DISCIPLINES, EQUINE_VACCINE_SUGGESTIONS, HORSE_HEALTH_EXPENSE_CATEGORY } from "../lib/constants.js";
 import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
+import ContactPicker from "./ContactPicker.jsx";
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, filterHeatDue = false, setFilterHeatDue, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring }) {
+export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, filterHeatDue = false, setFilterHeatDue, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring, contacts = [], setContacts }) {
   const [showAdd, setShowAdd] = useState(false);
   const forceList = (animals || []).length > 50;
   const viewMode = forceList ? "list" : (settings?.animalsViewMode || "tile");
@@ -18,7 +19,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "", heightHands: "", discipline: "", registrationNumber: "", markings: "" };
   });
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
@@ -69,15 +70,27 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [sortBy, setSortBy] = useState("dateAddedNewest");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [showBreedingForm, setShowBreedingForm] = useState(false);
-  const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
+  const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" });
   const [showHeatForm, setShowHeatForm] = useState(false);
   const [heatForm, setHeatForm] = useState({ observedDate: "", intensity: "Moderate", notes: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
   const [moveForm, setMoveForm] = useState({ pastureName: "", dateMovedIn: "", notes: "" });
   const [showWeightForm, setShowWeightForm] = useState(false);
   const [weightForm, setWeightForm] = useState({ weight: "", date: "", notes: "" });
+  const [horseHealthTab, setHorseHealthTab] = useState("Vet Work");
+  const [showHorseHealthForm, setShowHorseHealthForm] = useState(false);
+  const [horseHealthForm, setHorseHealthForm] = useState({
+    vetDate: "", vetName: "", vetProcedure: "", vetNextAppointment: "", vetCost: "",
+    farrierDate: "", farrierName: "", farrierServiceType: "", farrierNextAppointment: "", farrierCost: "",
+    wormingDate: "", wormingProduct: "", wormingDosage: "", wormingNextDate: "", wormingCost: "",
+    suppName: "", suppDosage: "", suppCost: "",
+    dentalDate: "", dentalProvider: "", dentalNextFloatDate: "", dentalCost: "",
+  });
   const [showTreatmentForm, setShowTreatmentForm] = useState(false);
+  const [editingTreatmentId, setEditingTreatmentId] = useState(null);
   const [treatmentForm, setTreatmentForm] = useState({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" });
+  const [editingHorseHealth, setEditingHorseHealth] = useState(null); // { section: 'Vet Work'|'Farrier'|'Worming'|'Supplements'|'Dental', index: number } | null
+  const [editingUpcomingKey, setEditingUpcomingKey] = useState(null); // string e.g. 'farrier-0' or 'vaccination-abc123'
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [bulkFormType, setBulkFormType] = useState(null);
@@ -86,6 +99,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [saleForm, setSaleForm] = useState({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" });
   const [showCullForm, setShowCullForm] = useState(false);
   const [cullForm, setCullForm] = useState({ reason: "", notes: "", targetCullDate: "" });
+  const [showLineageForm, setShowLineageForm] = useState(false);
+  const [lineageForm, setLineageForm] = useState({ damInHerd: true, motherId: "", motherName: "", sireInHerd: true, sireId: "", sireName: "" });
   const [showImportModal, setShowImportModal] = useState(false);
   const [importStep, setImportStep] = useState(1); // 1=Upload, 2=Map, 3=Preview, 4=Duplicates, 5=Result
   const [importFile, setImportFile] = useState(null);
@@ -103,6 +118,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   useEffect(() => {
     setShowCullForm(false);
     setCullForm({ reason: "", notes: "", targetCullDate: "" });
+    setShowLineageForm(false);
   }, [viewingAnimal?.id]);
 
   const IMPORT_FUZZY_ALIASES = {
@@ -198,7 +214,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "", heightHands: "", discipline: "", registrationNumber: "", markings: "" };
   };
 
   function parseImportFile(file, onDone) {
@@ -513,6 +529,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       purchaseDate: form.purchaseDate?.trim() || undefined,
       purchasedFrom: form.purchasedFrom?.trim() || undefined,
       targetWeaningDate: form.targetWeaningDate?.trim() || undefined,
+      ...(form.species === "Horse" && {
+        heightHands: form.heightHands?.trim() || undefined,
+        discipline: form.discipline?.trim() || undefined,
+        registrationNumber: form.registrationNumber?.trim() || undefined,
+        markings: form.markings?.trim() || undefined,
+      }),
     };
     if (currentPasture?.trim() && PASTURE_SPECIES.includes(form.species)) {
       const canonical = getCanonicalPastureNames(animals, pastures);
@@ -606,6 +628,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       purchaseDate: (form.purchaseDate || "").trim() || undefined,
       purchasedFrom: (form.purchasedFrom || "").trim() || undefined,
       targetWeaningDate,
+      ...(form.species === "Horse" && {
+        heightHands: (form.heightHands || "").trim() || undefined,
+        discipline: (form.discipline || "").trim() || undefined,
+        registrationNumber: (form.registrationNumber || "").trim() || undefined,
+        markings: (form.markings || "").trim() || undefined,
+      }),
     };
     setAnimals(prev => prev.map(x => (x.id === editingId ? updated : x)));
     setViewing(updated);
@@ -1152,8 +1180,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
     function saveTreatment() {
       if (!treatmentForm.date || !treatmentForm.type) return;
+      const isEdit = !!editingTreatmentId;
       const entry = {
-        id: Date.now().toString(),
+        id: isEdit ? editingTreatmentId : Date.now().toString(),
         date: treatmentForm.date,
         type: treatmentForm.type,
         description: treatmentForm.description?.trim() || undefined,
@@ -1163,11 +1192,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         cost: treatmentForm.cost?.trim() ? parseFloat(treatmentForm.cost) : undefined,
         notes: treatmentForm.notes?.trim() || undefined,
       };
-      const nextTreatments = [...(a.treatments || []), entry].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+      const nextTreatments = isEdit
+        ? (a.treatments || []).map(e => (e.id === editingTreatmentId ? entry : e)).sort((x, y) => (y.date || "").localeCompare(x.date || ""))
+        : [...(a.treatments || []), entry].sort((x, y) => (y.date || "").localeCompare(x.date || ""));
       const updated = { ...a, treatments: nextTreatments };
       setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
       setViewing(updated);
-      if (setExpenses && entry.cost != null && entry.cost > 0) {
+      if (!isEdit && setExpenses && entry.cost != null && entry.cost > 0) {
         const category = TREATMENT_TYPE_TO_EXPENSE_CATEGORY[entry.type] || "Medicine";
         const description = `${entry.type} — ${getAnimalName(a)}`;
         setExpenses(prev => [...(prev || []), {
@@ -1181,6 +1212,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         }]);
       }
       setShowTreatmentForm(false);
+      setEditingTreatmentId(null);
       setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" });
     }
 
@@ -1200,8 +1232,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const totalDays = SPECIES[a.species]?.days || 150;
       const dueStart = dueDate(start, totalDays);
       const dueEnd = breedingForm.runningWithBull ? dueDate(end, totalDays) : dueStart;
-      const sireDisplay = breedingForm.sireAnimalId === "unknown" ? "Unknown" : (breedingForm.sire || undefined);
-      const sireId = breedingForm.sireAnimalId && breedingForm.sireAnimalId !== "unknown" ? breedingForm.sireAnimalId : undefined;
+      const sireDisplay = breedingForm.sireNotInHerd ? ((breedingForm.sire || "").trim() || "Unknown") : (breedingForm.sireAnimalId === "unknown" ? "Unknown" : (breedingForm.sire || undefined));
+      const sireId = breedingForm.sireNotInHerd ? undefined : (breedingForm.sireAnimalId && breedingForm.sireAnimalId !== "unknown" ? breedingForm.sireAnimalId : undefined);
       const recordId = Date.now().toString();
       const breedingDateMs = new Date(start + "T12:00:00").getTime();
       const recentHeats = (a.heatCycles || [])
@@ -1232,7 +1264,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         setAnimals(prev => prev.map(x => x.id === a.id ? { ...x, heatCycles: (x.heatCycles || []).map(h => h.id === linkedHeat.id ? { ...h, linkedGestationId: recordId } : h) } : x));
       }
       setShowBreedingForm(false);
-      setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
+      setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" });
     }
 
     function saveHeat() {
@@ -1290,6 +1322,23 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       return d2.localeCompare(d1);
     });
 
+    const horseUpcomingItems = a.species === "Horse" ? [
+      ...(a.horseFarrier || []).map((r, i) => r.nextAppointment ? { date: r.nextAppointment, label: "Farrier", type: "farrier", key: "farrier-" + i, source: { type: "farrier", index: i } } : null).filter(Boolean),
+      ...(a.horseWorming || []).map((r, i) => r.nextWormingDate ? { date: r.nextWormingDate, label: "Worming", type: "worming", key: "worming-" + i, source: { type: "worming", index: i } } : null).filter(Boolean),
+      ...(a.horseDental || []).map((r, i) => r.nextFloatDate ? { date: r.nextFloatDate, label: "Dental float", type: "dental", key: "dental-" + i, source: { type: "dental", index: i } } : null).filter(Boolean),
+      ...(a.horseVetWork || []).map((r, i) => r.nextAppointment ? { date: r.nextAppointment, label: "Vet", type: "vet", key: "vet-" + i, source: { type: "vet", index: i } } : null).filter(Boolean),
+      ...(a.vaccinations || []).map(v => v.nextDueDate ? { date: v.nextDueDate, label: "Vaccination" + (v.vaccineName ? ": " + v.vaccineName : ""), type: "vaccination", key: "vaccination-" + v.id, source: { type: "vaccination", vaccinationId: v.id } } : null).filter(Boolean),
+    ].sort((x, y) => (x.date || "").localeCompare(y.date || "")) : [];
+
+    const horseHealthTimelineItems = a.species === "Horse" ? (() => {
+      const fromTreatments = (a.treatments || []).map(t => ({ ...t, sortDate: t.date, source: "treatment", horseType: t.horseHealthType }));
+      const fromVaccinations = (a.vaccinations || []).map(v => ({ ...v, sortDate: v.dateGiven, source: "vaccination", id: v.id }));
+      const combined = [...fromTreatments, ...fromVaccinations].filter(x => x.sortDate);
+      return combined.sort((x, y) => (y.sortDate || "").localeCompare(x.sortDate || ""));
+    })() : [];
+
+    const HORSE_HEALTH_COLORS = { vet: "#16a34a", farrier: "#2563eb", worming: "#ea580c", dental: "#7c3aed", supplement: "#ca8a04", vaccination: "#0d9488", default: "#64748b" };
+
     return (
       <>
       <div className="no-print hl-page hl-page-narrow hl-fade-in">
@@ -1303,7 +1352,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 const opts = getSexOptions(species);
                 const sex = opts.includes(a.sex) ? a.sex : (SEX_TERM_GENDER[a.sex] === "Female" ? opts.find(o => SEX_TERM_GENDER[o] === "Female") : opts.find(o => SEX_TERM_GENDER[o] === "Male")) || opts[0];
                 setEditingId(a.id);
-                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "", color: a.color || "", acquisitionType: a.acquisitionType || "Home Raised", purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "", purchaseDate: a.purchaseDate || "", purchasedFrom: a.purchasedFrom || "", targetWeaningDate: a.targetWeaningDate || "" });
+                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "", color: a.color || "", acquisitionType: a.acquisitionType || "Home Raised", purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "", purchaseDate: a.purchaseDate || "", purchasedFrom: a.purchasedFrom || "", targetWeaningDate: a.targetWeaningDate || "", heightHands: a.heightHands || "", discipline: a.discipline || "", registrationNumber: a.registrationNumber || "", markings: a.markings || "" });
               }}>Edit</Btn>
           )}
         </div>
@@ -1342,10 +1391,24 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <>
                   <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
                   <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
-                  <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                  {setContacts ? <ContactPicker label="Purchased from (seller)" value={form.purchasedFrom} onChange={v => setForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
                 </>
               )}
             </div>
+            {form.species === "Horse" && (
+              <div style={{ marginBottom: "14px", padding: "14px", background: "var(--cream)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)" }}>
+                <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Horse details</div>
+                <div className="hl-form-grid-3" style={{ marginBottom: "0" }}>
+                  <Input label="Height (hands)" value={form.heightHands} onChange={e => setForm(p => ({ ...p, heightHands: e.target.value }))} placeholder="e.g. 15.2" />
+                  <Select label="Discipline" value={form.discipline} onChange={e => setForm(p => ({ ...p, discipline: e.target.value }))}>
+                    <option value="">— Select —</option>
+                    {HORSE_DISCIPLINES.map(d => <option key={d} value={d}>{d}</option>)}
+                  </Select>
+                  <Input label="Registration number" value={form.registrationNumber} onChange={e => setForm(p => ({ ...p, registrationNumber: e.target.value }))} placeholder="e.g. AQHA 123456" />
+                  <Input label="Markings" value={form.markings} onChange={e => setForm(p => ({ ...p, markings: e.target.value }))} placeholder="e.g. Star, sock LF" style={{ gridColumn: "1 / -1" }} />
+                </div>
+              </div>
+            )}
             <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
             <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
               <Btn onClick={saveEdit}>Save Changes</Btn>
@@ -1425,6 +1488,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 ["Date of Birth", fmt(a.dob)],
                 ["Tag / ID", a.tag || "—"],
                 ...(a.species !== "Mule" && isFemale(a) ? [["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]] : []),
+                ...(a.species === "Horse" ? [["Height (hands)", a.heightHands || "—"], ["Discipline", a.discipline || "—"], ["Registration number", a.registrationNumber || "—"], ["Markings", a.markings || "—"]] : []),
               ].map(([k, v]) => (
                 <div key={k}>
                   <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "4px" }}>{k}</div>
@@ -1446,6 +1510,358 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 )}
               </div>
             </div>
+
+            {a.species === "Horse" && (
+            <div className="hl-profile-section" style={{ marginTop: "24px" }}>
+              <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Horse Health</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "14px", borderBottom: "1px solid var(--border)", paddingBottom: "10px" }}>
+                {["Vet Work", "Farrier", "Worming", "Supplements", "Dental"].map(tab => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => { setHorseHealthTab(tab); setShowHorseHealthForm(false); }}
+                    style={{
+                      padding: "8px 14px",
+                      borderRadius: "var(--radius)",
+                      border: "1px solid var(--border)",
+                      background: horseHealthTab === tab ? "var(--green)" : "var(--cream)",
+                      color: horseHealthTab === tab ? "#fff" : "var(--ink2)",
+                      fontWeight: 600,
+                      fontSize: "13px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    {tab}
+                  </button>
+                ))}
+              </div>
+              {horseHealthTab === "Vet Work" && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "13px", color: "var(--ink2)" }}>Vet visits and procedures</span>
+                    {!showHorseHealthForm && <Btn size="sm" variant="secondary" onClick={() => { setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, vetDate: "", vetName: "", vetProcedure: "", vetNextAppointment: "", vetCost: "" })); setShowHorseHealthForm(true); }}>Add</Btn>}
+                  </div>
+                  {(a.horseVetWork || []).length > 0 && (
+                    <div style={{ marginBottom: "12px" }}>
+                      {(a.horseVetWork || []).map((r, i) => (
+                        <div key={i} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", marginBottom: "8px", fontSize: "14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                          <div>
+                            <div><strong>{fmt(r.date)}</strong> — {r.vetName || "—"}</div>
+                            {r.procedure && <div style={{ marginTop: "4px" }}>{r.procedure}</div>}
+                            {r.nextAppointment && <div style={{ marginTop: "4px", color: "var(--muted)" }}>Next: {fmt(r.nextAppointment)}</div>}
+                            {r.cost != null && r.cost !== "" && <div style={{ marginTop: "4px", fontSize: "13px", color: "var(--muted)" }}>Cost: ${Number(r.cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>}
+                          </div>
+                          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingHorseHealth({ section: "Vet Work", index: i }); setHorseHealthForm(p => ({ ...p, vetDate: r.date || "", vetName: r.vetName || "", vetProcedure: r.procedure || "", vetNextAppointment: r.nextAppointment || "", vetCost: r.cost != null && r.cost !== "" ? String(r.cost) : "" })); setShowHorseHealthForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { if (!confirm("Remove this vet record?")) return; const next = (a.horseVetWork || []).filter((_, j) => j !== i); const nextTreatments = (a.treatments || []).filter(t => t.id !== r.treatmentId); const updated = { ...a, horseVetWork: next, treatments: nextTreatments.sort((x, y) => (y.date || "").localeCompare(x.date || "")) }; setAnimals(prev => prev.map(an => an.id === a.id ? updated : an)); setViewing(updated); if (setExpenses && r.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== r.expenseId)); }}>Delete</Btn>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showHorseHealthForm && horseHealthTab === "Vet Work" && (
+                    <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
+                      <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Vet Work" ? "Edit Vet Visit" : "Add Vet Visit"}</div>
+                      <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
+                        <Input label="Date" type="date" value={horseHealthForm.vetDate} onChange={e => setHorseHealthForm(p => ({ ...p, vetDate: e.target.value }))} />
+                        <Input label="Vet name" value={horseHealthForm.vetName} onChange={e => setHorseHealthForm(p => ({ ...p, vetName: e.target.value }))} placeholder="e.g. Dr. Smith" />
+                        <Input label="Next appointment" type="date" value={horseHealthForm.vetNextAppointment} onChange={e => setHorseHealthForm(p => ({ ...p, vetNextAppointment: e.target.value }))} />
+                        <Input label="Cost of visit ($)" type="number" min="0" step="0.01" value={horseHealthForm.vetCost} onChange={e => setHorseHealthForm(p => ({ ...p, vetCost: e.target.value }))} placeholder="Optional" />
+                      </div>
+                      <Textarea label="Procedure" value={horseHealthForm.vetProcedure} onChange={e => setHorseHealthForm(p => ({ ...p, vetProcedure: e.target.value }))} rows={2} placeholder="Procedure or notes" />
+                      <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                        <Btn size="sm" onClick={() => {
+                          const vetCostNum = horseHealthForm.vetCost?.trim() ? parseFloat(horseHealthForm.vetCost) : undefined;
+                          const isEdit = editingHorseHealth?.section === "Vet Work";
+                          const existingRec = isEdit ? (a.horseVetWork || [])[editingHorseHealth.index] : null;
+                          const expenseId = (vetCostNum != null && vetCostNum > 0) ? (existingRec?.expenseId || "horse-vet-" + Date.now() + "-exp") : undefined;
+                          const rec = { date: horseHealthForm.vetDate?.trim() || undefined, vetName: horseHealthForm.vetName?.trim() || undefined, procedure: horseHealthForm.vetProcedure?.trim() || undefined, nextAppointment: horseHealthForm.vetNextAppointment?.trim() || undefined, cost: vetCostNum, expenseId };
+                          const treatmentId = isEdit ? existingRec?.treatmentId : "horse-vet-" + Date.now();
+                          const treatmentEntry = { id: treatmentId, date: rec.date, type: "Vet Visit", description: rec.procedure, treatmentGiven: rec.vetName, notes: rec.nextAppointment ? "Next appointment: " + rec.nextAppointment : undefined, horseHealthType: "vet", cost: vetCostNum };
+                          const next = isEdit ? (a.horseVetWork || []).map((r, j) => j === editingHorseHealth.index ? { ...rec, treatmentId: r.treatmentId } : r) : [...(a.horseVetWork || []), { ...rec, treatmentId }];
+                          const nextTreatments = isEdit ? (a.treatments || []).map(t => t.id === treatmentId ? treatmentEntry : t) : [...(a.treatments || []), treatmentEntry];
+                          const sortedTreatments = nextTreatments.sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+                          const updated = { ...a, horseVetWork: next, treatments: sortedTreatments };
+                          setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                          setViewing(updated);
+                          if (setExpenses) {
+                            if (vetCostNum != null && vetCostNum > 0) {
+                              const description = `Vet — ${getAnimalName(a)} — ${rec.procedure || "Vet visit"}`;
+                              const newExp = { id: expenseId, date: rec.date, category: HORSE_HEALTH_EXPENSE_CATEGORY.vet, amount: vetCostNum, description, animalId: a.id };
+                              setExpenses(prev => { const list = prev || []; const idx = list.findIndex(e => e.id === expenseId); if (idx >= 0) return list.map((e, i) => i === idx ? newExp : e); return [...list, newExp]; });
+                            } else if (existingRec?.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== existingRec.expenseId));
+                          }
+                          setShowHorseHealthForm(false);
+                          setEditingHorseHealth(null);
+                          setHorseHealthForm(p => ({ ...p, vetDate: "", vetName: "", vetProcedure: "", vetNextAppointment: "", vetCost: "" }));
+                        }}>Save</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { setShowHorseHealthForm(false); setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, vetDate: "", vetName: "", vetProcedure: "", vetNextAppointment: "", vetCost: "" })); }}>Cancel</Btn>
+                      </div>
+                    </Card>
+                  )}
+                </>
+              )}
+              {horseHealthTab === "Farrier" && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "13px", color: "var(--ink2)" }}>Farrier visits</span>
+                    {!showHorseHealthForm && <Btn size="sm" variant="secondary" onClick={() => { setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, farrierDate: "", farrierName: "", farrierServiceType: "", farrierNextAppointment: "", farrierCost: "" })); setShowHorseHealthForm(true); }}>Add</Btn>}
+                  </div>
+                  {(a.horseFarrier || []).length > 0 && (
+                    <div style={{ marginBottom: "12px" }}>
+                      {(a.horseFarrier || []).map((r, i) => (
+                        <div key={i} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", marginBottom: "8px", fontSize: "14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                          <div>
+<div><strong>{fmt(r.date)}</strong> — {r.farrierName || "—"} · {r.serviceType || "—"}</div>
+                          {r.nextAppointment && <div style={{ marginTop: "4px", color: "var(--muted)" }}>Next: {fmt(r.nextAppointment)}</div>}
+                          {r.cost != null && r.cost !== "" && <div style={{ marginTop: "4px", fontSize: "13px", color: "var(--muted)" }}>Cost: ${Number(r.cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>}
+                          </div>
+                          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingHorseHealth({ section: "Farrier", index: i }); setHorseHealthForm(p => ({ ...p, farrierDate: r.date || "", farrierName: r.farrierName || "", farrierServiceType: r.serviceType || "", farrierNextAppointment: r.nextAppointment || "", farrierCost: r.cost != null && r.cost !== "" ? String(r.cost) : "" })); setShowHorseHealthForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { if (!confirm("Remove this farrier record?")) return; const next = (a.horseFarrier || []).filter((_, j) => j !== i); const nextTreatments = (a.treatments || []).filter(t => t.id !== r.treatmentId); const updated = { ...a, horseFarrier: next, treatments: nextTreatments.sort((x, y) => (y.date || "").localeCompare(x.date || "")) }; setAnimals(prev => prev.map(an => an.id === a.id ? updated : an)); setViewing(updated); if (setExpenses && r.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== r.expenseId)); }}>Delete</Btn>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showHorseHealthForm && horseHealthTab === "Farrier" && (
+                    <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
+                      <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Farrier" ? "Edit Farrier Visit" : "Add Farrier Visit"}</div>
+                      <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
+                        <Input label="Date" type="date" value={horseHealthForm.farrierDate} onChange={e => {
+                          const d = e.target.value;
+                          setHorseHealthForm(p => ({ ...p, farrierDate: d, farrierNextAppointment: addDays(d, 49) || p.farrierNextAppointment }));
+                        }} />
+                        <Input label="Farrier name" value={horseHealthForm.farrierName} onChange={e => setHorseHealthForm(p => ({ ...p, farrierName: e.target.value }))} placeholder="e.g. John Smith" />
+                        <Input label="Service type" value={horseHealthForm.farrierServiceType} onChange={e => setHorseHealthForm(p => ({ ...p, farrierServiceType: e.target.value }))} placeholder="e.g. Trim, Shoes" />
+                        <Input label="Next appointment" type="date" value={horseHealthForm.farrierNextAppointment} onChange={e => setHorseHealthForm(p => ({ ...p, farrierNextAppointment: e.target.value }))} style={{ gridColumn: "1 / -1" }} />
+                        <Input label="Cost per visit ($)" type="number" min="0" step="0.01" value={horseHealthForm.farrierCost} onChange={e => setHorseHealthForm(p => ({ ...p, farrierCost: e.target.value }))} placeholder="Optional" />
+                      </div>
+                      <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                        <Btn size="sm" onClick={() => {
+                          const farrierCostNum = horseHealthForm.farrierCost?.trim() ? parseFloat(horseHealthForm.farrierCost) : undefined;
+                          const isEdit = editingHorseHealth?.section === "Farrier";
+                          const existingRec = isEdit ? (a.horseFarrier || [])[editingHorseHealth.index] : null;
+                          const expenseId = (farrierCostNum != null && farrierCostNum > 0) ? (existingRec?.expenseId || "horse-farrier-" + Date.now() + "-exp") : undefined;
+                          const rec = { date: horseHealthForm.farrierDate?.trim() || undefined, farrierName: horseHealthForm.farrierName?.trim() || undefined, serviceType: horseHealthForm.farrierServiceType?.trim() || undefined, nextAppointment: horseHealthForm.farrierNextAppointment?.trim() || undefined, cost: farrierCostNum, expenseId };
+                          const treatmentId = isEdit ? existingRec?.treatmentId : "horse-farrier-" + Date.now();
+                          const desc = ["Farrier", rec.serviceType, rec.farrierName].filter(Boolean).join(" — ");
+                          const treatmentEntry = { id: treatmentId, date: rec.date, type: "Other", description: desc || "Farrier visit", notes: rec.nextAppointment ? "Next appointment: " + rec.nextAppointment : undefined, horseHealthType: "farrier", cost: farrierCostNum };
+                          const next = isEdit ? (a.horseFarrier || []).map((r, j) => j === editingHorseHealth.index ? { ...rec, treatmentId: r.treatmentId } : r) : [...(a.horseFarrier || []), { ...rec, treatmentId }];
+                          const nextTreatments = isEdit ? (a.treatments || []).map(t => t.id === treatmentId ? treatmentEntry : t) : [...(a.treatments || []), treatmentEntry];
+                          const sortedTreatments = nextTreatments.sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+                          const updated = { ...a, horseFarrier: next, treatments: sortedTreatments };
+                          setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                          setViewing(updated);
+                          if (setExpenses) {
+                            if (farrierCostNum != null && farrierCostNum > 0) {
+                              const description = `Farrier — ${getAnimalName(a)} — ${rec.serviceType || "Visit"}`;
+                              const newExp = { id: expenseId, date: rec.date, category: HORSE_HEALTH_EXPENSE_CATEGORY.farrier, amount: farrierCostNum, description, animalId: a.id };
+                              setExpenses(prev => { const list = prev || []; const idx = list.findIndex(e => e.id === expenseId); if (idx >= 0) return list.map((e, i) => i === idx ? newExp : e); return [...list, newExp]; });
+                            } else if (existingRec?.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== existingRec.expenseId));
+                          }
+                          setShowHorseHealthForm(false);
+                          setEditingHorseHealth(null);
+                          setHorseHealthForm(p => ({ ...p, farrierDate: "", farrierName: "", farrierServiceType: "", farrierNextAppointment: "", farrierCost: "" }));
+                        }}>Save</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { setShowHorseHealthForm(false); setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, farrierDate: "", farrierName: "", farrierServiceType: "", farrierNextAppointment: "", farrierCost: "" })); }}>Cancel</Btn>
+                      </div>
+                    </Card>
+                  )}
+                </>
+              )}
+              {horseHealthTab === "Worming" && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "13px", color: "var(--ink2)" }}>Worming records</span>
+                    {!showHorseHealthForm && <Btn size="sm" variant="secondary" onClick={() => { setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, wormingDate: "", wormingProduct: "", wormingDosage: "", wormingNextDate: "", wormingCost: "" })); setShowHorseHealthForm(true); }}>Add</Btn>}
+                  </div>
+                  {(a.horseWorming || []).length > 0 && (
+                    <div style={{ marginBottom: "12px" }}>
+                      {(a.horseWorming || []).map((r, i) => (
+                        <div key={i} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", marginBottom: "8px", fontSize: "14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                          <div>
+<div><strong>{fmt(r.date)}</strong> — {r.product || "—"} {r.dosage && `· ${r.dosage}`}</div>
+                          {r.nextWormingDate && <div style={{ marginTop: "4px", color: "var(--muted)" }}>Next: {fmt(r.nextWormingDate)}</div>}
+                          {r.cost != null && r.cost !== "" && <div style={{ marginTop: "4px", fontSize: "13px", color: "var(--muted)" }}>Cost: ${Number(r.cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>}
+                          </div>
+                          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingHorseHealth({ section: "Worming", index: i }); setHorseHealthForm(p => ({ ...p, wormingDate: r.date || "", wormingProduct: r.product || "", wormingDosage: r.dosage || "", wormingNextDate: r.nextWormingDate || "", wormingCost: r.cost != null && r.cost !== "" ? String(r.cost) : "" })); setShowHorseHealthForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { if (!confirm("Remove this worming record?")) return; const next = (a.horseWorming || []).filter((_, j) => j !== i); const nextTreatments = (a.treatments || []).filter(t => t.id !== r.treatmentId); const updated = { ...a, horseWorming: next, treatments: nextTreatments.sort((x, y) => (y.date || "").localeCompare(x.date || "")) }; setAnimals(prev => prev.map(an => an.id === a.id ? updated : an)); setViewing(updated); if (setExpenses && r.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== r.expenseId)); }}>Delete</Btn>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showHorseHealthForm && horseHealthTab === "Worming" && (
+                    <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
+                      <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Worming" ? "Edit Worming" : "Add Worming"}</div>
+                      <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
+                        <Input label="Date" type="date" value={horseHealthForm.wormingDate} onChange={e => setHorseHealthForm(p => ({ ...p, wormingDate: e.target.value }))} />
+                        <Input label="Product" value={horseHealthForm.wormingProduct} onChange={e => setHorseHealthForm(p => ({ ...p, wormingProduct: e.target.value }))} placeholder="e.g. Ivermectin" />
+                        <Input label="Dosage" value={horseHealthForm.wormingDosage} onChange={e => setHorseHealthForm(p => ({ ...p, wormingDosage: e.target.value }))} placeholder="e.g. 1 tube" />
+                        <Input label="Next worming date" type="date" value={horseHealthForm.wormingNextDate} onChange={e => setHorseHealthForm(p => ({ ...p, wormingNextDate: e.target.value }))} style={{ gridColumn: "1 / -1" }} />
+                        <Input label="Cost per treatment ($)" type="number" min="0" step="0.01" value={horseHealthForm.wormingCost} onChange={e => setHorseHealthForm(p => ({ ...p, wormingCost: e.target.value }))} placeholder="Optional" />
+                      </div>
+                      <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                        <Btn size="sm" onClick={() => {
+                          const wormingCostNum = horseHealthForm.wormingCost?.trim() ? parseFloat(horseHealthForm.wormingCost) : undefined;
+                          const isEdit = editingHorseHealth?.section === "Worming";
+                          const existingRec = isEdit ? (a.horseWorming || [])[editingHorseHealth.index] : null;
+                          const expenseId = (wormingCostNum != null && wormingCostNum > 0) ? (existingRec?.expenseId || "horse-worming-" + Date.now() + "-exp") : undefined;
+                          const rec = { date: horseHealthForm.wormingDate?.trim() || undefined, product: horseHealthForm.wormingProduct?.trim() || undefined, dosage: horseHealthForm.wormingDosage?.trim() || undefined, nextWormingDate: horseHealthForm.wormingNextDate?.trim() || undefined, cost: wormingCostNum, expenseId };
+                          const treatmentId = isEdit ? existingRec?.treatmentId : "horse-worming-" + Date.now();
+                          const desc = ["Worming", rec.product, rec.dosage].filter(Boolean).join(" — ");
+                          const treatmentEntry = { id: treatmentId, date: rec.date, type: "Deworming", description: desc || "Worming", notes: rec.nextWormingDate ? "Next worming: " + rec.nextWormingDate : undefined, horseHealthType: "worming", cost: wormingCostNum };
+                          const next = isEdit ? (a.horseWorming || []).map((r, j) => j === editingHorseHealth.index ? { ...rec, treatmentId: r.treatmentId } : r) : [...(a.horseWorming || []), { ...rec, treatmentId }];
+                          const nextTreatments = isEdit ? (a.treatments || []).map(t => t.id === treatmentId ? treatmentEntry : t) : [...(a.treatments || []), treatmentEntry];
+                          const sortedTreatments = nextTreatments.sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+                          const updated = { ...a, horseWorming: next, treatments: sortedTreatments };
+                          setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                          setViewing(updated);
+                          if (setExpenses) {
+                            if (wormingCostNum != null && wormingCostNum > 0) {
+                              const description = `Worming — ${getAnimalName(a)} — ${rec.product || "Treatment"}`;
+                              const newExp = { id: expenseId, date: rec.date, category: HORSE_HEALTH_EXPENSE_CATEGORY.worming, amount: wormingCostNum, description, animalId: a.id };
+                              setExpenses(prev => { const list = prev || []; const idx = list.findIndex(e => e.id === expenseId); if (idx >= 0) return list.map((e, i) => i === idx ? newExp : e); return [...list, newExp]; });
+                            } else if (existingRec?.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== existingRec.expenseId));
+                          }
+                          setShowHorseHealthForm(false);
+                          setEditingHorseHealth(null);
+                          setHorseHealthForm(p => ({ ...p, wormingDate: "", wormingProduct: "", wormingDosage: "", wormingNextDate: "", wormingCost: "" }));
+                        }}>Save</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { setShowHorseHealthForm(false); setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, wormingDate: "", wormingProduct: "", wormingDosage: "", wormingNextDate: "", wormingCost: "" })); }}>Cancel</Btn>
+                      </div>
+                    </Card>
+                  )}
+                </>
+              )}
+              {horseHealthTab === "Supplements" && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "13px", color: "var(--ink2)" }}>Ongoing daily supplements</span>
+                    {!showHorseHealthForm && <Btn size="sm" variant="secondary" onClick={() => { setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "" })); setShowHorseHealthForm(true); }}>Add</Btn>}
+                  </div>
+                  {(a.horseSupplements || []).length > 0 && (
+                    <div style={{ marginBottom: "12px" }}>
+                      {(a.horseSupplements || []).map((r, i) => (
+                        <div key={i} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", marginBottom: "8px", fontSize: "14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                          <div><strong>{r.name || "—"}</strong> {r.dosage && `· ${r.dosage}`} {r.cost != null && r.cost !== "" && <span style={{ color: "var(--muted)" }}> · ${Number(r.cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>}</div>
+                          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingHorseHealth({ section: "Supplements", index: i }); setHorseHealthForm(p => ({ ...p, suppName: r.name || "", suppDosage: r.dosage || "", suppCost: r.cost != null && r.cost !== "" ? String(r.cost) : "" })); setShowHorseHealthForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { if (!confirm("Remove this supplement?")) return; const next = (a.horseSupplements || []).filter((_, j) => j !== i); const updated = { ...a, horseSupplements: next }; setAnimals(prev => prev.map(an => an.id === a.id ? updated : an)); setViewing(updated); if (setExpenses && r.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== r.expenseId)); }}>Delete</Btn>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showHorseHealthForm && horseHealthTab === "Supplements" && (
+                    <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
+                      <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Supplements" ? "Edit Supplement" : "Add Supplement"}</div>
+                      <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
+                        <Input label="Name" value={horseHealthForm.suppName} onChange={e => setHorseHealthForm(p => ({ ...p, suppName: e.target.value }))} placeholder="e.g. Joint supplement" />
+                        <Input label="Dosage" value={horseHealthForm.suppDosage} onChange={e => setHorseHealthForm(p => ({ ...p, suppDosage: e.target.value }))} placeholder="e.g. 1 scoop daily" />
+                        <Input label="Cost per month ($)" type="number" min="0" step="0.01" value={horseHealthForm.suppCost} onChange={e => setHorseHealthForm(p => ({ ...p, suppCost: e.target.value }))} placeholder="e.g. 25.00" />
+                      </div>
+                      <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                        <Btn size="sm" onClick={() => {
+                          const costNum = horseHealthForm.suppCost?.trim() ? parseFloat(horseHealthForm.suppCost) : undefined;
+                          const isEdit = editingHorseHealth?.section === "Supplements";
+                          const existingRec = isEdit ? (a.horseSupplements || [])[editingHorseHealth.index] : null;
+                          const expenseId = (costNum != null && costNum > 0) ? (existingRec?.expenseId || "horse-supplement-" + Date.now() + "-exp") : undefined;
+                          const rec = { name: horseHealthForm.suppName?.trim() || undefined, dosage: horseHealthForm.suppDosage?.trim() || undefined, cost: costNum, expenseId };
+                          const next = isEdit ? (a.horseSupplements || []).map((r, j) => j === editingHorseHealth.index ? rec : r) : [...(a.horseSupplements || []), rec];
+                          const updated = { ...a, horseSupplements: next };
+                          setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                          setViewing(updated);
+                          if (setExpenses) {
+                            if (costNum != null && costNum > 0) {
+                              const suppDate = new Date().toISOString().split("T")[0];
+                              const description = `Supplement — ${getAnimalName(a)} — ${rec.name || "Supplements"}`;
+                              const newExp = { id: expenseId, date: suppDate, category: HORSE_HEALTH_EXPENSE_CATEGORY.supplement, amount: costNum, description, animalId: a.id };
+                              setExpenses(prev => { const list = prev || []; const idx = list.findIndex(e => e.id === expenseId); if (idx >= 0) return list.map((e, i) => i === idx ? newExp : e); return [...list, newExp]; });
+                            } else if (existingRec?.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== existingRec.expenseId));
+                          }
+                          setShowHorseHealthForm(false);
+                          setEditingHorseHealth(null);
+                          setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "" }));
+                        }}>Save</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { setShowHorseHealthForm(false); setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "" })); }}>Cancel</Btn>
+                      </div>
+                    </Card>
+                  )}
+                </>
+              )}
+              {horseHealthTab === "Dental" && (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <span style={{ fontSize: "13px", color: "var(--ink2)" }}>Dental / float records</span>
+                    {!showHorseHealthForm && <Btn size="sm" variant="secondary" onClick={() => { setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, dentalDate: "", dentalProvider: "", dentalNextFloatDate: "", dentalCost: "" })); setShowHorseHealthForm(true); }}>Add</Btn>}
+                  </div>
+                  {(a.horseDental || []).length > 0 && (
+                    <div style={{ marginBottom: "12px" }}>
+                      {(a.horseDental || []).map((r, i) => (
+                        <div key={i} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", marginBottom: "8px", fontSize: "14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                          <div>
+<div><strong>{fmt(r.date)}</strong> — {r.provider || "—"}</div>
+                          {r.nextFloatDate && <div style={{ marginTop: "4px", color: "var(--muted)" }}>Next float: {fmt(r.nextFloatDate)}</div>}
+                          {r.cost != null && r.cost !== "" && <div style={{ marginTop: "4px", fontSize: "13px", color: "var(--muted)" }}>Cost: ${Number(r.cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</div>}
+                          </div>
+                          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingHorseHealth({ section: "Dental", index: i }); setHorseHealthForm(p => ({ ...p, dentalDate: r.date || "", dentalProvider: r.provider || "", dentalNextFloatDate: r.nextFloatDate || "", dentalCost: r.cost != null && r.cost !== "" ? String(r.cost) : "" })); setShowHorseHealthForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { if (!confirm("Remove this dental record?")) return; const next = (a.horseDental || []).filter((_, j) => j !== i); const nextTreatments = (a.treatments || []).filter(t => t.id !== r.treatmentId); const updated = { ...a, horseDental: next, treatments: nextTreatments.sort((x, y) => (y.date || "").localeCompare(x.date || "")) }; setAnimals(prev => prev.map(an => an.id === a.id ? updated : an)); setViewing(updated); if (setExpenses && r.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== r.expenseId)); }}>Delete</Btn>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {showHorseHealthForm && horseHealthTab === "Dental" && (
+                    <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
+                      <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Dental" ? "Edit Dental Visit" : "Add Dental Visit"}</div>
+                      <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
+                        <Input label="Date" type="date" value={horseHealthForm.dentalDate} onChange={e => {
+                          const d = e.target.value;
+                          setHorseHealthForm(p => ({ ...p, dentalDate: d, dentalNextFloatDate: addDays(d, 365) || p.dentalNextFloatDate }));
+                        }} />
+                        <Input label="Provider" value={horseHealthForm.dentalProvider} onChange={e => setHorseHealthForm(p => ({ ...p, dentalProvider: e.target.value }))} placeholder="e.g. Equine dentist" />
+                        <Input label="Next float date" type="date" value={horseHealthForm.dentalNextFloatDate} onChange={e => setHorseHealthForm(p => ({ ...p, dentalNextFloatDate: e.target.value }))} style={{ gridColumn: "1 / -1" }} />
+                        <Input label="Cost per visit ($)" type="number" min="0" step="0.01" value={horseHealthForm.dentalCost} onChange={e => setHorseHealthForm(p => ({ ...p, dentalCost: e.target.value }))} placeholder="Optional" />
+                      </div>
+                      <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
+                        <Btn size="sm" onClick={() => {
+                          const dentalCostNum = horseHealthForm.dentalCost?.trim() ? parseFloat(horseHealthForm.dentalCost) : undefined;
+                          const isEdit = editingHorseHealth?.section === "Dental";
+                          const existingRec = isEdit ? (a.horseDental || [])[editingHorseHealth.index] : null;
+                          const expenseId = (dentalCostNum != null && dentalCostNum > 0) ? (existingRec?.expenseId || "horse-dental-" + Date.now() + "-exp") : undefined;
+                          const rec = { date: horseHealthForm.dentalDate?.trim() || undefined, provider: horseHealthForm.dentalProvider?.trim() || undefined, nextFloatDate: horseHealthForm.dentalNextFloatDate?.trim() || undefined, cost: dentalCostNum, expenseId };
+                          const treatmentId = isEdit ? existingRec?.treatmentId : "horse-dental-" + Date.now();
+                          const desc = "Dental Float" + (rec.provider ? " — " + rec.provider : "");
+                          const treatmentEntry = { id: treatmentId, date: rec.date, type: "Other", description: desc, notes: rec.nextFloatDate ? "Next float: " + rec.nextFloatDate : undefined, horseHealthType: "dental", cost: dentalCostNum };
+                          const next = isEdit ? (a.horseDental || []).map((r, j) => j === editingHorseHealth.index ? { ...rec, treatmentId: r.treatmentId } : r) : [...(a.horseDental || []), { ...rec, treatmentId }];
+                          const nextTreatments = isEdit ? (a.treatments || []).map(t => t.id === treatmentId ? treatmentEntry : t) : [...(a.treatments || []), treatmentEntry];
+                          const sortedTreatments = nextTreatments.sort((x, y) => (y.date || "").localeCompare(x.date || ""));
+                          const updated = { ...a, horseDental: next, treatments: sortedTreatments };
+                          setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                          setViewing(updated);
+                          if (setExpenses) {
+                            if (dentalCostNum != null && dentalCostNum > 0) {
+                              const description = `Dental — ${getAnimalName(a)} — ${rec.provider || "Float"}`;
+                              const newExp = { id: expenseId, date: rec.date, category: HORSE_HEALTH_EXPENSE_CATEGORY.dental, amount: dentalCostNum, description, animalId: a.id };
+                              setExpenses(prev => { const list = prev || []; const idx = list.findIndex(e => e.id === expenseId); if (idx >= 0) return list.map((e, i) => i === idx ? newExp : e); return [...list, newExp]; });
+                            } else if (existingRec?.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== existingRec.expenseId));
+                          }
+                          setShowHorseHealthForm(false);
+                          setEditingHorseHealth(null);
+                          setHorseHealthForm(p => ({ ...p, dentalDate: "", dentalProvider: "", dentalNextFloatDate: "", dentalCost: "" }));
+                        }}>Save</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { setShowHorseHealthForm(false); setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, dentalDate: "", dentalProvider: "", dentalNextFloatDate: "", dentalCost: "" })); }}>Cancel</Btn>
+                      </div>
+                    </Card>
+                  )}
+                </>
+              )}
+            </div>
+            )}
 
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Cull</div>
@@ -1637,12 +2053,63 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
-                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Health & Treatment Log</div>
-                <Btn size="sm" variant="secondary" onClick={() => { setShowTreatmentForm(true); setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Add Treatment</Btn>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>{a.species === "Horse" ? "Health Timeline" : "Health & Treatment Log"}</div>
+                <Btn size="sm" variant="secondary" onClick={() => { setEditingTreatmentId(null); setShowTreatmentForm(true); setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Add Treatment</Btn>
               </div>
+              {a.species === "Horse" && horseUpcomingItems.length > 0 && (
+                <div style={{ marginBottom: "16px", padding: "14px 16px", borderRadius: "var(--radius)", background: "linear-gradient(135deg, var(--cream) 0%, rgba(201,149,42,0.08) 100%)", borderLeft: "4px solid var(--brass)" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Upcoming</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    {horseUpcomingItems.map((item, i) => {
+                      const isEditingDate = editingUpcomingKey === item.key;
+                      const updateUpcomingDate = (newDate) => {
+                        const src = item.source;
+                        if (src.type === "vaccination" && src.vaccinationId) {
+                          const nextVacc = (a.vaccinations || []).map(v => v.id === src.vaccinationId ? { ...v, nextDueDate: newDate } : v);
+                          const updated = { ...a, vaccinations: nextVacc };
+                          setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                          setViewing(updated);
+                        } else if (src.index != null && ["farrier", "worming", "dental", "vet"].includes(src.type)) {
+                          const arr = a["horse" + (src.type === "farrier" ? "Farrier" : src.type === "worming" ? "Worming" : src.type === "dental" ? "Dental" : "VetWork")] || [];
+                          const field = src.type === "farrier" || src.type === "vet" ? "nextAppointment" : src.type === "worming" ? "nextWormingDate" : "nextFloatDate";
+                          const next = arr.map((r, j) => j === src.index ? { ...r, [field]: newDate } : r);
+                          const updated = { ...a, ["horse" + (src.type === "farrier" ? "Farrier" : src.type === "worming" ? "Worming" : src.type === "dental" ? "Dental" : "VetWork")]: next };
+                          setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                          setViewing(updated);
+                        }
+                        setEditingUpcomingKey(null);
+                      };
+                      return (
+                        <div key={item.key} style={{ display: "flex", alignItems: "center", gap: "10px", fontSize: "14px" }}>
+                          <span style={{ width: "28px", height: "28px", borderRadius: "50%", background: HORSE_HEALTH_COLORS[item.type] || HORSE_HEALTH_COLORS.default, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px", fontWeight: 700, flexShrink: 0 }}>{item.type === "vet" ? "V" : item.type === "farrier" ? "F" : item.type === "worming" ? "W" : item.type === "dental" ? "D" : item.type === "vaccination" ? "●" : "•"}</span>
+                          <span style={{ fontWeight: 600, color: "var(--ink2)" }}>{item.label}</span>
+                          {isEditingDate ? (
+                            <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px" }}>
+                              <input type="date" value={item.date || ""} onChange={e => updateUpcomingDate(e.target.value)} onBlur={() => setEditingUpcomingKey(null)} autoFocus style={{ fontSize: "13px", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius)" }} />
+                              <Btn size="sm" variant="ghost" onClick={() => setEditingUpcomingKey(null)}>Done</Btn>
+                            </span>
+                          ) : (
+                            <button type="button" onClick={() => setEditingUpcomingKey(item.key)} style={{ marginLeft: "auto", color: "var(--muted)", fontSize: "14px", background: "none", border: "none", cursor: "pointer", padding: "2px 6px", borderRadius: "var(--radius)" }} title="Change date">{fmt(item.date)}</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {a.species === "Horse" && (a.horseSupplements || []).length > 0 && (
+                <div style={{ marginBottom: "14px", padding: "12px 14px", borderRadius: "var(--radius)", background: "rgba(202,138,4,0.12)", borderLeft: "4px solid #ca8a04" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Ongoing supplements</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                    {(a.horseSupplements || []).map((s, i) => (
+                      <span key={i} style={{ fontSize: "13px", color: "var(--ink2)" }}><strong>{s.name || "—"}</strong>{s.dosage ? ` · ${s.dosage}` : ""}{s.cost != null && s.cost !== "" ? ` · $${Number(s.cost).toFixed(2)}` : ""}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {showTreatmentForm && (
                 <Card style={{ padding: "18px 20px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
-                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Add Treatment</div>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingTreatmentId ? "Edit Treatment" : "Add Treatment"}</div>
                   <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                     <Input label="Date *" type="date" value={treatmentForm.date} onChange={e => setTreatmentForm(p => ({ ...p, date: e.target.value }))} />
                     <Select label="Type *" value={treatmentForm.type} onChange={e => setTreatmentForm(p => ({ ...p, type: e.target.value }))}>
@@ -1660,68 +2127,200 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                   <Textarea label="Notes" value={treatmentForm.notes} onChange={e => setTreatmentForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes" style={{ marginBottom: "12px" }} />
                   <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
-                    <Btn size="sm" onClick={saveTreatment}>Save</Btn>
-                    <Btn size="sm" variant="ghost" onClick={() => { setShowTreatmentForm(false); setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Cancel</Btn>
+                    <Btn size="sm" onClick={saveTreatment}>{editingTreatmentId ? "Save Changes" : "Save"}</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowTreatmentForm(false); setEditingTreatmentId(null); setTreatmentForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>Cancel</Btn>
                   </div>
                 </Card>
               )}
-              {treatmentsSorted.length === 0 && !showTreatmentForm && (
-                <p style={{ fontSize: "13px", color: "var(--muted)" }}>No treatment records yet.</p>
-              )}
-              {treatmentsSorted.length > 0 && (
-                <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
-                  {treatmentsSorted.map(entry => (
-                    <div key={entry.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--cream2)", background: "var(--cream)", marginBottom: "1px" }}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
-                        <div>
-                          <span style={{ fontWeight: 600, fontSize: "14px" }}>{entry.type}</span>
-                          <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{fmt(entry.date)}</span>
-                          {entry.administeredBy && <span style={{ fontSize: "12px", color: "var(--muted)", marginLeft: "6px" }}> · {entry.administeredBy}</span>}
-                          {entry.description && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "4px" }}>{entry.description}</div>}
-                          {entry.treatmentGiven && <div style={{ fontSize: "13px", marginTop: "2px" }}><strong>Treatment:</strong> {entry.treatmentGiven}{entry.dosage ? ` — ${entry.dosage}` : ""}</div>}
-                          {(entry.cost != null && entry.cost !== "") && <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>Cost: {`$${Number(entry.cost).toFixed(2)}`}</div>}
-                          {entry.notes && <div style={{ fontSize: "12px", color: "var(--ink2)", marginTop: "4px" }}>{entry.notes}</div>}
-                        </div>
-                        <Btn size="sm" variant="ghost" onClick={() => deleteTreatmentEntry(entry.id)}>×</Btn>
-                      </div>
+              {a.species === "Horse" ? (
+                <>
+                  {horseHealthTimelineItems.length === 0 && !showTreatmentForm && (a.horseSupplements || []).length === 0 && (
+                    <p style={{ fontSize: "13px", color: "var(--muted)" }}>No health records yet. Add vet, farrier, worming, or dental entries in Horse Health, or add a treatment or vaccination below.</p>
+                  )}
+                  {horseHealthTimelineItems.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+                      {horseHealthTimelineItems.map(item => {
+                        const isVacc = item.source === "vaccination";
+                        const horseType = item.horseType || (isVacc ? "vaccination" : "default");
+                        const color = HORSE_HEALTH_COLORS[horseType] || HORSE_HEALTH_COLORS.default;
+                        const icon = horseType === "vet" ? "V" : horseType === "farrier" ? "F" : horseType === "worming" ? "W" : horseType === "dental" ? "D" : horseType === "vaccination" ? "●" : "•";
+                        return (
+                          <div key={item.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--cream2)", background: "var(--cream)", marginBottom: "1px", display: "flex", alignItems: "flex-start", gap: "10px" }}>
+                            <span style={{ width: "28px", height: "28px", borderRadius: "50%", background: color, display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: "12px", fontWeight: 700, flexShrink: 0 }}>{icon}</span>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              {isVacc ? (
+                                <>
+                                  <span style={{ fontWeight: 600, fontSize: "14px" }}>{item.vaccineName || "Vaccination"}</span>
+                                  <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{fmt(item.dateGiven)}</span>
+                                  {item.nextDueDate && <span style={{ fontSize: "12px", color: "var(--muted)", marginLeft: "6px" }}> · Booster: {fmt(item.nextDueDate)}</span>}
+                                </>
+                              ) : (
+                                <>
+                                  <span style={{ fontWeight: 600, fontSize: "14px" }}>{item.horseType && item.description ? item.description : item.type}</span>
+                                  <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{fmt(item.date)}</span>
+                                  {!item.horseType && item.administeredBy && <span style={{ fontSize: "12px", color: "var(--muted)", marginLeft: "6px" }}> · {item.administeredBy}</span>}
+                                  {item.horseType && item.notes && <div style={{ fontSize: "12px", color: "var(--ink2)", marginTop: "4px" }}>{item.notes}</div>}
+                                  {item.horseType === "vet" && item.treatmentGiven && <div style={{ fontSize: "13px", marginTop: "2px" }}>Vet: {item.treatmentGiven}</div>}
+                                  {!item.horseType && item.description && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "4px" }}>{item.description}</div>}
+                                  {!item.horseType && item.treatmentGiven && <div style={{ fontSize: "13px", marginTop: "2px" }}><strong>Treatment:</strong> {item.treatmentGiven}{item.dosage ? ` — ${item.dosage}` : ""}</div>}
+                                  {(item.cost != null && item.cost !== "") && <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>Cost: {`$${Number(item.cost).toFixed(2)}`}</div>}
+                                  {!item.horseType && item.notes && <div style={{ fontSize: "12px", color: "var(--ink2)", marginTop: "4px" }}>{item.notes}</div>}
+                                </>
+                              )}
+                            </div>
+                            </div>
+                        );
+                      })}
                     </div>
-                  ))}
-                </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {treatmentsSorted.length === 0 && !showTreatmentForm && (
+                    <p style={{ fontSize: "13px", color: "var(--muted)" }}>No treatment records yet.</p>
+                  )}
+                  {treatmentsSorted.length > 0 && (
+                    <div style={{ display: "flex", flexDirection: "column", gap: "0" }}>
+                      {treatmentsSorted.map(entry => (
+                        <div key={entry.id} style={{ padding: "12px 14px", borderBottom: "1px solid var(--cream2)", background: "var(--cream)", marginBottom: "1px" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                            <div>
+                              <span style={{ fontWeight: 600, fontSize: "14px" }}>{entry.type}</span>
+                              <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{fmt(entry.date)}</span>
+                              {entry.administeredBy && <span style={{ fontSize: "12px", color: "var(--muted)", marginLeft: "6px" }}> · {entry.administeredBy}</span>}
+                              {entry.description && <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "4px" }}>{entry.description}</div>}
+                              {entry.treatmentGiven && <div style={{ fontSize: "13px", marginTop: "2px" }}><strong>Treatment:</strong> {entry.treatmentGiven}{entry.dosage ? ` — ${entry.dosage}` : ""}</div>}
+                              {(entry.cost != null && entry.cost !== "") && <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>Cost: {`$${Number(entry.cost).toFixed(2)}`}</div>}
+                              {entry.notes && <div style={{ fontSize: "12px", color: "var(--ink2)", marginTop: "4px" }}>{entry.notes}</div>}
+                            </div>
+                            <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
+                              <Btn size="sm" variant="ghost" onClick={() => { setEditingTreatmentId(entry.id); setTreatmentForm({ date: entry.date || "", type: entry.type || "", description: entry.description || "", treatmentGiven: entry.treatmentGiven || "", dosage: entry.dosage || "", administeredBy: entry.administeredBy || "Owner", cost: entry.cost != null && entry.cost !== "" ? String(entry.cost) : "", notes: entry.notes || "" }); setShowTreatmentForm(true); }}>Edit</Btn>
+                              <Btn size="sm" variant="ghost" onClick={() => deleteTreatmentEntry(entry.id)}>×</Btn>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
             <div style={{ marginTop: "24px" }}>
-              <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Lineage</div>
-              <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "16px", borderLeft: "3px solid var(--brass)" }}>
-                <div style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--ink2)" }}>
-                  <div>
-                    <span style={{ color: "var(--muted)", marginRight: "6px" }}>Dam:</span>
-                    {a.motherId ? (() => {
-                      const mother = animals.find(m => m.id === a.motherId);
-                      return mother ? (
-                        <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}{mother.tag ? ` (#${mother.tag})` : ""}</button>
-                      ) : (
-                        <span>Unknown</span>
-                      );
-                    })() : (
-                      <span>Unknown</span>
-                    )}
-                  </div>
-                  <div style={{ marginTop: "6px" }}>
-                    <span style={{ color: "var(--muted)", marginRight: "6px" }}>Sire:</span>
-                    {a.sireId ? (() => {
-                      const sire = animals.find(s => s.id === a.sireId);
-                      return sire ? (
-                        <button type="button" onClick={() => setViewing(sire)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(sire)}{sire.tag ? ` (#${sire.tag})` : ""}</button>
-                      ) : (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Lineage</div>
+                {!showLineageForm && (
+                  <Btn size="sm" variant="ghost" onClick={() => {
+                    setLineageForm({
+                      damInHerd: !!a.motherId,
+                      motherId: a.motherId || "",
+                      motherName: (a.motherName || "").trim(),
+                      sireInHerd: !!a.sireId,
+                      sireId: a.sireId || "",
+                      sireName: (a.sireName || "").trim(),
+                    });
+                    setShowLineageForm(true);
+                  }}>Edit Lineage</Btn>
+                )}
+              </div>
+              {showLineageForm ? (
+                <Card style={{ padding: "24px", borderLeft: "4px solid var(--brass)", marginBottom: "16px" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Edit Lineage</div>
+                  {(() => {
+                    const femalesForDam = (animals || []).filter(an => isFemale(an) && an.id !== a.id);
+                    const malesForSire = (animals || []).filter(an => isMale(an) && an.id !== a.id);
+                    const saveLineage = () => {
+                      const updated = {
+                        ...a,
+                        motherId: lineageForm.damInHerd ? (lineageForm.motherId || undefined) : undefined,
+                        motherName: !lineageForm.damInHerd ? (lineageForm.motherName?.trim() || "Unknown") : undefined,
+                        sireId: lineageForm.sireInHerd ? (lineageForm.sireId || undefined) : undefined,
+                        sireName: !lineageForm.sireInHerd ? (lineageForm.sireName?.trim() || "Unknown") : undefined,
+                      };
+                      setAnimals(prev => prev.map(x => x.id === a.id ? updated : x));
+                      setViewing(updated);
+                      setShowLineageForm(false);
+                    };
+                    return (
+                      <>
+                        <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px" }}>
+                          <input type="checkbox" checked={!lineageForm.damInHerd} onChange={e => setLineageForm(p => ({ ...p, damInHerd: !e.target.checked, motherId: e.target.checked ? "" : p.motherId, motherName: e.target.checked ? (p.motherName || "Unknown") : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                          <span>Dam not in my herd</span>
+                        </label>
+                        {lineageForm.damInHerd ? (
+                          <div style={{ marginBottom: "14px" }}>
+                            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Dam</label>
+                            <Select value={lineageForm.motherId} onChange={e => setLineageForm(p => ({ ...p, motherId: e.target.value }))} style={{ width: "100%", maxWidth: "320px" }}>
+                              <option value="">— Unknown —</option>
+                              {femalesForDam.map(m => (
+                                <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""} ({m.species})</option>
+                              ))}
+                            </Select>
+                          </div>
+                        ) : (
+                          <div style={{ marginBottom: "14px" }}>
+                            <Input label="Dam name" value={lineageForm.motherName} onChange={e => setLineageForm(p => ({ ...p, motherName: e.target.value }))} placeholder="Unknown or type name" />
+                          </div>
+                        )}
+                        <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px" }}>
+                          <input type="checkbox" checked={!lineageForm.sireInHerd} onChange={e => setLineageForm(p => ({ ...p, sireInHerd: !e.target.checked, sireId: e.target.checked ? "" : p.sireId, sireName: e.target.checked ? (p.sireName || "Unknown") : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                          <span>Sire not in my herd</span>
+                        </label>
+                        {lineageForm.sireInHerd ? (
+                          <div style={{ marginBottom: "14px" }}>
+                            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Sire</label>
+                            <Select value={lineageForm.sireId} onChange={e => setLineageForm(p => ({ ...p, sireId: e.target.value }))} style={{ width: "100%", maxWidth: "320px" }}>
+                              <option value="">— Unknown —</option>
+                              {malesForSire.map(s => (
+                                <option key={s.id} value={s.id}>{getAnimalName(s)}{s.tag ? ` #${s.tag}` : ""} ({s.species})</option>
+                              ))}
+                            </Select>
+                          </div>
+                        ) : (
+                          <div style={{ marginBottom: "14px" }}>
+                            <Input label="Sire name" value={lineageForm.sireName} onChange={e => setLineageForm(p => ({ ...p, sireName: e.target.value }))} placeholder="Unknown or type name" />
+                          </div>
+                        )}
+                        <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                          <Btn onClick={saveLineage}>Save</Btn>
+                          <Btn variant="secondary" onClick={() => setShowLineageForm(false)}>Cancel</Btn>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </Card>
+              ) : (
+                <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "16px", borderLeft: "3px solid var(--brass)" }}>
+                  <div style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--ink2)" }}>
+                    <div>
+                      <span style={{ color: "var(--muted)", marginRight: "6px" }}>Dam:</span>
+                      {a.motherId ? (() => {
+                        const mother = animals.find(m => m.id === a.motherId);
+                        return mother ? (
+                          <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}{mother.tag ? ` (#${mother.tag})` : ""}</button>
+                        ) : (
+                          <span>{a.motherName || "Unknown"}</span>
+                        );
+                      })() : (
+                        <span>{a.motherName || "Unknown"}</span>
+                      )}
+                    </div>
+                    <div style={{ marginTop: "6px" }}>
+                      <span style={{ color: "var(--muted)", marginRight: "6px" }}>Sire:</span>
+                      {a.sireId ? (() => {
+                        const sire = animals.find(s => s.id === a.sireId);
+                        return sire ? (
+                          <button type="button" onClick={() => setViewing(sire)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(sire)}{sire.tag ? ` (#${sire.tag})` : ""}</button>
+                        ) : (
+                          <span>{a.sireName || "Unknown"}</span>
+                        );
+                      })() : (
                         <span>{a.sireName || "Unknown"}</span>
-                      );
-                    })() : (
-                      <span>{a.sireName || "Unknown"}</span>
-                    )}
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
             {(() => {
               const asDam = (animals || []).filter(an => an.motherId === a.id);
@@ -1919,6 +2518,34 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>
                       Breeding
                     </div>
+                    {(() => {
+                      const activeBreedings = (gestations || []).filter(g => g.animalId === a.id && g.status !== "Delivered");
+                      return activeBreedings.length > 0 ? (
+                        <div style={{ marginBottom: "16px" }}>
+                          {activeBreedings.map(g => {
+                            const sireAnimal = g.sireAnimalId ? animals.find(m => m.id === g.sireAnimalId) : null;
+                            const sireLabel = g.sire || (sireAnimal ? getAnimalName(sireAnimal) : null) || "Unknown";
+                            const totalDays = g.gestationDays ?? SPECIES[a.species]?.days ?? 283;
+                            const prog = progress(breedingDateForProgress(g), totalDays);
+                            const dueStr = g.dueDateStart && g.dueDateEnd ? `${fmt(g.dueDateStart)} – ${fmt(g.dueDateEnd)}` : fmt(g.dueDate);
+                            return (
+                              <div key={g.id} style={{ padding: "14px 16px", background: "rgba(201,149,42,0.12)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)", marginBottom: "8px" }}>
+                                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", marginBottom: "6px" }}>Active pregnancy</div>
+                                <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>Breeding date: {g.breedingDate ? fmt(g.breedingDate) : "—"}{g.runningWithBull && g.breedingDateEnd ? ` – ${fmt(g.breedingDateEnd)}` : ""}</div>
+                                <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>Sire: {sireLabel}</div>
+                                <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "8px" }}>Expected due: {dueStr}</div>
+                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                  <div style={{ flex: "1 1 120px", height: "8px", background: "var(--cream2)", borderRadius: "4px", overflow: "hidden" }}>
+                                    <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, prog))}%`, background: "var(--brass)", borderRadius: "4px", transition: "width 0.2s ease" }} />
+                                  </div>
+                                  <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--brass)" }}>{Math.round(prog)}%</span>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ) : null;
+                    })()}
                     {!showBreedingForm ? (
                       <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                         <Btn size="sm" variant="secondary" onClick={() => {
@@ -1926,11 +2553,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       const latest = damGestations[0];
                       if (latest?.sireAnimalId) {
                         const male = animals.find(m => m.id === latest.sireAnimalId);
-                        setBreedingForm(prev => ({ ...prev, sireAnimalId: latest.sireAnimalId, sire: male ? getAnimalName(male) : (latest.sire || "") }));
+                        setBreedingForm(prev => ({ ...prev, sireAnimalId: latest.sireAnimalId, sire: male ? getAnimalName(male) : (latest.sire || ""), sireNotInHerd: false }));
                       } else if (latest?.sire === "Unknown" || (latest?.sire && String(latest.sire).trim().toLowerCase() === "unknown")) {
-                        setBreedingForm(prev => ({ ...prev, sireAnimalId: "unknown", sire: "Unknown" }));
+                        setBreedingForm(prev => ({ ...prev, sireAnimalId: "unknown", sire: "Unknown", sireNotInHerd: false }));
                       } else if (latest?.sire) {
-                        setBreedingForm(prev => ({ ...prev, sireAnimalId: "", sire: latest.sire }));
+                        setBreedingForm(prev => ({ ...prev, sireAnimalId: "", sire: latest.sire, sireNotInHerd: true }));
+                      } else {
+                        setBreedingForm(prev => ({ ...prev, sireNotInHerd: false }));
                       }
                       setShowBreedingForm(true);
                     }}>Log Breeding</Btn>
@@ -1957,19 +2586,27 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                               <Input label="Exposure end *" type="date" value={breedingForm.breedingDateEnd} onChange={e => setBreedingForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
                             </>
                           )}
-                          <Select label="Sire (optional)" value={breedingForm.sireAnimalId || ""} onChange={e => {
-                            const v = e.target.value;
-                            if (v === "unknown") setBreedingForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
-                            else if (!v) setBreedingForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
-                            else { const m = animals.find(x => x.id === v); setBreedingForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" })); }
-                          }}>
-                            <option value="">— None —</option>
-                            <option value="unknown">Unknown</option>
-                            {breedingSireOptions.map(m => (
-                              <option key={m.id} value={m.id}>{getAnimalName(m)}{m.name && m.tag ? ` #${m.tag}` : ""}</option>
-                            ))}
-                          </Select>
+                          {!breedingForm.sireNotInHerd ? (
+                            <Select label="Sire (optional)" value={breedingForm.sireAnimalId || ""} onChange={e => {
+                              const v = e.target.value;
+                              if (v === "unknown") setBreedingForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
+                              else if (!v) setBreedingForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
+                              else { const m = animals.find(x => x.id === v); setBreedingForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" })); }
+                            }}>
+                              <option value="">— None —</option>
+                              <option value="unknown">Unknown</option>
+                              {breedingSireOptions.map(m => (
+                                <option key={m.id} value={m.id}>{getAnimalName(m)}{m.name && m.tag ? ` #${m.tag}` : ""}</option>
+                              ))}
+                            </Select>
+                          ) : (
+                            <Input label="Sire (outside bull)" value={breedingForm.sire} onChange={e => setBreedingForm(p => ({ ...p, sire: e.target.value }))} placeholder="Unknown or type bull name" />
+                          )}
                         </div>
+                        <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
+                          <input type="checkbox" checked={breedingForm.sireNotInHerd} onChange={e => setBreedingForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireAnimalId: "", sire: p.sire || "Unknown" } : { sireAnimalId: "", sire: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                          <span>Bull not in my herd</span>
+                        </label>
                         <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
                           <input type="checkbox" checked={breedingForm.runningWithBull} onChange={e => setBreedingForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDate : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
                           <span>Running with Bull (date range for bull exposure)</span>
@@ -1989,7 +2626,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         })()}
                         <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                           <Btn onClick={addBreedingFromProfile}>Record</Btn>
-                          <Btn variant="secondary" onClick={() => { setShowBreedingForm(false); setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" }); }}>Cancel</Btn>
+                          <Btn variant="secondary" onClick={() => { setShowBreedingForm(false); setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" }); }}>Cancel</Btn>
                         </div>
                       </Card>
                     )}
@@ -2448,8 +3085,25 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     </>
                   ) : (
                     <>
+                      {a.species === "Horse" && (
+                        <div style={{ marginBottom: "12px" }}>
+                          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>Equine vaccines</div>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            {EQUINE_VACCINE_SUGGESTIONS.map(name => (
+                              <button
+                                key={name}
+                                type="button"
+                                onClick={() => setVaccinationForm(p => ({ ...p, vaccineName: name }))}
+                                style={{ padding: "6px 10px", borderRadius: "var(--radius)", border: "1px solid var(--border)", background: vaccinationForm.vaccineName === name ? "var(--green)" : "var(--cream)", color: vaccinationForm.vaccineName === name ? "#fff" : "var(--ink2)", fontSize: "12px", fontWeight: 500, cursor: "pointer" }}
+                              >
+                                {name}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                        <Input label="Vaccine name" value={vaccinationForm.vaccineName} onChange={e => setVaccinationForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder="e.g. Clostridial 7-way" />
+                        <Input label="Vaccine name" value={vaccinationForm.vaccineName} onChange={e => setVaccinationForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder={a.species === "Horse" ? "e.g. West Nile, Rabies" : "e.g. Clostridial 7-way"} list={a.species === "Horse" ? "equine-vaccine-list" : undefined} />
                         <Input label="Date given" type="date" value={vaccinationForm.dateGiven} onChange={e => setVaccinationForm(p => ({ ...p, dateGiven: e.target.value }))} />
                         <Input label="Next due / Booster date" type="date" value={vaccinationForm.nextDueDate} onChange={e => setVaccinationForm(p => ({ ...p, nextDueDate: e.target.value }))} />
                         <Input label="Dosage" value={vaccinationForm.dosage} onChange={e => setVaccinationForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 2 mL" />
@@ -2462,6 +3116,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           <option>Vet</option>
                         </Select>
                       </div>
+                      {a.species === "Horse" && <datalist id="equine-vaccine-list">{EQUINE_VACCINE_SUGGESTIONS.map(name => <option key={name} value={name} />)}</datalist>}
                       <Textarea label="Notes" value={vaccinationForm.notes} onChange={e => setVaccinationForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
                     </>
                   )}
@@ -2500,8 +3155,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                     <Input label="Date sold" type="date" value={saleForm.dateSold} onChange={e => setSaleForm(p => ({ ...p, dateSold: e.target.value }))} />
                     <Input label="Price per head ($)" type="number" min="0" step="0.01" value={saleForm.pricePerHead} onChange={e => setSaleForm(p => ({ ...p, pricePerHead: e.target.value }))} placeholder="e.g. 1250.00" />
-                    <Input label="Buyer name" value={saleForm.buyerName} onChange={e => setSaleForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Livestock" />
-                    <Input label="Buyer contact (optional)" value={saleForm.buyerContact} onChange={e => setSaleForm(p => ({ ...p, buyerContact: e.target.value }))} placeholder="Phone or email" />
+                    {setContacts ? (
+                      <ContactPicker label="Buyer" value={saleForm.buyerName} onChange={v => setSaleForm(p => ({ ...p, buyerName: v, buyerContact: p.buyerContact }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" onSelectContact={c => setSaleForm(p => ({ ...p, buyerName: c.name || "", buyerContact: [c.phone, c.email].filter(Boolean).join(" · ") || "" }))} />
+                    ) : (
+                      <>
+                        <Input label="Buyer name" value={saleForm.buyerName} onChange={e => setSaleForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                        <Input label="Buyer contact (optional)" value={saleForm.buyerContact} onChange={e => setSaleForm(p => ({ ...p, buyerContact: e.target.value }))} placeholder="Phone or email" />
+                      </>
+                    )}
                     <Input label="Sale location (optional)" value={saleForm.saleLocation} onChange={e => setSaleForm(p => ({ ...p, saleLocation: e.target.value }))} placeholder="e.g. Sale barn name" />
                   </div>
                   <Textarea label="Notes" value={saleForm.notes} onChange={e => setSaleForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
@@ -2597,10 +3258,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               return mother ? (
                 <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}{mother.tag ? ` (#${mother.tag})` : ""}</button>
               ) : (
-                <span>Unknown</span>
+                <span>{a.motherName || "Unknown"}</span>
               );
             })() : (
-              <span>Unknown</span>
+              <span>{a.motherName || "Unknown"}</span>
             )}</div>
             <div style={{ marginTop: "4px" }}><strong>Sire:</strong> {a.sireId ? (() => {
               const sire = animals.find(s => s.id === a.sireId);
@@ -2693,17 +3354,26 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   const sireAnimal = g.sireAnimalId ? animals.find(m => m.id === g.sireAnimalId) : null;
                   const sireLabel = g.sire || (sireAnimal ? getAnimalName(sireAnimal) : null) || "Unknown";
                   const linkedHeat = heatForGestation(g);
+                  const totalDays = g.gestationDays ?? SPECIES[a.species]?.days ?? 283;
+                  const prog = g.status !== "Delivered" ? progress(breedingDateForProgress(g), totalDays) : 100;
+                  const dueStr = g.dueDateStart && g.dueDateEnd ? `${fmt(g.dueDateStart)} – ${fmt(g.dueDateEnd)}` : fmt(g.dueDate);
                   return (
-                    <div key={g.id} style={{ padding: "6px 0", borderBottom: "1px solid #EDE6D6" }}>
-                      {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${fmt(g.dueDate)}`}
-                      {(g.sire || g.sireAnimalId) && (
-                        <> · Sire: {sireAnimal ? (
-                          <button type="button" onClick={() => setViewing(sireAnimal)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontSize: "inherit" }}>{sireLabel}</button>
-                        ) : (
-                          <span>{sireLabel}</span>
-                        )}</>
+                    <div key={g.id} style={{ padding: "10px 0", borderBottom: "1px solid #EDE6D6" }}>
+                      <div>
+                        {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${dueStr}`}
+                        {g.status !== "Delivered" && <span style={{ marginLeft: "8px", fontWeight: 600, color: "var(--brass)" }}>{Math.round(prog)}%</span>}
+                      </div>
+                      <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "2px" }}>Bred {g.breedingDate ? fmt(g.breedingDate) : "—"} · Sire: {sireAnimal ? (
+                        <button type="button" onClick={() => setViewing(sireAnimal)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontSize: "inherit" }}>{sireLabel}</button>
+                      ) : (
+                        <span>{sireLabel}</span>
+                      )}</div>
+                      {g.status !== "Delivered" && (
+                        <div style={{ marginTop: "6px", height: "4px", background: "var(--cream2)", borderRadius: "2px", overflow: "hidden" }}>
+                          <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, prog))}%`, background: "var(--brass)", borderRadius: "2px" }} />
+                        </div>
                       )}
-                      {g.calf && (g.calf.stillborn ? " · Stillborn" : (g.calf.name ? ` · ${getOffspringTerm(a.species)}: ${g.calf.name}` : ""))}
+                      {g.calf && (g.calf.stillborn ? <div style={{ marginTop: "2px" }}>Stillborn</div> : (g.calf.name ? <div style={{ marginTop: "2px" }}>{getOffspringTerm(a.species)}: {g.calf.name}</div> : null))}
                       {linkedHeat && <div style={{ fontSize: "12px", color: "var(--green)", marginTop: "2px" }}>Following heat observed on {fmt(linkedHeat.observedDate)}</div>}
                     </div>
                   );
@@ -3012,6 +3682,37 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setBulkForm({});
   }
 
+  function saveBulkBreed() {
+    const v = (bulkForm.breed || "").trim() || undefined;
+    setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, breed: v } : an));
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+  function saveBulkSex() {
+    const v = (bulkForm.sex || "").trim() || undefined;
+    setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, sex: v } : an));
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+  function saveBulkColor() {
+    const v = (bulkForm.color || "").trim() || undefined;
+    setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, color: v } : an));
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+  function saveBulkPurchaseDate() {
+    const v = (bulkForm.purchaseDate || "").trim() || undefined;
+    setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, purchaseDate: v } : an));
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+  function saveBulkPurchasedFrom() {
+    const v = (bulkForm.purchasedFrom || "").trim() || undefined;
+    setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, purchasedFrom: v } : an));
+    setBulkFormType(null);
+    setBulkForm({});
+  }
+
   return (
     <div className={`hl-page hl-fade-in${bulkMode && selectedIds.length > 0 ? " hl-page-with-bulk-toolbar" : ""}`}>
       <SectionTitle action={
@@ -3278,6 +3979,21 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <span className="hl-bulk-action-label">Castrate</span>
               </button>
             )}
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("breed"); setBulkForm({ breed: "" }); }}>
+              <span className="hl-bulk-action-label">Breed</span>
+            </button>
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { const first = selectedAnimals[0]; const sp = first?.species || "Cattle"; setBulkFormType("sex"); setBulkForm({ sex: first?.sex || getSexOptions(sp)[0], species: sp }); }}>
+              <span className="hl-bulk-action-label">Sex</span>
+            </button>
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("color"); setBulkForm({ color: "" }); }}>
+              <span className="hl-bulk-action-label">Color</span>
+            </button>
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("purchaseDate"); setBulkForm({ purchaseDate: "" }); }}>
+              <span className="hl-bulk-action-label">Purchase Date</span>
+            </button>
+            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("purchasedFrom"); setBulkForm({ purchasedFrom: "" }); }}>
+              <span className="hl-bulk-action-label">Purchased From</span>
+            </button>
             {selectedCattleForFeedlot.length > 0 && setTab && setFeederBulkAnimalIds && (
               <button type="button" className="hl-bulk-action-btn" onClick={() => { setTab("feeder"); setFeederBulkAnimalIds(selectedCattleForFeedlot.map(a => a.id)); }}>
                 <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
@@ -3513,6 +4229,67 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         </Card>
       )}
 
+      {bulkFormType === "breed" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Edit Breed ({selectedIds.length} animals)</div>
+          <Input label="Breed" value={bulkForm.breed} onChange={e => setBulkForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" style={{ marginBottom: "14px", maxWidth: "320px" }} />
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkBreed}>Apply to {selectedIds.length} animals</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {bulkFormType === "sex" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Edit Sex ({selectedIds.length} animals)</div>
+          <Select label="Sex" value={bulkForm.sex} onChange={e => setBulkForm(p => ({ ...p, sex: e.target.value }))} style={{ marginBottom: "14px", maxWidth: "240px" }}>
+            {(getSexOptions(bulkForm.species || "Cattle") || []).map(opt => <option key={opt} value={opt}>{opt}</option>)}
+          </Select>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkSex}>Apply to {selectedIds.length} animals</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {bulkFormType === "color" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Edit Color ({selectedIds.length} animals)</div>
+          <Input label="Color" value={bulkForm.color} onChange={e => setBulkForm(p => ({ ...p, color: e.target.value }))} placeholder="e.g. Black, Red Baldy" style={{ marginBottom: "14px", maxWidth: "320px" }} />
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkColor}>Apply to {selectedIds.length} animals</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {bulkFormType === "purchaseDate" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Edit Purchase Date ({selectedIds.length} animals)</div>
+          <Input label="Purchase date" type="date" value={bulkForm.purchaseDate} onChange={e => setBulkForm(p => ({ ...p, purchaseDate: e.target.value }))} style={{ marginBottom: "14px", maxWidth: "220px" }} />
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkPurchaseDate}>Apply to {selectedIds.length} animals</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {bulkFormType === "purchasedFrom" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Edit Purchased From ({selectedIds.length} animals)</div>
+          {setContacts ? (
+            <div style={{ marginBottom: "14px" }}><ContactPicker label="Seller / Purchased from" value={bulkForm.purchasedFrom} onChange={v => setBulkForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /></div>
+          ) : (
+            <Input label="Purchased from" value={bulkForm.purchasedFrom} onChange={e => setBulkForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" style={{ marginBottom: "14px", maxWidth: "320px" }} />
+          )}
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkPurchasedFrom}>Apply to {selectedIds.length} animals</Btn>
+            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
       {showAdd && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Register Animals</div>
@@ -3523,17 +4300,47 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
           {registerMode === "single" ? (
             <>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "20px", borderBottom: "1px solid var(--cream2)", paddingBottom: "12px" }}>
+                {REGISTER_SPECIES_TABS.map(tab => {
+                  const isOther = tab === "Other";
+                  const isSelected = isOther ? REGISTER_OTHER_SPECIES.includes(form.species) : form.species === tab;
+                  return (
+                    <button
+                      key={tab}
+                      type="button"
+                      onClick={() => {
+                        const newSpecies = isOther ? REGISTER_OTHER_SPECIES[0] : tab;
+                        const opts = getSexOptions(newSpecies);
+                        setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+                      }}
+                      style={{
+                        padding: "8px 14px",
+                        borderRadius: "var(--radius)",
+                        border: "1px solid var(--cream3)",
+                        background: isSelected ? "var(--green3)" : "#fff",
+                        color: isSelected ? "var(--green)" : "var(--ink2)",
+                        fontWeight: 600,
+                        fontSize: "13px",
+                        cursor: "pointer",
+                      }}
+                    >
+                      {tab === "Other" ? "Other" : (SPECIES[tab]?.emoji ? SPECIES[tab].emoji + " " : "") + tab}
+                    </button>
+                  );
+                })}
+              </div>
+              {REGISTER_SPECIES_TABS.includes(form.species) && form.species !== "Other" ? null : REGISTER_OTHER_SPECIES.includes(form.species) && (
+                <div style={{ marginBottom: "14px" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Species (Other)</label>
+                  <Select value={form.species} onChange={e => { const v = e.target.value; const opts = getSexOptions(v); setForm(p => ({ ...p, species: v, sex: opts.includes(p.sex) ? p.sex : opts[0] })); }} style={{ maxWidth: "200px" }}>
+                    {REGISTER_OTHER_SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </Select>
+                </div>
+              )}
               <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
                 <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
                 <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
                 <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
-                <Select label="Species" value={form.species} onChange={e => {
-                  const newSpecies = e.target.value;
-                  const opts = getSexOptions(newSpecies);
-                  setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
-                }}>
-                  {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
-                </Select>
                 <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
                   {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
                 </Select>
@@ -3557,10 +4364,24 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <>
                     <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
                     <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
-                    <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                    {setContacts ? <ContactPicker label="Purchased from (seller)" value={form.purchasedFrom} onChange={v => setForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
                   </>
                 )}
               </div>
+              {form.species === "Horse" && (
+                <div style={{ marginBottom: "14px", padding: "14px", background: "var(--cream)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Horse details</div>
+                  <div className="hl-form-grid-3" style={{ marginBottom: "0" }}>
+                    <Input label="Height (hands)" value={form.heightHands} onChange={e => setForm(p => ({ ...p, heightHands: e.target.value }))} placeholder="e.g. 15.2" />
+                    <Select label="Discipline" value={form.discipline} onChange={e => setForm(p => ({ ...p, discipline: e.target.value }))}>
+                      <option value="">— Select —</option>
+                      {HORSE_DISCIPLINES.map(d => <option key={d} value={d}>{d}</option>)}
+                    </Select>
+                    <Input label="Registration number" value={form.registrationNumber} onChange={e => setForm(p => ({ ...p, registrationNumber: e.target.value }))} placeholder="e.g. AQHA 123456" />
+                    <Input label="Markings" value={form.markings} onChange={e => setForm(p => ({ ...p, markings: e.target.value }))} placeholder="e.g. Star, sock LF" style={{ gridColumn: "1 / -1" }} />
+                  </div>
+                </div>
+              )}
               <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
               <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                 <Btn onClick={add}>Register</Btn>
@@ -3613,7 +4434,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <>
                     <Input label="Purchase price per head ($)" type="number" min="0" step="0.01" value={bulkRegisterForm.purchasePrice} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
                     <Input label="Purchase date" type="date" value={bulkRegisterForm.purchaseDate} onChange={e => setBulkRegisterForm(p => ({ ...p, purchaseDate: e.target.value }))} />
-                    <Input label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />
+                    {setContacts ? <ContactPicker label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={v => setBulkRegisterForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
                   </>
                 )}
               </div>

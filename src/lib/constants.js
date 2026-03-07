@@ -19,6 +19,18 @@ export const SPECIES = {
 /** All species can be assigned to pastures; mixed-species pastures allowed. */
 export const PASTURE_SPECIES = Object.keys(SPECIES);
 
+/** Species tabs for Register Animals form (Other = remaining species via dropdown). */
+export const REGISTER_SPECIES_TABS = ["Cattle", "Horse", "Sheep", "Goat", "Pig", "Rabbit", "Chicken", "Other"];
+
+/** Species options when "Other" tab is selected. */
+export const REGISTER_OTHER_SPECIES = ["Bison", "Llama", "Alpaca", "Donkey", "Mule", "Dog", "Cat"];
+
+/** Horse discipline options for registration. */
+export const HORSE_DISCIPLINES = ["Barrel Racing", "Cutting", "Reining", "Trail", "Ranch Work", "Roping", "Dressage", "Jumping", "Other"];
+
+/** Suggested equine vaccines for horse vaccination form. */
+export const EQUINE_VACCINE_SUGGESTIONS = ["West Nile", "Rabies", "EEE/WEE", "Influenza", "Rhinopneumonitis", "Strangles"];
+
 export const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes"];
 
 /** Cull flag reason options for "Mark for Cull" on animal profiles. */
@@ -309,7 +321,7 @@ export const TAB_OPTIONS = [
   { id: "weaning", label: "Weaning", icon: "🥛" },
 ];
 
-export const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures", "expenses", "loadSales", "tasks"];
+export const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures", "expenses", "loadSales", "tasks", "contacts"];
 export const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 export const GUEST_USER = { id: "guest", isGuest: true };
 
@@ -318,6 +330,8 @@ export const TASK_CATEGORIES = ["Feeding", "Vaccination", "Breeding", "Castratio
 export const TASK_PRIORITIES = ["High", "Medium", "Low"];
 export const RECURRING_OPTIONS = ["One time", "Daily", "Weekly", "Monthly"];
 export const EXPENSE_CATEGORIES = ["Feed", "Veterinary", "Medicine", "Equipment", "Supplies", "Labor", "Fuel", "Land/Lease", "Other"];
+/** Horse health section → expense category for auto-created expenses. */
+export const HORSE_HEALTH_EXPENSE_CATEGORY = { vet: "Veterinary", farrier: "Supplies", worming: "Medicine", dental: "Veterinary", supplement: "Supplies" };
 /** Vaccine route options for protocols and vaccination records. */
 export const VACCINE_ROUTES = ["SQ", "IM", "IN", "Oral"];
 

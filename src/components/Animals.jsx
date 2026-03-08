@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, CULL_REASONS, VACCINE_ROUTES, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES, REGISTER_SPECIES_TABS, REGISTER_OTHER_SPECIES, HORSE_DISCIPLINES, EQUINE_VACCINE_SUGGESTIONS, HORSE_HEALTH_EXPENSE_CATEGORY } from "../lib/constants.js";
-import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate } from "../lib/helpers.js";
+import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate, checkInbreedingByParentIds } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 import ContactPicker from "./ContactPicker.jsx";
 
@@ -19,7 +19,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "", heightHands: "", discipline: "", registrationNumber: "", markings: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "", heightHands: "", discipline: "", registrationNumber: "", markings: "", damId: "", damName: "", damNotInHerd: false, sireId: "", sireName: "", sireNotInHerd: false, damSearch: "", sireSearch: "" };
   });
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
@@ -105,6 +105,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [cullForm, setCullForm] = useState({ reason: "", notes: "", targetCullDate: "" });
   const [showLineageForm, setShowLineageForm] = useState(false);
   const [lineageForm, setLineageForm] = useState({ damInHerd: true, motherId: "", motherName: "", sireInHerd: true, sireId: "", sireName: "" });
+  const [inbreedingWarningPending, setInbreedingWarningPending] = useState(null);
+  const [breedingInbreedingCheck, setBreedingInbreedingCheck] = useState(null);
+  const lineageMigrationDoneRef = useRef(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importStep, setImportStep] = useState(1); // 1=Upload, 2=Map, 3=Preview, 4=Duplicates, 5=Result
   const [importFile, setImportFile] = useState(null);
@@ -124,6 +127,43 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setCullForm({ reason: "", notes: "", targetCullDate: "" });
     setShowLineageForm(false);
   }, [viewingAnimal?.id]);
+
+  useEffect(() => {
+    if (!setAnimals || lineageMigrationDoneRef.current || !animals?.length) return;
+    lineageMigrationDoneRef.current = true;
+    const list = [...animals];
+    let changed = false;
+    for (const animal of list) {
+      const updates = {};
+      const damId = animal.damId || animal.motherId;
+      const damName = (animal.damName || animal.motherName) || "";
+      const sireId = animal.sireId;
+      const sireName = (animal.sireName || "").trim();
+      if (damName && !damId) {
+        const match = list.find(an => an.id !== animal.id && getAnimalName(an).trim().toLowerCase() === damName.trim().toLowerCase());
+        if (match) {
+          updates.motherId = match.id;
+          updates.motherName = getAnimalName(match);
+          updates.damId = match.id;
+          updates.damName = getAnimalName(match);
+          changed = true;
+        }
+      }
+      if (sireName && sireName.toLowerCase() !== "unknown" && !sireId) {
+        const match = list.find(an => an.id !== animal.id && getAnimalName(an).trim().toLowerCase() === sireName.trim().toLowerCase());
+        if (match) {
+          updates.sireId = match.id;
+          updates.sireName = getAnimalName(match);
+          changed = true;
+        }
+      }
+      if (Object.keys(updates).length) {
+        const idx = list.findIndex(an => an.id === animal.id);
+        if (idx !== -1) list[idx] = { ...list[idx], ...updates };
+      }
+    }
+    if (changed) setAnimals(list);
+  }, [animals, setAnimals]);
 
   const IMPORT_FUZZY_ALIASES = {
     "Name": ["name", "cow name", "animal name", "id", "animal id", "identification", "nickname"],
@@ -218,7 +258,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   const emptyForm = () => {
     const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "", heightHands: "", discipline: "", registrationNumber: "", markings: "" };
+    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "", heightHands: "", discipline: "", registrationNumber: "", markings: "", damId: "", damName: "", damNotInHerd: false, sireId: "", sireName: "", sireNotInHerd: false, damSearch: "", sireSearch: "" };
   };
 
   function parseImportFile(file, onDone) {
@@ -524,7 +564,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   function addSubmit() {
     if (!form.name) return;
-    const { currentPasture, purchasePrice: _pp, ...rest } = form;
+    const { currentPasture, purchasePrice: _pp, damSearch: _ds, sireSearch: _ss, damNotInHerd: _dnh, sireNotInHerd: _snh, ...rest } = form;
     const newAnimal = {
       ...rest,
       id: Date.now().toString(),
@@ -533,6 +573,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       purchaseDate: form.purchaseDate?.trim() || undefined,
       purchasedFrom: form.purchasedFrom?.trim() || undefined,
       targetWeaningDate: form.targetWeaningDate?.trim() || undefined,
+      damId: form.damNotInHerd ? undefined : (form.damId || undefined),
+      damName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
+      motherId: form.damNotInHerd ? undefined : (form.damId || undefined),
+      motherName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
+      sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
+      sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
       ...(form.species === "Horse" && {
         heightHands: form.heightHands?.trim() || undefined,
         discipline: form.discipline?.trim() || undefined,
@@ -632,6 +678,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       purchaseDate: (form.purchaseDate || "").trim() || undefined,
       purchasedFrom: (form.purchasedFrom || "").trim() || undefined,
       targetWeaningDate,
+      damId: form.damNotInHerd ? undefined : (form.damId || undefined),
+      damName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
+      motherId: form.damNotInHerd ? undefined : (form.damId || undefined),
+      motherName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
+      sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
+      sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
       ...(form.species === "Horse" && {
         heightHands: (form.heightHands || "").trim() || undefined,
         discipline: (form.discipline || "").trim() || undefined,
@@ -769,7 +821,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     const offspringForMother = (offspring && offspring[a.id]) || [];
 
     const linkableAnimals = (animals || []).filter(an => {
-      if (an.motherId || an.species !== a.species || an.id === a.id || an.deceased || an.sale) return false;
+      if ((an.damId || an.motherId) || an.species !== a.species || an.id === a.id || an.deceased || an.sale) return false;
       if ((offspringForMother || []).some(c => c.id === an.id)) return false;
       const months = getAgeInMonths(an.dob);
       const term = getAgeBasedSexTerm({ ...an, species: an.species || a.species }, []);
@@ -794,7 +846,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     function linkExistingAsOffspring(existingId) {
       const existing = animals.find(an => an.id === existingId);
       if (!existing) return;
-      setAnimals(prev => prev.map(an => (an.id === existingId ? { ...an, motherId: a.id } : an)));
+      setAnimals(prev => prev.map(an => (an.id === existingId ? { ...an, motherId: a.id, motherName: getAnimalName(a), damId: a.id, damName: getAnimalName(a) } : an)));
       setOffspring(prev => ({
         ...prev,
         [a.id]: [...(prev[a.id] || []), {
@@ -877,8 +929,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           breed: a.breed || undefined,
           notes: undefined,
           motherId: a.id,
+          motherName: getAnimalName(a),
+          damId: a.id,
+          damName: getAnimalName(a),
           sireId: sireIdFromGestation,
-          ...(motherSpecies === "Horse" && { sireName: foalSireName, color: rec.color, markings: rec.markings }),
+          sireName: sireIdFromGestation ? getAnimalName((animals || []).find(x => x.id === sireIdFromGestation)) : foalSireName,
+          ...(motherSpecies === "Horse" && { color: rec.color, markings: rec.markings }),
         };
         if (isEdit) {
           setAnimals(prev => prev.map(an => an.id === editingOffspringId ? { ...an, ...updatedAnimal } : an));
@@ -1273,12 +1329,76 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         createdAt: new Date().toISOString(),
         ...(linkedHeat && { linkedHeatCycleId: linkedHeat.id, linkedHeatObservedDate: linkedHeat.observedDate }),
       };
+      if (sireId) {
+        const maleAnimal = (animals || []).find(m => m.id === sireId);
+        if (maleAnimal) {
+          const femaleSireId = (a.sireId || "").toString().trim() || null;
+          const maleSireId = (maleAnimal.sireId || "").toString().trim() || null;
+          const femaleDamId = (a.damId || a.motherId || "").toString().trim() || null;
+          const maleDamId = (maleAnimal.damId || maleAnimal.motherId || "").toString().trim() || null;
+          const femaleSireName = (a.sireName || "").toString().trim().toLowerCase() || null;
+          const maleSireName = (maleAnimal.sireName || "").toString().trim().toLowerCase() || null;
+          const femaleDamName = (a.damName || a.motherName || "").toString().trim().toLowerCase() || null;
+          const maleDamName = (maleAnimal.damName || maleAnimal.motherName || "").toString().trim().toLowerCase() || null;
+          console.log("[Inbreeding simple check] sireIds compared:", { femaleSireId, maleSireId });
+          console.log("[Inbreeding simple check] damIds compared:", { femaleDamId, maleDamId });
+          console.log("[Inbreeding simple check] sireNames compared:", { femaleSireName, maleSireName });
+          console.log("[Inbreeding simple check] damNames compared:", { femaleDamName, maleDamName });
+          const sameSireById = femaleSireId && maleSireId && femaleSireId === maleSireId;
+          const sameSireByName = !sameSireById && femaleSireName && maleSireName && femaleSireName === maleSireName;
+          const sameDamById = femaleDamId && maleDamId && femaleDamId === maleDamId;
+          const sameDamByName = !sameDamById && femaleDamName && maleDamName && femaleDamName === maleDamName;
+          if (sameSireById || sameSireByName) {
+            setInbreedingWarningPending({
+              cowName: getAnimalName(a),
+              bullName: getAnimalName(maleAnimal),
+              commonAncestorName: null,
+              level: "half_sibling",
+              sameParentType: "sire",
+              record,
+              linkedHeat,
+              animalId: a.id,
+              recordId,
+            });
+            return;
+          }
+          if (sameDamById || sameDamByName) {
+            setInbreedingWarningPending({
+              cowName: getAnimalName(a),
+              bullName: getAnimalName(maleAnimal),
+              commonAncestorName: null,
+              level: "half_sibling",
+              sameParentType: "dam",
+              record,
+              linkedHeat,
+              animalId: a.id,
+              recordId,
+            });
+            return;
+          }
+          const inbreeding = checkInbreedingByParentIds(a, maleAnimal, animals);
+          if (inbreeding) {
+            setInbreedingWarningPending({
+              cowName: getAnimalName(a),
+              bullName: getAnimalName(maleAnimal),
+              commonAncestorName: inbreeding.commonAncestorName,
+              level: inbreeding.level,
+              record,
+              linkedHeat,
+              animalId: a.id,
+              recordId,
+            });
+            return;
+          }
+        }
+      }
       setGestations(p => [...p, record]);
       if (linkedHeat) {
         setAnimals(prev => prev.map(x => x.id === a.id ? { ...x, heatCycles: (x.heatCycles || []).map(h => h.id === linkedHeat.id ? { ...h, linkedGestationId: recordId } : h) } : x));
       }
       setShowBreedingForm(false);
       setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" });
+      setBreedingInbreedingCheck(null);
     }
 
     function saveHeat() {
@@ -1366,7 +1486,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 const opts = getSexOptions(species);
                 const sex = opts.includes(a.sex) ? a.sex : (SEX_TERM_GENDER[a.sex] === "Female" ? opts.find(o => SEX_TERM_GENDER[o] === "Female") : opts.find(o => SEX_TERM_GENDER[o] === "Male")) || opts[0];
                 setEditingId(a.id);
-                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "", color: a.color || "", acquisitionType: a.acquisitionType || "Home Raised", purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "", purchaseDate: a.purchaseDate || "", purchasedFrom: a.purchasedFrom || "", targetWeaningDate: a.targetWeaningDate || "", heightHands: a.heightHands || "", discipline: a.discipline || "", registrationNumber: a.registrationNumber || "", markings: a.markings || "" });
+                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "", color: a.color || "", acquisitionType: a.acquisitionType || "Home Raised", purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "", purchaseDate: a.purchaseDate || "", purchasedFrom: a.purchasedFrom || "", targetWeaningDate: a.targetWeaningDate || "", heightHands: a.heightHands || "", discipline: a.discipline || "", registrationNumber: a.registrationNumber || "", markings: a.markings || "", damId: a.damId || a.motherId || "", damName: (a.damName || a.motherName) || "", damNotInHerd: !(a.damId || a.motherId), damSearch: "", sireId: a.sireId || "", sireName: a.sireName || "", sireNotInHerd: !a.sireId, sireSearch: "" });
               }}>Edit</Btn>
           )}
         </div>
@@ -1423,6 +1543,47 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 </div>
               </div>
             )}
+            {(() => {
+              const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && an.id !== editingId && !an.deceased && !an.sale);
+              const malesSameSpecies = getBreedingMalesForSpecies(animals, form.species).filter(m => m.id !== editingId);
+              const damOptionsEdit = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
+              const sireOptionsEdit = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
+              return (
+                <div style={{ marginBottom: "14px", paddingTop: "14px", borderTop: "1px solid var(--cream2)" }}>
+                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Lineage (optional)</div>
+                  <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", cursor: "pointer", fontSize: "14px" }}>
+                    <input type="checkbox" checked={form.damNotInHerd} onChange={e => setForm(p => ({ ...p, damNotInHerd: e.target.checked, ...(e.target.checked ? { damId: "", damSearch: "" } : { damName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                    <span>Dam not in my herd</span>
+                  </label>
+                  {!form.damNotInHerd ? (
+                    <div style={{ marginBottom: "12px" }}>
+                      <Input label="Search dams" value={form.damSearch || ""} onChange={e => setForm(p => ({ ...p, damSearch: e.target.value }))} placeholder="Type to filter..." />
+                      <Select label="Dam" value={form.damId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, damId: "", damName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, damId: v, damName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
+                        <option value="">— None —</option>
+                        {damOptionsEdit.map(f => <option key={f.id} value={f.id}>{getAnimalName(f)}{f.tag ? ` #${f.tag}` : ""}</option>)}
+                      </Select>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: "12px" }}><Input label="Dam name" value={form.damName || ""} onChange={e => setForm(p => ({ ...p, damName: e.target.value }))} placeholder="e.g. Unknown or name" /></div>
+                  )}
+                  <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", cursor: "pointer", fontSize: "14px" }}>
+                    <input type="checkbox" checked={form.sireNotInHerd} onChange={e => setForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireId: "", sireSearch: "" } : { sireName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                    <span>Sire not in my herd</span>
+                  </label>
+                  {!form.sireNotInHerd ? (
+                    <div style={{ marginBottom: "12px" }}>
+                      <Input label="Search sires" value={form.sireSearch || ""} onChange={e => setForm(p => ({ ...p, sireSearch: e.target.value }))} placeholder="Type to filter..." />
+                      <Select label="Sire" value={form.sireId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, sireId: "", sireName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, sireId: v, sireName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
+                        <option value="">— None —</option>
+                        {sireOptionsEdit.map(m => <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>)}
+                      </Select>
+                    </div>
+                  ) : (
+                    <div style={{ marginBottom: "12px" }}><Input label="Sire name" value={form.sireName || ""} onChange={e => setForm(p => ({ ...p, sireName: e.target.value }))} placeholder="e.g. Unknown or name" /></div>
+                  )}
+                </div>
+              );
+            })()}
             <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
             <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
               <Btn onClick={saveEdit}>Save Changes</Btn>
@@ -2221,14 +2382,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             </div>
 
             <div style={{ marginTop: "24px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Lineage</div>
+                <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                  <Btn size="sm" variant="ghost" onClick={() => { console.log("[Debug Lineage] full animal object:", a); console.log("[Debug Lineage] lineage fields:", { sireId: a.sireId, sireName: a.sireName, damId: a.damId, damName: a.damName, motherId: a.motherId, motherName: a.motherName }); }} style={{ color: "var(--muted)", fontSize: "12px" }}>Debug Lineage</Btn>
                 {!showLineageForm && (
                   <Btn size="sm" variant="ghost" onClick={() => {
                     setLineageForm({
-                      damInHerd: !!a.motherId,
-                      motherId: a.motherId || "",
-                      motherName: (a.motherName || "").trim(),
+                      damInHerd: !!(a.damId || a.motherId),
+                      motherId: (a.damId || a.motherId) || "",
+                      motherName: ((a.damName || a.motherName) || "").trim(),
                       sireInHerd: !!a.sireId,
                       sireId: a.sireId || "",
                       sireName: (a.sireName || "").trim(),
@@ -2236,6 +2399,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     setShowLineageForm(true);
                   }}>Edit Lineage</Btn>
                 )}
+                </div>
               </div>
               {showLineageForm ? (
                 <Card style={{ padding: "24px", borderLeft: "4px solid var(--brass)", marginBottom: "16px" }}>
@@ -2244,12 +2408,22 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     const femalesForDam = (animals || []).filter(an => isFemale(an) && an.id !== a.id);
                     const malesForSire = (animals || []).filter(an => isMale(an) && an.id !== a.id);
                     const saveLineage = () => {
+                      const damId = lineageForm.damInHerd ? (lineageForm.motherId || undefined) : undefined;
+                      const damName = lineageForm.damInHerd && damId
+                        ? getAnimalName((animals || []).find(x => x.id === damId))
+                        : (!lineageForm.damInHerd ? (lineageForm.motherName?.trim() || "Unknown") : undefined);
+                      const sireIdVal = lineageForm.sireInHerd ? (lineageForm.sireId || undefined) : undefined;
+                      const sireNameVal = lineageForm.sireInHerd && sireIdVal
+                        ? getAnimalName((animals || []).find(x => x.id === sireIdVal))
+                        : (!lineageForm.sireInHerd ? (lineageForm.sireName?.trim() || "Unknown") : undefined);
                       const updated = {
                         ...a,
-                        motherId: lineageForm.damInHerd ? (lineageForm.motherId || undefined) : undefined,
-                        motherName: !lineageForm.damInHerd ? (lineageForm.motherName?.trim() || "Unknown") : undefined,
-                        sireId: lineageForm.sireInHerd ? (lineageForm.sireId || undefined) : undefined,
-                        sireName: !lineageForm.sireInHerd ? (lineageForm.sireName?.trim() || "Unknown") : undefined,
+                        motherId: damId,
+                        motherName: damName,
+                        damId,
+                        damName,
+                        sireId: sireIdVal,
+                        sireName: sireNameVal,
                       };
                       setAnimals(prev => prev.map(x => x.id === a.id ? updated : x));
                       setViewing(updated);
@@ -2308,15 +2482,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div style={{ fontSize: "14px", lineHeight: 1.6, color: "var(--ink2)" }}>
                     <div>
                       <span style={{ color: "var(--muted)", marginRight: "6px" }}>Dam:</span>
-                      {a.motherId ? (() => {
-                        const mother = animals.find(m => m.id === a.motherId);
+                      {(a.damId || a.motherId) ? (() => {
+                        const damId = a.damId || a.motherId;
+                        const mother = animals.find(m => m.id === damId);
                         return mother ? (
                           <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}{mother.tag ? ` (#${mother.tag})` : ""}</button>
                         ) : (
-                          <span>{a.motherName || "Unknown"}</span>
+                          <span>{(a.damName || a.motherName) || "Unknown"}</span>
                         );
                       })() : (
-                        <span>{a.motherName || "Unknown"}</span>
+                        <span>{(a.damName || a.motherName) || "Unknown"}</span>
                       )}
                     </div>
                     <div style={{ marginTop: "6px" }}>
@@ -2337,7 +2512,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               )}
             </div>
             {(() => {
-              const asDam = (animals || []).filter(an => an.motherId === a.id);
+              const asDam = (animals || []).filter(an => (an.damId || an.motherId) === a.id);
               const asSire = (animals || []).filter(an => an.sireId === a.id);
               const offspringList = [...asDam.map(an => ({ ...an, _role: "dam" })), ...asSire.map(an => ({ ...an, _role: "sire" }))];
               if (offspringList.length === 0) return null;
@@ -2544,7 +2719,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             const dueStr = g.dueDateStart && g.dueDateEnd ? `${fmt(g.dueDateStart)} – ${fmt(g.dueDateEnd)}` : fmt(g.dueDate);
                             return (
                               <div key={g.id} style={{ padding: "14px 16px", background: "rgba(201,149,42,0.12)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)", marginBottom: "8px" }}>
-                                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", marginBottom: "6px" }}>Active pregnancy</div>
+                                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)", marginBottom: "6px", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                  Active pregnancy
+                                  {g.inbreedingWarning && (
+                                    <span style={{ fontSize: "10px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.2)", padding: "2px 6px", borderRadius: "4px", letterSpacing: "0.5px" }}>INBRED WARNING</span>
+                                  )}
+                                </div>
                                 <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>Breeding date: {g.breedingDate ? fmt(g.breedingDate) : "—"}{g.runningWithBull && g.breedingDateEnd ? ` – ${fmt(g.breedingDateEnd)}` : ""}</div>
                                 <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>Sire: {sireLabel}</div>
                                 <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "8px" }}>Expected due: {dueStr}</div>
@@ -2601,11 +2781,39 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             </>
                           )}
                           {!breedingForm.sireNotInHerd ? (
+                            <>
                             <Select label="Sire (optional)" value={breedingForm.sireAnimalId || ""} onChange={e => {
                               const v = e.target.value;
-                              if (v === "unknown") setBreedingForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
-                              else if (!v) setBreedingForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
-                              else { const m = animals.find(x => x.id === v); setBreedingForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" })); }
+                              if (v === "unknown") {
+                                setBreedingForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
+                                setBreedingInbreedingCheck(null);
+                              } else if (!v) {
+                                setBreedingForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
+                                setBreedingInbreedingCheck(null);
+                              } else {
+                                const m = animals.find(x => x.id === v);
+                                setBreedingForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" }));
+                                if (m) {
+                                  const fsId = (a.sireId || "").toString().trim() || null;
+                                  const msId = (m.sireId || "").toString().trim() || null;
+                                  const fdId = (a.damId || a.motherId || "").toString().trim() || null;
+                                  const mdId = (m.damId || m.motherId || "").toString().trim() || null;
+                                  const fsName = (a.sireName || "").toString().trim().toLowerCase() || null;
+                                  const msName = (m.sireName || "").toString().trim().toLowerCase() || null;
+                                  const fdName = (a.damName || a.motherName || "").toString().trim().toLowerCase() || null;
+                                  const mdName = (m.damName || m.motherName || "").toString().trim().toLowerCase() || null;
+                                  const sameSire = (fsId && msId && fsId === msId) || (fsName && msName && fsName === msName);
+                                  const sameDam = (fdId && mdId && fdId === mdId) || (fdName && mdName && fdName === mdName);
+                                  if (sameSire || sameDam) {
+                                    setBreedingInbreedingCheck({ level: "half_sibling", commonAncestorName: null });
+                                  } else {
+                                    const inbreeding = checkInbreedingByParentIds(a, m, animals);
+                                    setBreedingInbreedingCheck(inbreeding);
+                                  }
+                                } else {
+                                  setBreedingInbreedingCheck(null);
+                                }
+                              }
                             }}>
                               <option value="">— None —</option>
                               <option value="unknown">Unknown</option>
@@ -2613,6 +2821,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                                 <option key={m.id} value={m.id}>{getAnimalName(m)}{m.name && m.tag ? ` #${m.tag}` : ""}</option>
                               ))}
                             </Select>
+                            {breedingInbreedingCheck && (
+                              <div style={{ fontSize: "13px", color: breedingInbreedingCheck.level === "half_sibling" ? "var(--danger2)" : "var(--brass2)", marginTop: "6px", marginBottom: "4px" }}>
+                                ⚠ {breedingInbreedingCheck.level === "half_sibling" ? "Strong warning — half-siblings:" : "Moderate — shared grandparent:"} shared ancestor <strong>{breedingInbreedingCheck.commonAncestorName}</strong>
+                              </div>
+                            )}
+                            </>
                           ) : (
                             <Input label="Sire (outside bull)" value={breedingForm.sire} onChange={e => setBreedingForm(p => ({ ...p, sire: e.target.value }))} placeholder="Unknown or type bull name" />
                           )}
@@ -2640,7 +2854,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         })()}
                         <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                           <Btn onClick={addBreedingFromProfile}>Record</Btn>
-                          <Btn variant="secondary" onClick={() => { setShowBreedingForm(false); setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" }); }}>Cancel</Btn>
+                          <Btn variant="secondary" onClick={() => { setShowBreedingForm(false); setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" }); setBreedingInbreedingCheck(null); }}>Cancel</Btn>
                         </div>
                       </Card>
                     )}
@@ -3309,16 +3523,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         <section style={{ marginBottom: "20px" }}>
           <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Lineage</h2>
           <div style={{ fontSize: "14px" }}>
-            <div><strong>Dam:</strong> {a.motherId ? (() => {
-              const mother = animals.find(m => m.id === a.motherId);
-              return mother ? (
-                <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}{mother.tag ? ` (#${mother.tag})` : ""}</button>
-              ) : (
-                <span>{a.motherName || "Unknown"}</span>
-              );
-            })() : (
-              <span>{a.motherName || "Unknown"}</span>
-            )}</div>
+<div><strong>Dam:</strong> {(a.damId || a.motherId) ? (() => {
+              const damId = a.damId || a.motherId;
+              const mother = animals.find(m => m.id === damId);
+                return mother ? (
+                  <button type="button" onClick={() => setViewing(mother)} style={{ background: "none", border: "none", padding: 0, font: "inherit", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>{getAnimalName(mother)}{mother.tag ? ` (#${mother.tag})` : ""}</button>
+                ) : (
+                  <span>{(a.damName || a.motherName) || "Unknown"}</span>
+                );
+              })() : (
+                <span>{(a.damName || a.motherName) || "Unknown"}</span>
+              )}</div>
             <div style={{ marginTop: "4px" }}><strong>Sire:</strong> {a.sireId ? (() => {
               const sire = animals.find(s => s.id === a.sireId);
               return sire ? (
@@ -3333,7 +3548,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         </section>
 
         {(() => {
-          const asDam = (animals || []).filter(an => an.motherId === a.id);
+          const asDam = (animals || []).filter(an => (an.damId || an.motherId) === a.id);
           const asSire = (animals || []).filter(an => an.sireId === a.id);
           const offspringList = [...asDam, ...asSire];
           if (offspringList.length === 0) return null;
@@ -4439,6 +4654,51 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 </div>
               )}
               <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
+              {(() => {
+                const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && !an.deceased && !an.sale);
+                const malesSameSpecies = getBreedingMalesForSpecies(animals, form.species);
+                const damOptions = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
+                const sireOptions = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
+                return (
+                  <div style={{ marginTop: "18px", paddingTop: "18px", borderTop: "1px solid var(--cream2)" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "12px" }}>Lineage (optional)</div>
+                    <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px" }}>
+                      <input type="checkbox" checked={form.damNotInHerd} onChange={e => setForm(p => ({ ...p, damNotInHerd: e.target.checked, ...(e.target.checked ? { damId: "", damSearch: "" } : { damName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                      <span>Dam not in my herd</span>
+                    </label>
+                    {!form.damNotInHerd ? (
+                      <div style={{ marginBottom: "14px" }}>
+                        <Input label="Search dams" value={form.damSearch || ""} onChange={e => setForm(p => ({ ...p, damSearch: e.target.value }))} placeholder="Type to filter..." />
+                        <Select label="Dam" value={form.damId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, damId: "", damName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, damId: v, damName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
+                          <option value="">— None —</option>
+                          {damOptions.map(f => <option key={f.id} value={f.id}>{getAnimalName(f)}{f.tag ? ` #${f.tag}` : ""}</option>)}
+                        </Select>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: "14px" }}>
+                        <Input label="Dam name" value={form.damName || ""} onChange={e => setForm(p => ({ ...p, damName: e.target.value }))} placeholder="e.g. Unknown or name" />
+                      </div>
+                    )}
+                    <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px" }}>
+                      <input type="checkbox" checked={form.sireNotInHerd} onChange={e => setForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireId: "", sireSearch: "" } : { sireName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                      <span>Sire not in my herd (outside sire)</span>
+                    </label>
+                    {!form.sireNotInHerd ? (
+                      <div style={{ marginBottom: "14px" }}>
+                        <Input label="Search sires" value={form.sireSearch || ""} onChange={e => setForm(p => ({ ...p, sireSearch: e.target.value }))} placeholder="Type to filter..." />
+                        <Select label="Sire" value={form.sireId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, sireId: "", sireName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, sireId: v, sireName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
+                          <option value="">— None —</option>
+                          {sireOptions.map(m => <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>)}
+                        </Select>
+                      </div>
+                    ) : (
+                      <div style={{ marginBottom: "14px" }}>
+                        <Input label="Sire name" value={form.sireName || ""} onChange={e => setForm(p => ({ ...p, sireName: e.target.value }))} placeholder="e.g. Unknown or name" />
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
               <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                 <Btn onClick={add}>Register</Btn>
                 <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
@@ -4647,6 +4907,47 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           </Card>
         ))}
       </div>
+      )}
+
+      {inbreedingWarningPending && (
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setInbreedingWarningPending(null)}>
+          <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "24px", maxWidth: "440px", boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--cream2)", borderLeft: inbreedingWarningPending.level === "half_sibling" ? "4px solid var(--danger2)" : inbreedingWarningPending.level === "shared_grandparent" ? "4px solid var(--brass2)" : undefined }} onClick={e => e.stopPropagation()}>
+            {inbreedingWarningPending.level === "half_sibling" && inbreedingWarningPending.sameParentType === "sire" ? (
+              <p style={{ fontSize: "15px", color: "var(--ink2)", marginBottom: "20px", lineHeight: 1.5 }}>
+                These animals share the same sire and may be half-siblings. Are you sure you want to continue?
+              </p>
+            ) : inbreedingWarningPending.level === "half_sibling" && inbreedingWarningPending.sameParentType === "dam" ? (
+              <p style={{ fontSize: "15px", color: "var(--ink2)", marginBottom: "20px", lineHeight: 1.5 }}>
+                These animals share the same dam and may be half-siblings. Are you sure you want to continue?
+              </p>
+            ) : inbreedingWarningPending.level === "half_sibling" ? (
+              <p style={{ fontSize: "15px", color: "var(--ink2)", marginBottom: "20px", lineHeight: 1.5 }}>
+                <strong style={{ color: "var(--danger2)" }}>Strong warning — half-siblings:</strong> <strong>{inbreedingWarningPending.bullName}</strong> and <strong>{inbreedingWarningPending.cowName}</strong> share the same dam or sire (<strong>{inbreedingWarningPending.commonAncestorName}</strong>). Breeding these animals may result in severe inbreeding. Do you want to continue?
+              </p>
+            ) : inbreedingWarningPending.level === "shared_grandparent" ? (
+              <p style={{ fontSize: "15px", color: "var(--ink2)", marginBottom: "20px", lineHeight: 1.5 }}>
+                <strong style={{ color: "var(--brass2)" }}>Moderate warning — shared grandparent:</strong> The selected sire and <strong>{inbreedingWarningPending.cowName}</strong> share a common ancestor (<strong>{inbreedingWarningPending.commonAncestorName}</strong>). Breeding may increase inbreeding risk. Do you want to continue?
+              </p>
+            ) : (
+              <p style={{ fontSize: "15px", color: "var(--ink2)", marginBottom: "20px", lineHeight: 1.5 }}>
+                Warning: <strong>{inbreedingWarningPending.bullName}</strong> and <strong>{inbreedingWarningPending.cowName}</strong> share a common ancestor (<strong>{inbreedingWarningPending.commonAncestorName}</strong>). Breeding these animals may result in inbreeding. Do you want to continue?
+              </p>
+            )}
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <Btn variant="secondary" onClick={() => setInbreedingWarningPending(null)}>Cancel</Btn>
+              <Btn onClick={() => {
+                const { record, linkedHeat, recordId, animalId } = inbreedingWarningPending;
+                setGestations(p => [...p, { ...record, inbreedingWarning: true }]);
+                if (linkedHeat) {
+                  setAnimals(prev => prev.map(x => x.id === animalId ? { ...x, heatCycles: (x.heatCycles || []).map(h => h.id === linkedHeat.id ? { ...h, linkedGestationId: recordId } : h) } : x));
+                }
+                setShowBreedingForm(false);
+                setBreedingForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" });
+                setInbreedingWarningPending(null);
+              }}>Continue</Btn>
+            </div>
+          </div>
+        </div>
       )}
 
       {showImportModal && (

@@ -308,9 +308,14 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                 <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                   <span style={{ fontSize: "28px" }}>{SPECIES[animal?.species]?.emoji}</span>
                   <div>
-                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{getAnimalName(animal)}</div>
+                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      {getAnimalName(animal)}
+                      {g.inbreedingWarning && (
+                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.2)", padding: "2px 6px", borderRadius: "4px", letterSpacing: "0.5px" }}>INBRED WARNING</span>
+                      )}
+                    </div>
                     <div style={{ fontSize: "13px", color: "var(--muted)" }}>
-                      {animal?.species}{g.sire ? ` × ${g.sire}` : ""} · {g.runningWithBull ? `Exposure ${fmt(g.breedingDate)} – ${fmt(g.breedingDateEnd)}` : `Bred ${fmt(g.breedingDate)}`}
+                      {getAnimalName(animal)}{g.sire ? ` × ${g.sire}` : ""} · {g.runningWithBull ? `Exposure ${fmt(g.breedingDate)} – ${fmt(g.breedingDateEnd)}` : `Bred ${fmt(g.breedingDate)}`}
                     </div>
                   </div>
                 </div>

@@ -470,6 +470,186 @@ export function getAnimalName(animal) {
   return animal.name || (animal.tag ? `#${animal.tag}` : "Unnamed");
 }
 
+const INBREEDING_GENERATIONS = 3;
+
+/** Lineage: support both damId/damName and legacy motherId/motherName. Use IDs only for comparison. */
+function getDamId(animal) {
+  if (!animal) return undefined;
+  return animal.damId ?? animal.motherId;
+}
+function getSireId(animal) {
+  if (!animal) return undefined;
+  return animal.sireId;
+}
+
+/**
+ * Build complete ancestor tree by ID only (damId/motherId and sireId). Goes back maxGen generations using BFS.
+ * Returns { ancestorIds: Set, byGeneration: [ Set(gen1), Set(gen2), Set(gen3) ] }.
+ */
+function buildAncestorTree(animalId, animals, maxGen) {
+  const list = animals || [];
+  const ancestorIds = new Set();
+  const byGeneration = [];
+  let currentLevel = new Set([animalId]);
+  for (let gen = 0; gen < maxGen; gen++) {
+    const nextLevel = new Set();
+    for (const id of currentLevel) {
+      const animal = list.find(a => a.id === id);
+      if (!animal) continue;
+      const damId = getDamId(animal);
+      const sireId = getSireId(animal);
+      if (damId) {
+        ancestorIds.add(damId);
+        nextLevel.add(damId);
+      }
+      if (sireId) {
+        ancestorIds.add(sireId);
+        nextLevel.add(sireId);
+      }
+    }
+    byGeneration.push(nextLevel);
+    currentLevel = nextLevel;
+  }
+  return { ancestorIds, byGeneration };
+}
+
+/** Resolve ancestor set to [{ id, name }] for console logging. */
+function ancestorSetToNames(ids, animals) {
+  const list = animals || [];
+  return [...ids].map(id => {
+    const a = list.find(x => x.id === id);
+    return { id, name: getAnimalName(a) };
+  });
+}
+
+/**
+ * Check for inbreeding: build 3-generation ancestor trees for both animals, find intersection,
+ * and detect direct relationships (sire is female's father, grandfather, or sibling).
+ * Logs ancestor trees to console. Returns { commonAncestorId, commonAncestorName, directRelationship? } or null.
+ */
+export function findCommonAncestorWithin3Generations(animalA, animalB, animals) {
+  if (!animalA?.id || !animalB?.id || animalA.id === animalB.id) return null;
+  const list = animals || [];
+
+  // 1) Build complete ancestor trees (3 generations each)
+  const treeA = buildAncestorTree(animalA.id, list, INBREEDING_GENERATIONS);
+  const treeB = buildAncestorTree(animalB.id, list, INBREEDING_GENERATIONS);
+  const ancestorsFemale = treeA.ancestorIds;
+  const ancestorsMale = treeB.ancestorIds;
+
+  // 2) Find intersection — any ID in both sets is a shared ancestor
+  const intersection = new Set([...ancestorsFemale].filter(id => ancestorsMale.has(id)));
+
+  // 3) Log both ancestor ID trees side by side for verification
+  const femaleGen1 = treeA.byGeneration[0] || new Set();
+  const femaleGen2 = treeA.byGeneration[1] || new Set();
+  const femaleGen3 = treeA.byGeneration[2] || new Set();
+  const maleGen1 = treeB.byGeneration[0] || new Set();
+  const maleGen2 = treeB.byGeneration[1] || new Set();
+  const maleGen3 = treeB.byGeneration[2] || new Set();
+  console.log("[Inbreeding check]", getAnimalName(animalA), "(female) vs", getAnimalName(animalB), "(sire)");
+  console.log("  Ancestor ID trees (side by side):");
+  console.table([
+    { generation: "Gen 1 (parents)", female: [...femaleGen1].join(", ") || "—", male: [...maleGen1].join(", ") || "—" },
+    { generation: "Gen 2 (grandparents)", female: [...femaleGen2].join(", ") || "—", male: [...maleGen2].join(", ") || "—" },
+    { generation: "Gen 3 (great-grandparents)", female: [...femaleGen3].join(", ") || "—", male: [...maleGen3].join(", ") || "—" },
+    { generation: "All ancestor IDs", female: [...ancestorsFemale].join(", ") || "—", male: [...ancestorsMale].join(", ") || "—" },
+  ]);
+  console.log("  Female ancestor tree (IDs → names):", ancestorSetToNames(ancestorsFemale, list));
+  console.log("  Male ancestor tree (IDs → names):", ancestorSetToNames(ancestorsMale, list));
+  console.log("  Intersection (shared ancestor IDs):", [...intersection], "→", ancestorSetToNames(intersection, list));
+
+  // 4) Direct relationships: sire is female's father, grandfather, or brother
+  const sireIsFather = femaleGen1.has(animalB.id);
+  const sireIsGrandfather = femaleGen2.has(animalB.id);
+  const femaleParents = femaleGen1;
+  const maleParents = maleGen1;
+  const shareParent = [...femaleParents].some(id => maleParents.has(id));
+  const directRelationship = sireIsFather
+    ? "sire_is_father"
+    : sireIsGrandfather
+      ? "sire_is_grandfather"
+      : shareParent
+        ? "siblings"
+        : null;
+  if (directRelationship) {
+    console.log("  Direct relationship:", directRelationship);
+  }
+
+  // 5) If any shared ancestor, return it (prefer naming the first from intersection; prefer direct-relationship ancestor when applicable)
+  if (sireIsFather || sireIsGrandfather) {
+    const b = list.find(a => a.id === animalB.id);
+    return {
+      commonAncestorId: animalB.id,
+      commonAncestorName: getAnimalName(b),
+      directRelationship,
+    };
+  }
+  if (ancestorsMale.has(animalA.id)) {
+    const a = list.find(x => x.id === animalA.id);
+    return {
+      commonAncestorId: animalA.id,
+      commonAncestorName: getAnimalName(a),
+      directRelationship: null,
+    };
+  }
+  for (const id of intersection) {
+    const an = list.find(x => x.id === id);
+    return {
+      commonAncestorId: id,
+      commonAncestorName: getAnimalName(an),
+      directRelationship: directRelationship || undefined,
+    };
+  }
+  return null;
+}
+
+/**
+ * Inbreeding check using stored damId/sireId only.
+ * Half-siblings: same damId OR same sireId → strong warning.
+ * Shared grandparent: sire's damId or sireId matches female's damId or sireId → moderate warning.
+ * Logs IDs being compared to console. Returns { level: 'half_sibling'|'shared_grandparent', commonAncestorId, commonAncestorName } or null.
+ */
+export function checkInbreedingByParentIds(female, male, animals) {
+  if (!female?.id || !male?.id || female.id === male.id) return null;
+  const list = animals || [];
+  const fDamId = getDamId(female);
+  const fSireId = getSireId(female);
+  const mDamId = getDamId(male);
+  const mSireId = getSireId(male);
+
+  console.log("[Inbreeding check by parent IDs]", getAnimalName(female), "(female) vs", getAnimalName(male), "(sire)");
+  console.log("  IDs compared:", {
+    female_damId: fDamId ?? "—",
+    female_sireId: fSireId ?? "—",
+    male_damId: mDamId ?? "—",
+    male_sireId: mSireId ?? "—",
+  });
+
+  if (!fDamId && !fSireId && !mDamId && !mSireId) return null;
+
+  const sameDam = fDamId && mDamId && fDamId === mDamId;
+  const sameSire = fSireId && mSireId && fSireId === mSireId;
+  if (sameDam || sameSire) {
+    const commonId = sameDam ? fDamId : fSireId;
+    const an = list.find(x => x.id === commonId);
+    console.log("  Result: half_sibling (same " + (sameDam ? "dam" : "sire") + ")", commonId);
+    return { level: "half_sibling", commonAncestorId: commonId, commonAncestorName: getAnimalName(an) };
+  }
+
+  const sireParentMatchesFemaleParent =
+    (mDamId && (mDamId === fDamId || mDamId === fSireId)) ||
+    (mSireId && (mSireId === fDamId || mSireId === fSireId));
+  if (sireParentMatchesFemaleParent) {
+    const commonId = mDamId && (mDamId === fDamId || mDamId === fSireId) ? mDamId : mSireId;
+    const an = list.find(x => x.id === commonId);
+    console.log("  Result: shared_grandparent (sire's parent matches female's parent)", commonId);
+    return { level: "shared_grandparent", commonAncestorId: commonId, commonAncestorName: getAnimalName(an) };
+  }
+
+  return null;
+}
+
 export function cleanupOrphanedRecords(animals, gestations, offspring) {
   const animalIds = new Set((animals || []).map(a => a.id));
   const cleanedGestations = (gestations || [])

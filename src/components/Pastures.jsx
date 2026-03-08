@@ -69,7 +69,11 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, s
     if (name === "— Not assigned —") {
       animalsByPasture[name] = pastureEligible.filter(a => !(a.movements?.[0]?.pastureName || "").trim());
     } else {
-      animalsByPasture[name] = pastureEligible.filter(a => pastureNameEq(a.movements?.[0]?.pastureName, name));
+      animalsByPasture[name] = pastureEligible.filter(a => {
+        const current = (a.movements || [])[0]?.pastureName;
+        if (!(current || "").trim()) return false;
+        return pastureNameEq(resolvePastureName(current, sortedNames), name);
+      });
     }
   });
   const selectedAnimals = pastureEligible.filter(a => selectedIds.includes(a.id));
@@ -308,17 +312,27 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, s
       <div className="hl-pastures-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
         {allPastureNames.map(pastureName => {
           const list = animalsByPasture[pastureName] || [];
-          const cattleCount = list.filter(a => a.species === "Cattle").length;
-          const horseCount = list.filter(a => a.species === "Horse").length;
+          const totalCount = list.length;
+          const bySpecies = list.reduce((acc, a) => {
+            const s = a.species || "Other";
+            acc[s] = (acc[s] || 0) + 1;
+            return acc;
+          }, {});
+          const speciesSummary = Object.entries(bySpecies)
+            .sort(([a], [b]) => a.localeCompare(b))
+            .map(([species, count]) => `${count} ${species}`)
+            .join(" · ");
           return (
             <Card key={pastureName} style={{ padding: "18px 20px", borderLeft: "4px solid var(--green3)" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
                 <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>{pastureName}</div>
-                <div style={{ fontSize: "13px", color: "var(--muted)" }}>
-                  {cattleCount > 0 && <span>{cattleCount} Cattle</span>}
-                  {cattleCount > 0 && horseCount > 0 && " · "}
-                  {horseCount > 0 && <span>{horseCount} Horse{horseCount !== 1 ? "s" : ""}</span>}
-                  {cattleCount === 0 && horseCount === 0 && "0 animals"}
+                <div style={{ fontSize: "13px", color: "var(--muted)", textAlign: "right" }}>
+                  {totalCount === 0 ? "0 animals" : (
+                    <>
+                      <span>{totalCount} animal{totalCount !== 1 ? "s" : ""}</span>
+                      {speciesSummary && <span style={{ display: "block", marginTop: "2px" }}>{speciesSummary}</span>}
+                    </>
+                  )}
                 </div>
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>

@@ -28,7 +28,7 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
       prev.map(a => (a.id === animal.id ? { ...a, weaningDate: dateStr } : a))
     );
     if (setOffspring && offspring) {
-      const motherId = animal.motherId;
+      const motherId = animal.damId ?? animal.motherId;
       if (motherId && offspring[motherId]) {
         setOffspring(prev => {
           const base = { ...prev };
@@ -42,8 +42,9 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
   }
 
   function getMotherName(animal) {
-    if (!animal?.motherId || !animals?.length) return null;
-    const mother = animals.find(a => a.id === animal.motherId);
+    const damId = animal?.damId ?? animal?.motherId;
+    if (!damId || !animals?.length) return null;
+    const mother = animals.find(a => a.id === damId);
     return mother ? getAnimalName(mother) : null;
   }
 

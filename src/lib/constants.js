@@ -321,7 +321,7 @@ export const TAB_OPTIONS = [
   { id: "weaning", label: "Weaning", icon: "🥛" },
 ];
 
-export const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures", "expenses", "loadSales", "tasks", "contacts"];
+export const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures", "pastureFeedLogs", "expenses", "loadSales", "tasks", "contacts"];
 export const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 export const GUEST_USER = { id: "guest", isGuest: true };
 

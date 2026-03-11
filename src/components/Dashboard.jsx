@@ -1,5 +1,5 @@
 import { TIPS, SPECIES, DEFAULT_TAB_VISIBILITY, PASTURE_SPECIES } from "../lib/constants.js";
-import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, progress, breedingDateForProgress, formatCompactDollar, getNextExpectedHeatDate, isFemale } from "../lib/helpers.js";
+import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, formatGestationDaysRemaining, progress, breedingDateForProgress, formatCompactDollar, getNextExpectedHeatDate, isFemale } from "../lib/helpers.js";
 import { Card, Badge, ProgressBar } from "./ui.jsx";
 
 export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, setAnimalsFilterHeatDue, expenses, tasks, settings }) {
@@ -18,7 +18,9 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
   const soldCount = animals.filter(a => a.sale).length;
   const cullCount = (animals || []).filter(a => a.cull && !a.deceased && !a.sale).length;
   const speciesCounts = activeAnimals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
-  const activeGestations = gestations.filter(g => g.status !== "Delivered");
+  const activeGestations = (gestations || []).filter(g => g.status !== "Delivered");
+  console.log("Dashboard gestations (full array for verification):", gestations);
+  console.log("Dashboard active gestations (no delivered):", activeGestations);
 
   const isCurrentMonth = (dateStr) => {
     if (!dateStr) return false;
@@ -58,8 +60,8 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
       const dueEnd = d.isRange ? d.end : d.start;
       return { ...g, animal: a, due, dueEnd, dueD: d };
     })
-    .filter(g => g.dueEnd >= 0 && g.due <= 30)
-    .sort((a, b) => a.due - b.due);
+    .filter(g => g.dueEnd >= 0)
+    .sort((a, b) => (a.due - b.due) || (a.dueEnd - b.dueEnd));
 
   const overdue = activeGestations
     .map(g => {
@@ -140,7 +142,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
             <Card className="hl-card-no-padding" style={{ padding: "0" }}>
               <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)" }}>
                 <span style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600 }}>Upcoming Births</span>
-                <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>next 30 days</span>
+                <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>all due dates</span>
               </div>
               {upcoming.map(g => (
                 <div key={g.id} style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)" }}>
@@ -152,8 +154,8 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
                         <div style={{ fontSize: "12px", color: "var(--muted)" }}>{g.animal?.species} · Due {fmtDueRange(g)}</div>
                       </div>
                     </div>
-                    <Badge color={g.due <= 7 ? "var(--brass2)" : "var(--green3)"}>
-                      {g.dueD?.isRange && g.due !== g.dueEnd ? `${g.due}–${g.dueEnd}d` : g.due === 0 ? "Today" : `${g.due}d`}
+                    <Badge color={g.dueD && (g.dueD.isRange && g.dueD.start <= 0 && g.dueD.end >= 0 || (g.dueD.start >= 0 && g.dueD.start <= 7)) ? "var(--brass2)" : "var(--green3)"}>
+                      {formatGestationDaysRemaining(g.dueD)}
                     </Badge>
                   </div>
                   <ProgressBar value={progress(breedingDateForProgress(g), g.gestationDays)} />

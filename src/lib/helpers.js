@@ -140,8 +140,12 @@ export function isMale(animal) {
   return animal && SEX_TERM_GENDER[animal.sex] === "Male";
 }
 
+/** Intact male used for breeding (bull, stallion, etc.). Male calves under 6 months never count — they don't trigger breeding warnings. */
 export function isBreedingMale(animal) {
-  return animal && !animal.deceased && BREEDING_MALE_SEX_TERMS.includes(animal.sex);
+  if (!animal || animal.deceased || !BREEDING_MALE_SEX_TERMS.includes(animal.sex)) return false;
+  const months = getAgeInMonths(animal.dob);
+  if (months != null && months < 6) return false;
+  return true;
 }
 
 export function getEligibleFemalesForRunningWithBull(animals, gestations, pastureName, maleAnimal) {
@@ -272,27 +276,58 @@ export function getADGDefault(species) {
   return 1.0;
 }
 
+/** Normalize date string to YYYY-MM-DD. Accepts YYYY-MM-DD or YY-MM-DD. If year < 100 (2-digit stored by mistake), auto-correct by adding 2000 (25→2025, 26→2026). Returns null if invalid. */
+export function normalizeDateString(dateStr) {
+  if (dateStr == null || typeof dateStr !== "string") return null;
+  const s = String(dateStr).trim().split("T")[0].split(" ")[0];
+  if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+    const y = parseInt(s.slice(0, 4), 10);
+    if (y >= 0 && y < 100) return `${2000 + y}-${s.slice(5, 7)}-${s.slice(8, 10)}`;
+    return s;
+  }
+  const twoDigit = s.match(/^(\d{2})-(\d{2})-(\d{2})$/);
+  if (twoDigit) {
+    const yy = parseInt(twoDigit[1], 10);
+    const fullYear = yy >= 0 && yy <= 99 ? 2000 + yy : yy;
+    return `${fullYear}-${twoDigit[2]}-${twoDigit[3]}`;
+  }
+  return null;
+}
+
 export function daysUntil(dateStr) {
-  const d = new Date(dateStr); d.setHours(0,0,0,0);
-  const t = new Date(); t.setHours(0,0,0,0);
-  return Math.ceil((d - t) / 86400000);
+  const normalized = normalizeDateString(dateStr);
+  if (!normalized) return NaN;
+  const d = new Date(normalized + "T12:00:00");
+  d.setHours(0, 0, 0, 0);
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  const diff = Math.ceil((d - t) / 86400000);
+  return Number.isFinite(diff) ? diff : NaN;
 }
 
 export function dueDate(breedingStr, days) {
-  const d = new Date(breedingStr);
+  const normalized = normalizeDateString(breedingStr);
+  if (!normalized) return null;
+  const d = new Date(normalized + "T12:00:00");
   d.setDate(d.getDate() + days);
   return d.toISOString().split("T")[0];
 }
 
 export function progress(breedingStr, totalDays) {
-  const elapsed = (Date.now() - new Date(breedingStr)) / 86400000;
+  const norm = normalizeDateString(breedingStr);
+  if (!norm) return 0;
+  const breeding = new Date(norm + "T12:00:00").getTime();
+  if (!Number.isFinite(breeding)) return 0;
+  const elapsed = (Date.now() - breeding) / 86400000;
   return Math.min(100, Math.max(0, (elapsed / totalDays) * 100));
 }
 
 export function fmt(dateStr) {
   const d = parseDateSafe(dateStr);
   if (!d) return dateStr ? "Unknown" : "—";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const monthDay = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return `${monthDay}, ${d.getFullYear()}`;
 }
 
 export function createMovementJournalEntry(animal, fromPasture, toPasture, dateMovedIn, notes, movementId) {
@@ -324,9 +359,11 @@ export function daysUntilDue(g) {
   if (g.dueDateStart && g.dueDateEnd) {
     const start = daysUntil(g.dueDateStart);
     const end = daysUntil(g.dueDateEnd);
-    return { start, end, isRange: true };
+    return { start: Number.isFinite(start) ? start : 0, end: Number.isFinite(end) ? end : 0, isRange: true };
   }
-  return { start: daysUntil(g.dueDate), end: daysUntil(g.dueDate), isRange: false };
+  const single = daysUntil(g.dueDate);
+  const n = Number.isFinite(single) ? single : 0;
+  return { start: n, end: n, isRange: false };
 }
 
 export function isOverdue(g) {
@@ -334,32 +371,55 @@ export function isOverdue(g) {
   return d.isRange ? d.end < 0 : d.start < 0;
 }
 
-/** Calf DOB is within expected gestation window: due date (= breeding + gestation days) ± 30 days buffer. */
+/** Format days-remaining for gestation badge. When today is within due range, returns "Due Now" (never negative). Past end of range = "Overdue". */
+export function formatGestationDaysRemaining(dueD) {
+  if (!dueD) return "—";
+  const { start, end, isRange } = dueD;
+  if (isRange) {
+    if (end < 0) return "Overdue";
+    if (start <= 0 && end >= 0) return "Due Now";
+    return `${Math.max(0, start)}–${end} days`;
+  }
+  if (start < 0) return `${Math.abs(start)}d overdue`;
+  if (start === 0) return "Due today";
+  return `${start} days`;
+}
+
+/** Calf DOB is within expected gestation window: due date (= breeding + gestation days) ± 30 days buffer. Uses 4-digit years. */
 export function birthDateWithinGestationWindow(calfDobStr, g) {
   if (!calfDobStr || !g) return false;
-  const calf = new Date(calfDobStr + "T12:00:00").getTime();
+  const calfNorm = normalizeDateString(calfDobStr);
+  if (!calfNorm) return false;
+  const calf = new Date(calfNorm + "T12:00:00").getTime();
+  if (Number.isNaN(calf)) return false;
   const day = 86400000;
   const margin = 30 * day;
   if (g.dueDateStart && g.dueDateEnd) {
-    const start = new Date(g.dueDateStart + "T12:00:00").getTime() - margin;
-    const end = new Date(g.dueDateEnd + "T12:00:00").getTime() + margin;
+    const startNorm = normalizeDateString(g.dueDateStart);
+    const endNorm = normalizeDateString(g.dueDateEnd);
+    if (!startNorm || !endNorm) return false;
+    const start = new Date(startNorm + "T12:00:00").getTime() - margin;
+    const end = new Date(endNorm + "T12:00:00").getTime() + margin;
     return calf >= start && calf <= end;
   }
-  const due = new Date((g.dueDate || "").split("T")[0] + "T12:00:00").getTime();
+  const dueStr = normalizeDateString(g.dueDate);
+  if (!dueStr) return false;
+  const due = new Date(dueStr + "T12:00:00").getTime();
   return Math.abs(calf - due) <= margin;
 }
 
 export function breedingDateFromDelivery(deliveryDateStr, gestationDays) {
-  const d = new Date(deliveryDateStr + "T12:00:00");
+  const norm = normalizeDateString(deliveryDateStr);
+  if (!norm) return null;
+  const d = new Date(norm + "T12:00:00");
   d.setDate(d.getDate() - (gestationDays || 283));
   return d.toISOString().split("T")[0];
 }
 
-/** Parse YYYY-MM-DD string; return Date or null if invalid or year > maxYear. */
+/** Parse date string (YYYY-MM-DD or YY-MM-DD); return Date or null if invalid or year > maxYear. Always uses 4-digit year. */
 export function parseDateSafe(dateStr, maxYear = 2100) {
-  if (!dateStr || typeof dateStr !== "string") return null;
-  const s = String(dateStr).trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+  const s = normalizeDateString(dateStr);
+  if (!s) return null;
   const d = new Date(s + "T12:00:00");
   if (Number.isNaN(d.getTime()) || d.getFullYear() > maxYear) return null;
   return d;

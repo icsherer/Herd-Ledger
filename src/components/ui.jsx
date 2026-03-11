@@ -15,7 +15,9 @@ export function Card({ children, style = {}, className = "", ...rest }) {
 export function Badge({ children, color = "var(--green)" }) {
   return (
     <span style={{
-      display: "inline-block",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
       padding: "2px 10px",
       borderRadius: "20px",
       fontSize: "12px",

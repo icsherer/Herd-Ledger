@@ -2607,7 +2607,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Lineage</div>
                 <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                  <Btn size="sm" variant="ghost" onClick={() => { console.log("[Debug Lineage] full animal object:", a); console.log("[Debug Lineage] lineage fields:", { sireId: a.sireId, sireName: a.sireName, damId: a.damId, damName: a.damName, motherId: a.motherId, motherName: a.motherName }); }} style={{ color: "var(--muted)", fontSize: "12px" }}>Debug Lineage</Btn>
                 {!showLineageForm && (
                   <Btn size="sm" variant="ghost" onClick={() => {
                     setLineageForm({

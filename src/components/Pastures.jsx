@@ -18,7 +18,8 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
   const [runningWithBullCheckPending, setRunningWithBullCheckPending] = useState(null);
   const [pendingMove, setPendingMove] = useState(null);
   const [twoBullsWarningPending, setTwoBullsWarningPending] = useState(null);
-  const runningWithBullDismissedPasturesRef = useRef(new Set());
+  /** Dismissed Running with Bull popups: Set of "pastureName|maleId" so same bull+pasture won't show again this session. */
+  const runningWithBullDismissedRef = useRef(new Set());
 
   // Feed tracking
   const [logFeedPasture, setLogFeedPasture] = useState(null);
@@ -54,13 +55,18 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
     const animalsToUse = pendingMove?.nextAnimals ?? animals;
     const { pastureName, promptType, movedFemales, eligibleFemales, maleAnimal } = runningWithBullCheckPending;
     setRunningWithBullCheckPending(null);
-    if (promptType === "female_moved" && movedFemales?.length > 0 && maleAnimal) {
-      setRunningWithBullPrompt({ pastureName, maleAnimal, eligibleFemales: movedFemales, promptType: "female_moved" });
+    const male = maleAnimal || getBreedingMaleInPasture(animalsToUse, pastureName);
+    const dismissedKey = male && pastureName ? `${(pastureName || "").trim().toLowerCase()}|${male.id}` : "";
+    if (dismissedKey && runningWithBullDismissedRef.current.has(dismissedKey)) {
+      setPendingMove(null);
+      return;
+    }
+    if (promptType === "female_moved" && movedFemales?.length > 0 && male) {
+      setRunningWithBullPrompt({ pastureName, maleAnimal: male, eligibleFemales: movedFemales, promptType: "female_moved" });
       setRunningWithBullStep("ask");
       setRunningWithBullForm({ startDate: "", endDate: "" });
       return;
     }
-    const male = maleAnimal || getBreedingMaleInPasture(animalsToUse, pastureName);
     if (!male) {
       setPendingMove(null);
       return;
@@ -74,23 +80,6 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
       setPendingMove(null);
     }
   }, [runningWithBullCheckPending, animals, gestations, pendingMove?.nextAnimals]);
-
-  useEffect(() => {
-    if (!animals || !gestations || runningWithBullPrompt || runningWithBullCheckPending) return;
-    const pastureNames = getCanonicalPastureNames(animals, pastures);
-    for (const p of pastureNames) {
-      if (runningWithBullDismissedPasturesRef.current.has(p.toLowerCase())) continue;
-      const male = getBreedingMaleInPasture(animals, p);
-      if (!male) continue;
-      const eligible = getEligibleFemalesForRunningWithBull(animals, gestations, p, male);
-      if (eligible.length > 0) {
-        setRunningWithBullPrompt({ pastureName: p, maleAnimal: male, eligibleFemales: eligible });
-        setRunningWithBullStep("ask");
-        setRunningWithBullForm({ startDate: "", endDate: "" });
-        break;
-      }
-    }
-  }, [animals, gestations, runningWithBullPrompt, runningWithBullCheckPending]);
 
   const pastureEligible = (animals || []).filter(a => PASTURE_SPECIES.includes(a.species) && !a.deceased && !a.sale);
   const sortedNames = getCanonicalPastureNames(animals, pastures);
@@ -391,7 +380,9 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
   }
 
   const dismissRunningWithBullPrompt = () => {
-    if (runningWithBullPrompt?.pastureName) runningWithBullDismissedPasturesRef.current.add((runningWithBullPrompt.pastureName || "").trim().toLowerCase());
+    if (runningWithBullPrompt?.pastureName && runningWithBullPrompt?.maleAnimal?.id) {
+      runningWithBullDismissedRef.current.add(`${(runningWithBullPrompt.pastureName || "").trim().toLowerCase()}|${runningWithBullPrompt.maleAnimal.id}`);
+    }
     setPendingMove(null);
     setRunningWithBullPrompt(null);
     setRunningWithBullStep("ask");
@@ -674,7 +665,21 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
                         {getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}
                       </button>
                       <span style={{ fontSize: "12px", color: "var(--muted)" }}>{a.species}</span>
-                      <button type="button" onClick={e => { e.stopPropagation(); const removed = (a.movements || [])[0]; const next = (a.movements || []).slice(1); if (removed?.movementId && setNotes) setNotes(prev => prev.filter(n => n.movementId !== removed.movementId)); setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, movements: next } : an))); }} style={{ fontSize: "12px", color: "var(--muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }} title="Remove from pasture (no movement record)">Remove</button>
+                      {pastureName !== "— Not assigned —" && setAnimals && (
+                        <button
+                          type="button"
+                          onClick={e => {
+                            e.stopPropagation();
+                            const movements = a.movements || [];
+                            const removed = movements[0];
+                            const next = movements.slice(1);
+                            if (removed?.movementId && setNotes) setNotes(prev => prev.filter(n => n.movementId !== removed.movementId));
+                            setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, movements: next } : an)));
+                          }}
+                          style={{ fontSize: "12px", color: "var(--muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
+                          title="Remove from pasture (no movement record)"
+                        >Remove</button>
+                      )}
                     </div>
                   ))
                 )}

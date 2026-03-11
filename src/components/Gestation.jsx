@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { SPECIES } from "../lib/constants.js";
-import { getAnimalName, fmt, daysUntil, dueDate, progress, fmtDueRange, daysUntilDue, isOverdue, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies, getAgeBasedSexTerm } from "../lib/helpers.js";
+import { getAnimalName, fmt, daysUntil, dueDate, progress, fmtDueRange, daysUntilDue, isOverdue, formatGestationDaysRemaining, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies, getAgeBasedSexTerm } from "../lib/helpers.js";
 import { Card, Btn, Input, Select, Textarea, SectionTitle, ProgressBar, Badge } from "./ui.jsx";
 
 function todayISO() {
@@ -297,11 +297,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
           const pct = progress(breedingDateForProgress(g), g.gestationDays);
           const overdue = isOverdue(g);
           const urgent = dueD.isRange ? (dueD.start <= 7 && dueD.end >= 0) : (dueD.start >= 0 && dueD.start <= 7);
-          const badgeText = overdue
-            ? (dueD.isRange ? "Overdue" : `${Math.abs(dueD.start)}d overdue`)
-            : dueD.isRange
-              ? (dueD.start === dueD.end ? (dueD.start === 0 ? "Due today" : `${dueD.start} days`) : `${dueD.start}–${dueD.end} days`)
-              : (dueD.start === 0 ? "Due today" : `${dueD.start} days`);
+          const badgeText = formatGestationDaysRemaining(dueD);
           return (
             <Card key={g.id} className="hl-gestation-card" style={{ padding: "20px 24px", borderLeft: `4px solid ${overdue ? "var(--danger2)" : urgent ? "var(--brass)" : "var(--green3)"}` }}>
               <div className="hl-gestation-card-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
 import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, CULL_REASONS, VACCINE_ROUTES, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES, REGISTER_SPECIES_TABS, REGISTER_OTHER_SPECIES, HORSE_DISCIPLINES, EQUINE_VACCINE_SUGGESTIONS, HORSE_HEALTH_EXPENSE_CATEGORY } from "../lib/constants.js";
-import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate, checkInbreedingByParentIds } from "../lib/helpers.js";
+import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, dueDateRangeFromSingleDate, displaySex, fmtDueRange, fmtExposure, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate, checkInbreedingByParentIds } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 import ContactPicker from "./ContactPicker.jsx";
 import { supabase } from "../supabase";
@@ -249,18 +249,27 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   }, [runningWithBullCheckPending, animals, gestations]);
 
   function confirmRunningWithBull() {
-    if (!runningWithBullPrompt || !runningWithBullForm.startDate || !runningWithBullForm.endDate) return;
+    if (!runningWithBullPrompt || !runningWithBullForm.startDate) return;
     const { maleAnimal, eligibleFemales } = runningWithBullPrompt;
     const start = runningWithBullForm.startDate;
-    const end = runningWithBullForm.endDate;
+    const end = (runningWithBullForm.endDate || "").trim() ? runningWithBullForm.endDate : null;
     const newRecords = eligibleFemales.map(an => {
       const totalDays = SPECIES[an.species]?.days || 150;
-      const dueStart = dueDate(start, totalDays);
-      const dueEnd = dueDate(end, totalDays);
+      const minDays = SPECIES[an.species]?.minDays ?? totalDays;
+      const maxDays = SPECIES[an.species]?.maxDays ?? totalDays;
+      let dueStart, dueEnd;
+      if (end) {
+        dueStart = dueDate(start, totalDays);
+        dueEnd = dueDate(end, totalDays);
+      } else {
+        const range = dueDateRangeFromSingleDate(start, minDays, maxDays);
+        dueStart = range.dueDateStart;
+        dueEnd = range.dueDateEnd;
+      }
       return {
         animalId: an.id,
         breedingDate: start,
-        breedingDateEnd: end,
+        breedingDateEnd: end || undefined,
         runningWithBull: true,
         dueDate: dueStart,
         dueDateStart: dueStart,
@@ -1320,11 +1329,20 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
     function addBreedingFromProfile() {
       const start = breedingForm.breedingDate;
-      const end = breedingForm.runningWithBull ? breedingForm.breedingDateEnd : breedingForm.breedingDate;
-      if (!start || (breedingForm.runningWithBull && !end)) return;
+      if (!start) return;
       const totalDays = SPECIES[a.species]?.days || 150;
-      const dueStart = dueDate(start, totalDays);
-      const dueEnd = breedingForm.runningWithBull ? dueDate(end, totalDays) : dueStart;
+      const minDays = SPECIES[a.species]?.minDays ?? totalDays;
+      const maxDays = SPECIES[a.species]?.maxDays ?? totalDays;
+      const end = (breedingForm.runningWithBull && (breedingForm.breedingDateEnd || "").trim()) ? breedingForm.breedingDateEnd : null;
+      let dueStart, dueEnd;
+      if (end) {
+        dueStart = dueDate(start, totalDays);
+        dueEnd = dueDate(end, totalDays);
+      } else {
+        const range = dueDateRangeFromSingleDate(start, minDays, maxDays);
+        dueStart = range.dueDateStart;
+        dueEnd = range.dueDateEnd;
+      }
       const sireDisplay = breedingForm.sireNotInHerd ? ((breedingForm.sire || "").trim() || "Unknown") : (breedingForm.sireAnimalId === "unknown" ? "Unknown" : (breedingForm.sire || undefined));
       const sireId = breedingForm.sireNotInHerd ? undefined : (breedingForm.sireAnimalId && breedingForm.sireAnimalId !== "unknown" ? breedingForm.sireAnimalId : undefined);
       const recordId = Date.now().toString();
@@ -1340,9 +1358,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const record = {
         animalId: a.id,
         breedingDate: start,
-        ...(breedingForm.runningWithBull && { breedingDateEnd: end, runningWithBull: true }),
+        ...(breedingForm.runningWithBull && { breedingDateEnd: end || undefined, runningWithBull: true }),
         dueDate: dueStart,
-        ...(breedingForm.runningWithBull && { dueDateStart: dueStart, dueDateEnd: dueEnd }),
+        dueDateStart: dueStart,
+        dueDateEnd: dueEnd,
         sire: sireDisplay,
         ...(sireId && { sireAnimalId: sireId }),
         notes: breedingForm.notes,
@@ -2946,9 +2965,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                                     <span style={{ fontSize: "10px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.2)", padding: "2px 6px", borderRadius: "4px", letterSpacing: "0.5px" }}>INBRED WARNING</span>
                                   )}
                                 </div>
-                                <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>Breeding date: {g.breedingDate ? fmt(g.breedingDate) : "—"}{g.runningWithBull && g.breedingDateEnd ? ` – ${fmt(g.breedingDateEnd)}` : ""}</div>
+                                <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>{fmtExposure(g)}</div>
                                 <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>Sire: {sireLabel}</div>
-                                <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "8px" }}>Expected due: {dueStr}</div>
+                                <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "8px" }}>Due {fmtDueRange(g)}</div>
                                 <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                                   <div style={{ flex: "1 1 120px", height: "8px", background: "var(--cream2)", borderRadius: "4px", overflow: "hidden" }}>
                                     <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, prog))}%`, background: "var(--brass)", borderRadius: "4px", transition: "width 0.2s ease" }} />
@@ -2997,8 +3016,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             <Input label="Breeding Date *" type="date" value={breedingForm.breedingDate} onChange={e => setBreedingForm(p => ({ ...p, breedingDate: e.target.value }))} />
                           ) : (
                             <>
-                              <Input label="Exposure start *" type="date" value={breedingForm.breedingDate} onChange={e => setBreedingForm(p => ({ ...p, breedingDate: e.target.value }))} />
-                              <Input label="Exposure end *" type="date" value={breedingForm.breedingDateEnd} onChange={e => setBreedingForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
+                              <Input label="Turn Out Date *" type="date" value={breedingForm.breedingDate} onChange={e => setBreedingForm(p => ({ ...p, breedingDate: e.target.value }))} />
+                              <Input label="Pull Date (optional)" type="date" value={breedingForm.breedingDateEnd} onChange={e => setBreedingForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
                             </>
                           )}
                           {!breedingForm.sireNotInHerd ? (
@@ -3061,12 +3080,15 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           <span>Running with Bull (date range for bull exposure)</span>
                         </label>
                         <Textarea label="Notes" value={breedingForm.notes} onChange={e => setBreedingForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
-                        {breedingForm.breedingDate && (breedingForm.runningWithBull ? breedingForm.breedingDateEnd : true) && (() => {
+                        {breedingForm.breedingDate && (() => {
                           const days = SPECIES[a.species]?.days;
+                          const minDays = SPECIES[a.species]?.minDays ?? days;
+                          const maxDays = SPECIES[a.species]?.maxDays ?? days;
                           if (!days) return null;
-                          const start = dueDate(breedingForm.breedingDate, days);
-                          const end = breedingForm.runningWithBull && breedingForm.breedingDateEnd ? dueDate(breedingForm.breedingDateEnd, days) : start;
-                          const dueStr = breedingForm.runningWithBull && breedingForm.breedingDateEnd ? `${fmt(start)} – ${fmt(end)}` : fmt(start);
+                          const hasEnd = breedingForm.runningWithBull && (breedingForm.breedingDateEnd || "").trim();
+                          const dueStr = hasEnd
+                            ? `${fmt(dueDate(breedingForm.breedingDate, days))} – ${fmt(dueDate(breedingForm.breedingDateEnd, days))}`
+                            : (() => { const r = dueDateRangeFromSingleDate(breedingForm.breedingDate, minDays, maxDays); return `${fmt(r.dueDateStart)} – ${fmt(r.dueDateEnd)}`; })();
                           return (
                             <div style={{ marginTop: "12px", padding: "10px 14px", background: "var(--cream)", borderRadius: "var(--radius)", fontSize: "13px", color: "var(--ink2)" }}>
                               📅 Estimated due: <strong>{dueStr}</strong> · Gestation: <strong>{days} days</strong>
@@ -3848,14 +3870,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   const linkedHeat = heatForGestation(g);
                   const totalDays = g.gestationDays ?? SPECIES[a.species]?.days ?? 283;
                   const prog = g.status !== "Delivered" ? progress(breedingDateForProgress(g), totalDays) : 100;
-                  const dueStr = g.dueDateStart && g.dueDateEnd ? `${fmt(g.dueDateStart)} – ${fmt(g.dueDateEnd)}` : fmt(g.dueDate);
                   return (
                     <div key={g.id} style={{ padding: "10px 0", borderBottom: "1px solid #EDE6D6" }}>
                       <div>
-                        {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${dueStr}`}
+                        {g.status === "Delivered" ? `Delivered ${fmt(g.deliveredAt)}` : `Active · Due ${fmtDueRange(g)}`}
                         {g.status !== "Delivered" && <span style={{ marginLeft: "8px", fontWeight: 600, color: "var(--brass)" }}>{Math.round(prog)}%</span>}
                       </div>
-                      <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "2px" }}>Bred {g.breedingDate ? fmt(g.breedingDate) : "—"} · Sire: {sireAnimal ? (
+                      <div style={{ fontSize: "13px", color: "var(--ink2)", marginTop: "2px" }}>{fmtExposure(g)} · Sire: {sireAnimal ? (
                         <button type="button" onClick={() => setViewing(sireAnimal)} style={{ background: "none", border: "none", padding: 0, color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline", fontSize: "inherit" }}>{sireLabel}</button>
                       ) : (
                         <span>{sireLabel}</span>
@@ -3892,7 +3913,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       ) : (
                         <span>Unknown dam</span>
                       )}
-                      {` · Bred ${g.breedingDate ? fmt(g.breedingDate) : "—"}${g.runningWithBull && g.breedingDateEnd ? ` – ${fmt(g.breedingDateEnd)}` : ""}`}
+                      {` · ${fmtExposure(g)}`}
                     </div>
                   );
                 })}
@@ -4061,14 +4082,23 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   function saveBulkBreeding() {
     const start = bulkForm.breedingDate;
-    const end = bulkForm.runningWithBull ? bulkForm.breedingDateEnd : bulkForm.breedingDate;
-    if (!start || (bulkForm.runningWithBull && !end)) return;
+    if (!start) return;
+    const end = (bulkForm.runningWithBull && (bulkForm.breedingDateEnd || "").trim()) ? bulkForm.breedingDateEnd : null;
     const breedingDateMs = new Date(start + "T12:00:00").getTime();
     const HEAT_LINK_DAYS_BULK = 5;
     const newRecords = selectedFemales.map(an => {
       const totalDays = SPECIES[an.species]?.days || 150;
-      const dueStart = dueDate(start, totalDays);
-      const dueEnd = bulkForm.runningWithBull ? dueDate(end, totalDays) : dueStart;
+      const minDays = SPECIES[an.species]?.minDays ?? totalDays;
+      const maxDays = SPECIES[an.species]?.maxDays ?? totalDays;
+      let dueStart, dueEnd;
+      if (end) {
+        dueStart = dueDate(start, totalDays);
+        dueEnd = dueDate(end, totalDays);
+      } else {
+        const range = dueDateRangeFromSingleDate(start, minDays, maxDays);
+        dueStart = range.dueDateStart;
+        dueEnd = range.dueDateEnd;
+      }
       const recentHeats = (an.heatCycles || [])
         .filter(h => {
           const heatMs = new Date((h.observedDate || "") + "T12:00:00").getTime();
@@ -4081,9 +4111,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       return {
         animalId: an.id,
         breedingDate: start,
-        ...(bulkForm.runningWithBull && { breedingDateEnd: end, runningWithBull: true }),
+        ...(bulkForm.runningWithBull && { breedingDateEnd: end || undefined, runningWithBull: true }),
         dueDate: dueStart,
-        ...(bulkForm.runningWithBull && { dueDateStart: dueStart, dueDateEnd: dueEnd }),
+        dueDateStart: dueStart,
+        dueDateEnd: dueEnd,
         sire: bulkForm.sire,
         notes: bulkForm.notes,
         id: recordId,
@@ -4536,7 +4567,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   This will create a gestation record (exposure window) for each eligible female. Males, castrated animals, and already bred females are excluded.
                 </p>
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <Btn onClick={() => { setRunningWithBullStep("form"); const today = new Date().toISOString().split("T")[0]; setRunningWithBullForm({ startDate: today, endDate: today }); }}>Yes</Btn>
+                  <Btn onClick={() => { setRunningWithBullStep("form"); const today = new Date().toISOString().split("T")[0]; setRunningWithBullForm({ startDate: today, endDate: "" }); }}>Yes</Btn>
                   <Btn variant="secondary" onClick={() => {
                     const rev = runningWithBullPrompt.revertMove;
                     if (rev) {
@@ -4553,8 +4584,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             ) : (
               <>
                 <div className="hl-form-grid-3" style={{ marginBottom: "16px" }}>
-                  <Input label="Exposure start date *" type="date" value={runningWithBullForm.startDate} onChange={e => setRunningWithBullForm(p => ({ ...p, startDate: e.target.value }))} />
-                  <Input label="Exposure end date *" type="date" value={runningWithBullForm.endDate} onChange={e => setRunningWithBullForm(p => ({ ...p, endDate: e.target.value }))} />
+                  <Input label="Turn Out Date *" type="date" value={runningWithBullForm.startDate} onChange={e => setRunningWithBullForm(p => ({ ...p, startDate: e.target.value }))} />
+                  <Input label="Pull Date (optional)" type="date" value={runningWithBullForm.endDate} onChange={e => setRunningWithBullForm(p => ({ ...p, endDate: e.target.value }))} />
                 </div>
                 <p style={{ fontSize: "14px", color: "var(--ink2)", marginBottom: "20px", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)" }}>
                   <strong>{runningWithBullPrompt.eligibleFemales.length}</strong> female{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""} will receive breeding records{runningWithBullPrompt.eligibleFemales.length > 0 ? ": " : ""}
@@ -4563,7 +4594,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     : runningWithBullPrompt.eligibleFemales.slice(0, 5).map(f => getAnimalName(f)).join(", ") + ` and ${runningWithBullPrompt.eligibleFemales.length - 5} more`}
                 </p>
                 <div style={{ display: "flex", gap: "10px" }}>
-                  <Btn onClick={confirmRunningWithBull} disabled={!runningWithBullForm.startDate || !runningWithBullForm.endDate}>Confirm — Log {runningWithBullPrompt.eligibleFemales.length} record{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""}</Btn>
+                  <Btn onClick={confirmRunningWithBull} disabled={!runningWithBullForm.startDate}>Confirm — Log {runningWithBullPrompt.eligibleFemales.length} record{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""}</Btn>
                   <Btn variant="secondary" onClick={() => setRunningWithBullStep("ask")}>Back</Btn>
                 </div>
               </>
@@ -4639,8 +4670,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <Input label="Breeding Date *" type="date" value={bulkForm.breedingDate} onChange={e => setBulkForm(p => ({ ...p, breedingDate: e.target.value }))} />
             ) : (
               <>
-                <Input label="Exposure start *" type="date" value={bulkForm.breedingDate} onChange={e => setBulkForm(p => ({ ...p, breedingDate: e.target.value }))} />
-                <Input label="Exposure end *" type="date" value={bulkForm.breedingDateEnd} onChange={e => setBulkForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
+                <Input label="Turn Out Date *" type="date" value={bulkForm.breedingDate} onChange={e => setBulkForm(p => ({ ...p, breedingDate: e.target.value }))} />
+                <Input label="Pull Date (optional)" type="date" value={bulkForm.breedingDateEnd} onChange={e => setBulkForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
               </>
             )}
             <Input label="Sire (optional)" value={bulkForm.sire} onChange={e => setBulkForm(p => ({ ...p, sire: e.target.value }))} placeholder="Sire name or tag" />

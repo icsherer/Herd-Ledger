@@ -1,19 +1,20 @@
 // ── Species Data ──────────────────────────────────────────────────────────────
+// days = nominal gestation; minDays/maxDays = range for due-date window when only turn-out date is recorded.
 export const SPECIES = {
-  Cattle:  { days: 283, emoji: "🐄" },
-  Bison:   { days: 283, emoji: "🦬" },
-  Chicken: { days: 21,  emoji: "🐓" },
-  Horse:   { days: 340, emoji: "🐎" },
-  Pig:     { days: 114, emoji: "🐖" },
-  Sheep:   { days: 147, emoji: "🐑" },
-  Goat:    { days: 150, emoji: "🐐" },
-  Llama:   { days: 350, emoji: "🦙" },
-  Alpaca:  { days: 345, emoji: "🦙" },
-  Donkey:  { days: 365, emoji: "🫏" },
-  Mule:    { days: 360, emoji: "🐴" },
-  Rabbit:  { days: 31,  emoji: "🐇" },
-  Dog:     { days: 63,  emoji: "🐕" },
-  Cat:     { days: 65,  emoji: "🐈" },
+  Cattle:  { days: 283, minDays: 273, maxDays: 293, emoji: "🐄" },
+  Bison:   { days: 283, minDays: 273, maxDays: 293, emoji: "🦬" },
+  Chicken: { days: 21,  minDays: 20,  maxDays: 23,  emoji: "🐓" },
+  Horse:   { days: 340, minDays: 330, maxDays: 350, emoji: "🐎" },
+  Pig:     { days: 114, minDays: 109, maxDays: 120, emoji: "🐖" },
+  Sheep:   { days: 147, minDays: 142, maxDays: 152, emoji: "🐑" },
+  Goat:    { days: 150, minDays: 145, maxDays: 155, emoji: "🐐" },
+  Llama:   { days: 350, minDays: 340, maxDays: 360, emoji: "🦙" },
+  Alpaca:  { days: 345, minDays: 335, maxDays: 355, emoji: "🦙" },
+  Donkey:  { days: 365, minDays: 355, maxDays: 375, emoji: "🫏" },
+  Mule:    { days: 360, minDays: 350, maxDays: 370, emoji: "🐴" },
+  Rabbit:  { days: 31,  minDays: 28,  maxDays: 35,  emoji: "🐇" },
+  Dog:     { days: 63,  minDays: 58,  maxDays: 68,  emoji: "🐕" },
+  Cat:     { days: 65,  minDays: 60,  maxDays: 70,  emoji: "🐈" },
 };
 
 /** All species can be assigned to pastures; mixed-species pastures allowed. */

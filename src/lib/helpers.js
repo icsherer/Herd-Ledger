@@ -314,6 +314,20 @@ export function dueDate(breedingStr, days) {
   return d.toISOString().split("T")[0];
 }
 
+/** Given a single breeding/exposure date, return due date range using min and max gestation days. */
+export function dueDateRangeFromSingleDate(breedingStr, minDays, maxDays) {
+  const start = dueDate(breedingStr, minDays ?? 0);
+  const end = dueDate(breedingStr, maxDays ?? minDays ?? 0);
+  return { dueDateStart: start, dueDateEnd: end };
+}
+
+/** Format exposure for display: single date "Exposed: Oct 16, 2025" or range "Exposed: Oct 16, 2025 – Nov 1, 2025". */
+export function fmtExposure(g) {
+  if (!g?.breedingDate) return "—";
+  if (g.breedingDateEnd && String(g.breedingDateEnd).trim()) return `Exposed: ${fmt(g.breedingDate)} – ${fmt(g.breedingDateEnd)}`;
+  return `Exposed: ${fmt(g.breedingDate)}`;
+}
+
 export function progress(breedingStr, totalDays) {
   const norm = normalizeDateString(breedingStr);
   if (!norm) return 0;

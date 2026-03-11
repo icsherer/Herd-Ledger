@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { SPECIES, PASTURE_SPECIES, INTACT_MALE_TERM_BY_SPECIES } from "../lib/constants.js";
-import { getAnimalName, fmt, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, pastureNameEq, getCanonicalPastureNames, resolvePastureName, createMovementJournalEntry, dueDate, feederDaysOnFeed, displaySex, isBreedingMale } from "../lib/helpers.js";
+import { getAnimalName, fmt, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, pastureNameEq, getCanonicalPastureNames, resolvePastureName, createMovementJournalEntry, dueDate, dueDateRangeFromSingleDate, feederDaysOnFeed, displaySex, isBreedingMale } from "../lib/helpers.js";
 import { Card, Btn, Input, PastureCombo, SectionTitle, Select, Textarea } from "./ui.jsx";
 
 const FEED_TYPES = ["Hay Bale", "Round Bale", "Square Bale", "Grain", "Supplement", "Other"];
@@ -349,18 +349,27 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
   }
 
   function confirmRunningWithBull() {
-    if (!runningWithBullPrompt || !setGestations || !runningWithBullForm.startDate || !runningWithBullForm.endDate) return;
+    if (!runningWithBullPrompt || !setGestations || !runningWithBullForm.startDate) return;
     const { maleAnimal, eligibleFemales } = runningWithBullPrompt;
     const start = runningWithBullForm.startDate;
-    const end = runningWithBullForm.endDate;
+    const end = (runningWithBullForm.endDate || "").trim() ? runningWithBullForm.endDate : null;
     const newRecords = eligibleFemales.map(an => {
       const totalDays = SPECIES[an.species]?.days || 150;
-      const dueStart = dueDate(start, totalDays);
-      const dueEnd = dueDate(end, totalDays);
+      const minDays = SPECIES[an.species]?.minDays ?? totalDays;
+      const maxDays = SPECIES[an.species]?.maxDays ?? totalDays;
+      let dueStart, dueEnd;
+      if (end) {
+        dueStart = dueDate(start, totalDays);
+        dueEnd = dueDate(end, totalDays);
+      } else {
+        const range = dueDateRangeFromSingleDate(start, minDays, maxDays);
+        dueStart = range.dueDateStart;
+        dueEnd = range.dueDateEnd;
+      }
       return {
         animalId: an.id,
         breedingDate: start,
-        breedingDateEnd: end,
+        breedingDateEnd: end || undefined,
         runningWithBull: true,
         dueDate: dueStart,
         dueDateStart: dueStart,
@@ -439,15 +448,16 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
                       const today = new Date().toISOString().split("T")[0];
                       const newRecords = runningWithBullPrompt.eligibleFemales.map(an => {
                         const totalDays = SPECIES[an.species]?.days || 150;
-                        const dueStart = dueDate(today, totalDays);
+                        const minDays = SPECIES[an.species]?.minDays ?? totalDays;
+                        const maxDays = SPECIES[an.species]?.maxDays ?? totalDays;
+                        const range = dueDateRangeFromSingleDate(today, minDays, maxDays);
                         return {
                           animalId: an.id,
                           breedingDate: today,
-                          breedingDateEnd: today,
                           runningWithBull: true,
-                          dueDate: dueStart,
-                          dueDateStart: dueStart,
-                          dueDateEnd: dueStart,
+                          dueDate: range.dueDateStart,
+                          dueDateStart: range.dueDateStart,
+                          dueDateEnd: range.dueDateEnd,
                           sire: getAnimalName(runningWithBullPrompt.maleAnimal),
                           notes: "Running with bull",
                           id: Date.now().toString() + "-" + an.id,
@@ -482,15 +492,16 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
                       const today = new Date().toISOString().split("T")[0];
                       const newRecords = runningWithBullPrompt.eligibleFemales.map(an => {
                         const totalDays = SPECIES[an.species]?.days || 150;
-                        const dueStart = dueDate(today, totalDays);
+                        const minDays = SPECIES[an.species]?.minDays ?? totalDays;
+                        const maxDays = SPECIES[an.species]?.maxDays ?? totalDays;
+                        const range = dueDateRangeFromSingleDate(today, minDays, maxDays);
                         return {
                           animalId: an.id,
                           breedingDate: today,
-                          breedingDateEnd: today,
                           runningWithBull: true,
-                          dueDate: dueStart,
-                          dueDateStart: dueStart,
-                          dueDateEnd: dueStart,
+                          dueDate: range.dueDateStart,
+                          dueDateStart: range.dueDateStart,
+                          dueDateEnd: range.dueDateEnd,
                           sire: getAnimalName(runningWithBullPrompt.maleAnimal),
                           notes: "Running with bull",
                           id: Date.now().toString() + "-" + an.id,

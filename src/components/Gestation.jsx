@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { SPECIES } from "../lib/constants.js";
-import { getAnimalName, fmt, daysUntil, dueDate, progress, fmtDueRange, daysUntilDue, isOverdue, formatGestationDaysRemaining, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies, getAgeBasedSexTerm } from "../lib/helpers.js";
+import { getAnimalName, fmt, dueDate, dueDateRangeFromSingleDate, progress, fmtDueRange, fmtExposure, daysUntilDue, isOverdue, formatGestationDaysRemaining, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies, getAgeBasedSexTerm } from "../lib/helpers.js";
 import { Card, Btn, Input, Select, Textarea, SectionTitle, ProgressBar, Badge } from "./ui.jsx";
 
 function todayISO() {
@@ -57,20 +57,30 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
 
   function add() {
     const start = form.breedingDate;
-    const end = form.runningWithBull ? form.breedingDateEnd : form.breedingDate;
-    if (!form.animalId || !start || (form.runningWithBull && !end)) return;
+    if (!form.animalId || !start) return;
     const animal = animalsList.find(a => a.id === form.animalId);
     const totalDays = SPECIES[animal.species]?.days || 150;
-    const dueStart = dueDate(start, totalDays);
-    const dueEnd = form.runningWithBull ? dueDate(end, totalDays) : dueStart;
+    const minDays = SPECIES[animal.species]?.minDays ?? totalDays;
+    const maxDays = SPECIES[animal.species]?.maxDays ?? totalDays;
+    const end = (form.runningWithBull && (form.breedingDateEnd || "").trim()) ? form.breedingDateEnd : null;
+    let dueStart, dueEnd;
+    if (end) {
+      dueStart = dueDate(start, totalDays);
+      dueEnd = dueDate(end, totalDays);
+    } else {
+      const range = dueDateRangeFromSingleDate(start, minDays, maxDays);
+      dueStart = range.dueDateStart;
+      dueEnd = range.dueDateEnd;
+    }
     const sireDisplay = form.sireAnimalId === "unknown" ? "Unknown" : (form.sire || undefined);
     const sireId = form.sireAnimalId && form.sireAnimalId !== "unknown" ? form.sireAnimalId : undefined;
     const record = {
       animalId: form.animalId,
       breedingDate: start,
-      ...(form.runningWithBull && { breedingDateEnd: end, runningWithBull: true }),
+      ...(form.runningWithBull && { breedingDateEnd: end || undefined, runningWithBull: true }),
       dueDate: dueStart,
-      ...(form.runningWithBull && { dueDateStart: dueStart, dueDateEnd: dueEnd }),
+      dueDateStart: dueStart,
+      dueDateEnd: dueEnd,
       sire: sireDisplay,
       ...(sireId && { sireAnimalId: sireId }),
       notes: form.notes,
@@ -201,8 +211,8 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
               <Input label="Breeding Date *" type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} />
             ) : (
               <>
-                <Input label="Exposure start *" type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} />
-                <Input label="Exposure end *" type="date" value={form.breedingDateEnd} onChange={e => setForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
+                <Input label="Turn Out Date *" type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} />
+                <Input label="Pull Date (optional)" type="date" value={form.breedingDateEnd} onChange={e => setForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
               </>
             )}
             <Select label="Sire (optional)" value={form.sireAnimalId || ""} onChange={e => {
@@ -223,13 +233,16 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
             <span>Running with Bull (date range for bull exposure)</span>
           </label>
           <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
-          {form.animalId && form.breedingDate && (form.runningWithBull ? form.breedingDateEnd : true) && (() => {
+          {form.animalId && form.breedingDate && (() => {
             const a = animalsList.find(x => x.id === form.animalId);
             const days = SPECIES[a?.species]?.days;
+            const minDays = SPECIES[a?.species]?.minDays ?? days;
+            const maxDays = SPECIES[a?.species]?.maxDays ?? days;
             if (!days) return null;
-            const start = dueDate(form.breedingDate, days);
-            const end = form.runningWithBull && form.breedingDateEnd ? dueDate(form.breedingDateEnd, days) : start;
-            const dueStr = form.runningWithBull && form.breedingDateEnd ? `${fmt(start)} – ${fmt(end)}` : fmt(start);
+            const hasEnd = form.runningWithBull && (form.breedingDateEnd || "").trim();
+            const dueStr = hasEnd
+              ? `${fmt(dueDate(form.breedingDate, days))} – ${fmt(dueDate(form.breedingDateEnd, days))}`
+              : (() => { const r = dueDateRangeFromSingleDate(form.breedingDate, minDays, maxDays); return `${fmt(r.dueDateStart)} – ${fmt(r.dueDateEnd)}`; })();
             return (
               <div style={{ marginTop: "12px", padding: "10px 14px", background: "var(--cream)", borderRadius: "var(--radius)", fontSize: "13px", color: "var(--ink2)" }}>
                 📅 Estimated due: <strong>{dueStr}</strong> · Gestation: <strong>{days} days</strong>
@@ -311,7 +324,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                       )}
                     </div>
                     <div style={{ fontSize: "13px", color: "var(--muted)" }}>
-                      {getAnimalName(animal)}{g.sire ? ` × ${g.sire}` : ""} · {g.runningWithBull ? `Exposure ${fmt(g.breedingDate)} – ${fmt(g.breedingDateEnd)}` : `Bred ${fmt(g.breedingDate)}`}
+                      {getAnimalName(animal)}{g.sire ? ` × ${g.sire}` : ""} · {fmtExposure(g)}
                     </div>
                   </div>
                 </div>

@@ -4,6 +4,10 @@ import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, CULL_REASONS, VACCINE_ROUTE
 import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, displaySex, fmtDueRange, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate, checkInbreedingByParentIds } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 import ContactPicker from "./ContactPicker.jsx";
+import { supabase } from "../supabase";
+
+const HORSE_DOCUMENT_TYPES = ["Registration Papers", "Coggins Test", "Health Certificate", "Brand Inspection", "Vaccination Record", "Insurance", "Other"];
+const ANIMAL_DOCUMENTS_BUCKET = "animal-documents";
 
 // ── Animals ───────────────────────────────────────────────────────────────────
 export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, filterHeatDue = false, setFilterHeatDue, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring, contacts = [], setContacts }) {
@@ -126,6 +130,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setShowCullForm(false);
     setCullForm({ reason: "", notes: "", targetCullDate: "" });
     setShowLineageForm(false);
+    setShowDocumentForm(false);
+    setEditingDocumentId(null);
+    setDocumentPreview(null);
+    setDocumentDeleteConfirmId(null);
   }, [viewingAnimal?.id]);
 
   useEffect(() => {
@@ -201,6 +209,21 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   }
   const animalPhotoInputRef = useRef(null);
   const [photoUploading, setPhotoUploading] = useState(false);
+  const [showDocumentForm, setShowDocumentForm] = useState(false);
+  const [editingDocumentId, setEditingDocumentId] = useState(null);
+  const [documentForm, setDocumentForm] = useState({
+    documentType: "Coggins Test",
+    documentName: "",
+    dateIssued: "",
+    expirationDate: "",
+    issuingAuthority: "",
+    notes: "",
+  });
+  const [documentFormFile, setDocumentFormFile] = useState(null);
+  const [documentUploading, setDocumentUploading] = useState(false);
+  const [documentPreview, setDocumentPreview] = useState(null); // selected doc object for preview modal
+  const [documentDeleteConfirmId, setDocumentDeleteConfirmId] = useState(null);
+  const documentFileInputRef = useRef(null);
   const [registerMode, setRegisterMode] = useState("single"); // "single" | "bulk"
   const [bulkRegisterForm, setBulkRegisterForm] = useState(() => {
     const sp = defaultSpecies || "Cattle";
@@ -1646,6 +1669,21 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <div className="hl-detail-meta" style={{ color: "var(--brass3)", fontSize: "14px", marginTop: "2px" }}>{a.breed || a.species} · {displaySex(a, gestations)}{(() => { const runningWith = getRunningWithMaleForFemale(a, animals); return runningWith ? ` · Running with ${getAnimalName(runningWith)}` : ""; })()}</div>
             </div>
             <div className="hl-detail-badges" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+              {a.species === "Horse" && (() => {
+                const docs = a.documents || [];
+                const coggins = docs.find(d => d.documentType === "Coggins Test");
+                const today = new Date().toISOString().split("T")[0];
+                const expired = coggins?.expirationDate && coggins.expirationDate < today;
+                const missing = !coggins;
+                if (missing || expired) {
+                  return (
+                    <Badge key="coggins-warn" color="#c0392b" style={{ background: "#c0392b", color: "#fff" }} title="Required for travel and shows">
+                      Coggins {missing ? "Missing" : "Expired"}
+                    </Badge>
+                  );
+                }
+                return null;
+              })()}
               {a.cull && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>}
               {getRunningWithMaleForFemale(a, animals) && <Badge color="var(--brass2)" style={{ background: "rgba(201,149,42,0.2)", color: "var(--brass)" }}>Running with {getAnimalName(getRunningWithMaleForFemale(a, animals))}</Badge>}
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
@@ -2380,6 +2418,190 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 </>
               )}
             </div>
+
+            {a.species === "Horse" && (
+            <div className="hl-profile-section" style={{ marginTop: "24px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
+                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Documents</div>
+                <Btn size="sm" variant="secondary" onClick={() => { setEditingDocumentId(null); setDocumentForm({ documentType: "Coggins Test", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" }); setDocumentFormFile(null); setShowDocumentForm(true); documentFileInputRef.current?.value && (documentFileInputRef.current.value = ""); }}>Upload Document</Btn>
+              </div>
+              {showDocumentForm && (
+                <Card style={{ padding: "18px 20px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingDocumentId ? "Edit Document" : "Upload Document"}</div>
+                  <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                    <Select label="Document type *" value={documentForm.documentType} onChange={e => setDocumentForm(p => ({ ...p, documentType: e.target.value }))}>
+                      {HORSE_DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                    </Select>
+                    <Input label="Document name" value={documentForm.documentName} onChange={e => setDocumentForm(p => ({ ...p, documentName: e.target.value }))} placeholder="e.g. Coggins 2024 (optional)" />
+                    <Input label="Date issued" type="date" value={documentForm.dateIssued} onChange={e => setDocumentForm(p => ({ ...p, dateIssued: e.target.value }))} placeholder="Optional" />
+                    <Input label="Expiration date" type="date" value={documentForm.expirationDate} onChange={e => setDocumentForm(p => ({ ...p, expirationDate: e.target.value }))} placeholder="Optional" />
+                    <Input label="Issuing authority / Vet name" value={documentForm.issuingAuthority} onChange={e => setDocumentForm(p => ({ ...p, issuingAuthority: e.target.value }))} placeholder="Optional" />
+                  </div>
+                  <Textarea label="Notes" value={documentForm.notes} onChange={e => setDocumentForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes" style={{ marginBottom: "12px" }} />
+                  <div style={{ marginBottom: "12px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>File (image or PDF) *</label>
+                    <input
+                      ref={documentFileInputRef}
+                      type="file"
+                      accept="image/*,.pdf,application/pdf"
+                      style={{ fontSize: "13px" }}
+                      onChange={e => { const f = e.target.files?.[0]; setDocumentFormFile(f || null); }}
+                    />
+                    {editingDocumentId && !documentFormFile && (
+                      <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>Leave empty to keep current file.</div>
+                    )}
+                  </div>
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+                    <Btn size="sm" disabled={documentUploading || (!documentFormFile && !editingDocumentId)} onClick={async () => {
+                      if (documentUploading) return;
+                      const docId = editingDocumentId || (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `doc-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+                      const docs = (a.documents || []).filter(d => d.id !== docId);
+                      let storagePath = null;
+                      let fileName = null;
+                      let mimeType = null;
+                      let fileData = null;
+                      const existing = (a.documents || []).find(d => d.id === docId);
+                      if (documentFormFile) {
+                        setDocumentUploading(true);
+                        try {
+                          if (user) {
+                            const ext = documentFormFile.name.split(".").pop()?.toLowerCase() || "bin";
+                            const path = `${a.id}/${docId}.${ext}`;
+                            const { error } = await supabase.storage.from(ANIMAL_DOCUMENTS_BUCKET).upload(path, documentFormFile, { contentType: documentFormFile.type || "application/octet-stream", upsert: true });
+                            if (error) throw new Error(error.message);
+                            storagePath = path;
+                            fileName = documentFormFile.name;
+                            mimeType = documentFormFile.type || "";
+                          } else {
+                            const reader = new FileReader();
+                            await new Promise((res, rej) => { reader.onload = () => res(reader.result); reader.onerror = rej; reader.readAsDataURL(documentFormFile); });
+                            fileData = reader.result;
+                            fileName = documentFormFile.name;
+                            mimeType = documentFormFile.type || "";
+                          }
+                        } catch (err) {
+                          alert(err?.message || "Upload failed");
+                          setDocumentUploading(false);
+                          return;
+                        }
+                        setDocumentUploading(false);
+                      } else if (existing?.storagePath) {
+                        storagePath = existing.storagePath;
+                        fileName = existing.fileName || "";
+                        mimeType = existing.mimeType || "";
+                      } else if (existing?.fileData) {
+                        fileData = existing.fileData;
+                        fileName = existing.fileName || "";
+                        mimeType = existing.mimeType || "";
+                      } else if (!editingDocumentId) {
+                        alert("Please select a file to upload.");
+                        return;
+                      }
+                      const newDoc = {
+                        id: docId,
+                        documentType: documentForm.documentType,
+                        documentName: (documentForm.documentName || "").trim() || undefined,
+                        dateIssued: documentForm.dateIssued?.trim() || undefined,
+                        expirationDate: documentForm.expirationDate?.trim() || undefined,
+                        issuingAuthority: documentForm.issuingAuthority?.trim() || undefined,
+                        notes: documentForm.notes?.trim() || undefined,
+                        storagePath: storagePath || undefined,
+                        fileName: fileName || undefined,
+                        mimeType: mimeType || undefined,
+                        fileData: fileData || undefined,
+                      };
+                      const updated = { ...a, documents: [...docs, newDoc] };
+                      setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                      setViewing(updated);
+                      setShowDocumentForm(false);
+                      setEditingDocumentId(null);
+                      setDocumentForm({ documentType: "Coggins Test", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" });
+                      setDocumentFormFile(null);
+                      documentFileInputRef.current && (documentFileInputRef.current.value = "");
+                    }}>{documentUploading ? "Uploading…" : (editingDocumentId ? "Save Changes" : "Save")}</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowDocumentForm(false); setEditingDocumentId(null); setDocumentForm({ documentType: "Coggins Test", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" }); setDocumentFormFile(null); documentFileInputRef.current?.value && (documentFileInputRef.current.value = ""); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              )}
+              {(a.documents || []).length === 0 && !showDocumentForm && (
+                <p style={{ fontSize: "13px", color: "var(--muted)" }}>No documents yet. Upload registration papers, Coggins, health certificates, and more.</p>
+              )}
+              {(a.documents || []).length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: "12px" }}>
+                  {(a.documents || []).map(doc => {
+                    const today = new Date().toISOString().split("T")[0];
+                    const isExpired = doc.expirationDate && doc.expirationDate < today;
+                    const expiringSoon = doc.expirationDate && !isExpired && (() => { const d = new Date(doc.expirationDate); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0] <= today; })();
+                    return (
+                      <div key={doc.id} style={{ padding: "14px", borderRadius: "var(--radius)", background: "var(--cream)", border: "1px solid var(--cream3)", cursor: "pointer" }} onClick={() => setDocumentPreview(doc)}>
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "8px", marginBottom: "8px" }}>
+                          <Badge color="var(--green)" style={{ fontSize: "11px" }}>{doc.documentType}</Badge>
+                          <div style={{ display: "flex", gap: "4px", flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingDocumentId(doc.id); setDocumentForm({ documentType: doc.documentType, documentName: doc.documentName || "", dateIssued: doc.dateIssued || "", expirationDate: doc.expirationDate || "", issuingAuthority: doc.issuingAuthority || "", notes: doc.notes || "" }); setDocumentFormFile(null); setShowDocumentForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={e => { e.stopPropagation(); setDocumentDeleteConfirmId(doc.id); }}>Delete</Btn>
+                          </div>
+                        </div>
+                        <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--ink2)", marginBottom: "4px" }}>{doc.documentName || "Untitled"}</div>
+                        <div style={{ fontSize: "12px", color: "var(--muted)" }}>Issued: {doc.dateIssued ? fmt(doc.dateIssued) : "—"}</div>
+                        {doc.expirationDate && (
+                          <div style={{ marginTop: "4px" }}>
+                            {isExpired && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff", fontSize: "11px" }}>Expired {fmt(doc.expirationDate)}</Badge>}
+                            {expiringSoon && !isExpired && <Badge color="#ca8a04" style={{ background: "#ca8a04", color: "#fff", fontSize: "11px" }}>Expires {fmt(doc.expirationDate)}</Badge>}
+                            {!isExpired && !expiringSoon && <span style={{ fontSize: "12px", color: "var(--muted)" }}>Expires {fmt(doc.expirationDate)}</span>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+              {documentDeleteConfirmId && (
+                <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setDocumentDeleteConfirmId(null)}>
+                  <div style={{ background: "#fff", padding: "24px", borderRadius: "var(--radius)", maxWidth: "360px", boxShadow: "var(--shadow)" }} onClick={e => e.stopPropagation()}>
+                    <p style={{ marginBottom: "16px", fontSize: "15px" }}>Delete this document? This cannot be undone.</p>
+                    <div style={{ display: "flex", gap: "10px" }}>
+                      <Btn size="sm" variant="danger" onClick={async () => {
+                        const doc = (a.documents || []).find(d => d.id === documentDeleteConfirmId);
+                        if (doc?.storagePath && user) {
+                          try { await supabase.storage.from(ANIMAL_DOCUMENTS_BUCKET).remove([doc.storagePath]); } catch (_) {}
+                        }
+                        const updated = { ...a, documents: (a.documents || []).filter(d => d.id !== documentDeleteConfirmId) };
+                        setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
+                        setViewing(updated);
+                        setDocumentDeleteConfirmId(null);
+                      }}>Delete</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => setDocumentDeleteConfirmId(null)}>Cancel</Btn>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {documentPreview && (() => {
+                const previewUrl = documentPreview.storagePath
+                  ? supabase.storage.from(ANIMAL_DOCUMENTS_BUCKET).getPublicUrl(documentPreview.storagePath).data.publicUrl
+                  : (documentPreview.fileData || null);
+                const previewMime = documentPreview.mimeType || "image/jpeg";
+                const previewName = documentPreview.documentName || "Document";
+                return (
+                  <div key="doc-preview-modal" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 1001 }} onClick={() => setDocumentPreview(null)}>
+                    <div style={{ display: "flex", justifyContent: "flex-end", width: "100%", maxWidth: "95vw", marginBottom: "8px" }} onClick={e => e.stopPropagation()}>
+                      <Btn size="sm" variant="ghost" onClick={() => setDocumentPreview(null)} style={{ color: "#fff" }}>Close</Btn>
+                    </div>
+                    <div style={{ maxWidth: "95vw", maxHeight: "85vh", overflow: "auto", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={e => e.stopPropagation()}>
+                      {previewUrl ? (
+                        previewMime === "application/pdf" ? (
+                          <iframe src={previewUrl} title={previewName} style={{ width: "90vw", height: "80vh", border: "none", background: "#fff" }} />
+                        ) : (
+                          <img src={previewUrl} alt={previewName} style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain" }} />
+                        )
+                      ) : (
+                        <p style={{ color: "#fff", fontSize: "16px" }}>Unable to load preview.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+            )}
 
             <div style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>

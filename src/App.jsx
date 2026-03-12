@@ -137,8 +137,45 @@ export default function App() {
     return () => document.head.removeChild(el);
   }, []);
 
-  // Persist one key to Supabase (user_data table). No-op for guest or missing session. Logs errors.
+  // Persist one key to Supabase (user_data table). No-op for guest or missing session.
+  // On timeout (57014): retry with exponential backoff (2s, 4s, 8s), up to 3 retries before surfacing error.
   const persistToSupabase = React.useCallback((key, data) => {
+    const TIMEOUT_CODE = "57014";
+    const MAX_RETRIES = 3;
+
+    const doUpsert = (uid) => {
+      const payload = { user_id: uid, key, data };
+      return supabase.from("user_data").upsert(payload, { onConflict: "user_id,key" });
+    };
+
+    const attempt = (uid, tryIndex) => {
+      doUpsert(uid).then(({ data: resData, error }) => {
+        if (!error) return;
+        const isTimeout = String(error?.code) === TIMEOUT_CODE;
+        if (isTimeout && tryIndex < MAX_RETRIES) {
+          const delayMs = 2000 * Math.pow(2, tryIndex);
+          console.warn("[Supabase] write timeout (57014), retrying in", delayMs / 1000, "s — key:", key, "attempt:", tryIndex + 1, "of", MAX_RETRIES);
+          setTimeout(() => attempt(uid, tryIndex + 1), delayMs);
+          return;
+        }
+        console.error("[Supabase] write failed — key:", key);
+        console.error("[Supabase] FULL ERROR OBJECT (paste this for debugging):", error);
+        console.error("[Supabase] FULL ERROR (JSON):", JSON.stringify(error, null, 2));
+        console.error("[Supabase] error.message:", error.message);
+        console.error("[Supabase] error.details:", error.details);
+        console.error("[Supabase] error.hint:", error.hint);
+        console.error("[Supabase] error.code:", error.code);
+        const payload = { user_id: uid, key, data };
+        console.error("[Supabase] EXACT DATA SENT (payload):", payload);
+        try {
+          const payloadJson = JSON.stringify(payload, null, 2);
+          console.error("[Supabase] EXACT DATA SENT (JSON, full):", payloadJson.length > 50000 ? payloadJson.slice(0, 50000) + "\n... (truncated)" : payloadJson);
+        } catch (e) {
+          console.error("[Supabase] Could not stringify payload:", e);
+        }
+      });
+    };
+
     supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
       if (sessionError) {
         console.error("[Supabase] getSession failed:", sessionError);
@@ -146,12 +183,13 @@ export default function App() {
       }
       const uid = session?.user?.id;
       if (!uid) return;
-      supabase
-        .from("user_data")
-        .upsert({ user_id: uid, key, data }, { onConflict: "user_id,key" })
-        .then(({ error }) => {
-          if (error) console.error("[Supabase] write failed:", key, error);
-        });
+      const dataSummary = Array.isArray(data)
+        ? `array(length=${data.length})`
+        : data && typeof data === "object" && !Array.isArray(data)
+          ? `object(keys=${Object.keys(data).join(",")})`
+          : typeof data;
+      console.log("[Supabase] write: key=", key, "payload summary: data=", dataSummary);
+      attempt(uid, 0);
     });
   }, []);
 
@@ -247,8 +285,11 @@ export default function App() {
           return;
         }
         const byKey = (rows || []).reduce((acc, r) => { acc[r.key] = r.data; return acc; }, {});
+        const keysLoaded = (rows || []).map(r => r.key);
+        console.log("[Supabase] load: keys received:", keysLoaded, "gestations row present:", keysLoaded.includes("gestations"));
         const animalsData = Array.isArray(byKey.animals) ? byKey.animals : [];
         const gestationsData = Array.isArray(byKey.gestations) ? byKey.gestations : [];
+        console.log("[Supabase] load: gestations count from byKey:", gestationsData.length);
         const offspringData = byKey.offspring && typeof byKey.offspring === "object" ? byKey.offspring : {};
         const settingsData = byKey.settings && typeof byKey.settings === "object" ? { ...DEFAULT_SETTINGS, ...byKey.settings } : { ...DEFAULT_SETTINGS };
         const { gestations: cleanedGestations, offspring: cleanedOffspring } = cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
@@ -270,6 +311,8 @@ export default function App() {
       });
   }, [user]);
 
+  const PERSIST_DEBOUNCE_MS = 2000;
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) {
@@ -278,7 +321,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("animals", animals);
+    const t = setTimeout(() => persistToSupabase("animals", animals), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, animals, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -288,7 +332,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("gestations", gestations);
+    const t = setTimeout(() => persistToSupabase("gestations", gestations), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, gestations, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -298,7 +343,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("notes", notes);
+    const t = setTimeout(() => persistToSupabase("notes", notes), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, notes, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -308,7 +354,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("offspring", offspring);
+    const t = setTimeout(() => persistToSupabase("offspring", offspring), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, offspring, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -318,7 +365,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("settings", settings);
+    const t = setTimeout(() => persistToSupabase("settings", settings), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, settings, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -328,7 +376,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("feederPrograms", feederPrograms);
+    const t = setTimeout(() => persistToSupabase("feederPrograms", feederPrograms), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, feederPrograms, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -338,7 +387,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("pastures", pastures);
+    const t = setTimeout(() => persistToSupabase("pastures", pastures), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, pastures, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -348,7 +398,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("pastureFeedLogs", pastureFeedLogs);
+    const t = setTimeout(() => persistToSupabase("pastureFeedLogs", pastureFeedLogs), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, pastureFeedLogs, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -358,7 +409,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("expenses", expenses);
+    const t = setTimeout(() => persistToSupabase("expenses", expenses), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, expenses, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -368,7 +420,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("loadSales", loadSales);
+    const t = setTimeout(() => persistToSupabase("loadSales", loadSales), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, loadSales, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -378,7 +431,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("tasks", tasks);
+    const t = setTimeout(() => persistToSupabase("tasks", tasks), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, tasks, persistToSupabase]);
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
@@ -388,7 +442,8 @@ export default function App() {
       } catch (_) {}
       return;
     }
-    persistToSupabase("contacts", contacts);
+    const t = setTimeout(() => persistToSupabase("contacts", contacts), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
   }, [user, contacts, persistToSupabase]);
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;

@@ -18,8 +18,12 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
   const soldCount = animals.filter(a => a.sale).length;
   const cullCount = (animals || []).filter(a => a.cull && !a.deceased && !a.sale).length;
   const speciesCounts = activeAnimals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
-  const activeGestations = (gestations || []).filter(g => g.status !== "Delivered");
-  console.log("Dashboard gestations (full array for verification):", gestations);
+  const gestationsList = Array.isArray(gestations) ? gestations : [];
+  const activeGestations = gestationsList.filter(g => g.status !== "Delivered");
+  if (gestationsList.length === 0 && (animals?.length > 0)) {
+    console.warn("[Dashboard] gestations prop is empty (length 0) — Dashboard receives same gestations state from App as Gestation tab. If Gestation tab shows data, check that both use the same prop. Keys from App: animals, gestations, offspring, ...");
+  }
+  console.log("Dashboard gestations (full array for verification):", gestationsList);
   console.log("Dashboard active gestations (no delivered):", activeGestations);
 
   const isCurrentMonth = (dateStr) => {
@@ -52,6 +56,44 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
     return next && next >= todayStrDash && next <= todayPlus7Str;
   });
 
+  // Overdue: only if dueDateEnd is strictly less than today (YYYY-MM-DD). Today = new Date().toISOString().split('T')[0].
+  const todayYYYYMMDD = new Date().toISOString().split("T")[0];
+  const toDateOnly = (dateStr) => (dateStr && typeof dateStr === "string") ? String(dateStr).trim().split("T")[0].split(" ")[0] : "";
+  const isGestationOverdue = (g) => {
+    const d = daysUntilDue(g);
+    if (d.isRange) return d.end < 0;
+    return d.start < 0;
+  };
+  const overdueList = activeGestations.filter(g => isGestationOverdue(g));
+  const overdueIds = new Set(overdueList.map(g => g.id));
+  // Single overdue count used everywhere (card sub, alert, Overdue section).
+  const overdueCount = overdueList.length;
+  const overdue = overdueList.map(g => {
+    const d = daysUntilDue(g);
+    const due = d.isRange ? d.end : d.start;
+    return { ...g, due, dueD: d, animal: activeAnimals.find(x => x.id === g.animalId) };
+  });
+
+  // DUE THIS MONTH: due this month and not already overdue (uses same overdueIds).
+  const dueThisMonth = activeGestations.filter(g => {
+    if (overdueIds.has(g.id)) return false;
+    if (g.dueDateStart && isCurrentMonth(g.dueDateStart)) return true;
+    if (g.dueDateEnd && isCurrentMonth(g.dueDateEnd)) return true;
+    if (g.dueDate && !g.dueDateStart && !g.dueDateEnd && isCurrentMonth(g.dueDate)) return true;
+    return false;
+  });
+
+  // Console: verify buckets — each animal name, dueDateStart, dueDateEnd, bucket
+  const bucketLog = activeGestations.map(g => {
+    const animal = activeAnimals.find(x => x.id === g.animalId);
+    const name = animal ? getAnimalName(animal) : g.animalId;
+    const bucket = overdueIds.has(g.id) ? "overdue" : dueThisMonth.some(d => d.id === g.id) ? "dueThisMonth" : "neither";
+    return { name, dueDateStart: g.dueDateStart ?? null, dueDateEnd: g.dueDateEnd ?? g.dueDate ?? null, bucket };
+  });
+  console.log("Dashboard gestation buckets (overdue / dueThisMonth / neither):", bucketLog);
+  console.log("Dashboard OVERDUE count (single source of truth):", overdueCount, overdue.map(g => getAnimalName(g.animal)));
+  console.log("Dashboard DUE THIS MONTH count:", dueThisMonth.length, dueThisMonth.map(g => getAnimalName(activeAnimals.find(x => x.id === g.animalId))));
+
   const upcoming = activeGestations
     .map(g => {
       const a = activeAnimals.find(x => x.id === g.animalId);
@@ -63,14 +105,6 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
     .filter(g => g.dueEnd >= 0)
     .sort((a, b) => (a.due - b.due) || (a.dueEnd - b.dueEnd));
 
-  const overdue = activeGestations
-    .map(g => {
-      const d = daysUntilDue(g);
-      const due = d.isRange ? d.end : d.start;
-      return { ...g, due, dueD: d, animal: activeAnimals.find(x => x.id === g.animalId) };
-    })
-    .filter(g => g.due < 0);
-
   return (
     <div className="hl-page hl-fade-in">
 
@@ -80,7 +114,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
           { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}${soldCount > 0 ? ` · ${soldCount} sold` : ""}${cullCount > 0 ? ` · ${cullCount} marked for cull` : ""}`, icon: "🐄", onClick: () => { setAnimalsSearch?.(""); setTab?.("animals"); } },
           { label: "Marked for Cull", value: cullCount, sub: cullCount === 1 ? "animal to cull" : "animals to cull", icon: "⚠️", onClick: () => setTab?.("animals"), alert: cullCount > 0 },
           { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅", onClick: () => setTab?.("gestation") },
-          { label: "Due This Month",value: upcoming.length, sub: overdue.length > 0 ? `${overdue.length} overdue` : "none overdue", icon: "⚠️", alert: overdue.length > 0, onClick: () => setTab?.("gestation") },
+          { label: "Due This Month", value: dueThisMonth.length, sub: overdueCount > 0 ? `${overdueCount} overdue` : "none overdue", icon: "⚠️", alert: overdueCount > 0, onClick: () => setTab?.("gestation") },
           ...((settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY).weaning !== false ? [{
             label: "Next Weaning",
             value: nextWeaningCount,
@@ -119,7 +153,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 
           {/* Overdue alerts */}
-          {overdue.length > 0 && (
+          {overdueCount > 0 && (
             <Card className="hl-card-no-padding" style={{ borderLeft: "4px solid var(--danger2)", padding: "0" }}>
               <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "16px" }}>⚠️</span>

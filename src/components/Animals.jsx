@@ -91,7 +91,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     vetDate: "", vetName: "", vetProcedure: "", vetNextAppointment: "", vetCost: "",
     farrierDate: "", farrierName: "", farrierServiceType: "", farrierNextAppointment: "", farrierCost: "",
     wormingDate: "", wormingProduct: "", wormingDosage: "", wormingNextDate: "", wormingCost: "",
-    suppName: "", suppDosage: "", suppCost: "",
+    suppName: "", suppDosage: "", suppCost: "", suppDate: "", suppFrequency: "Daily",
     dentalDate: "", dentalProvider: "", dentalNextFloatDate: "", dentalCost: "",
   });
   const [showTreatmentForm, setShowTreatmentForm] = useState(false);
@@ -1972,15 +1972,21 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                     <span style={{ fontSize: "13px", color: "var(--ink2)" }}>Ongoing daily supplements</span>
-                    {!showHorseHealthForm && <Btn size="sm" variant="secondary" onClick={() => { setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "" })); setShowHorseHealthForm(true); }}>Add</Btn>}
+                    {!showHorseHealthForm && <Btn size="sm" variant="secondary" onClick={() => { setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "", suppDate: "", suppFrequency: "Daily" })); setShowHorseHealthForm(true); }}>Add</Btn>}
                   </div>
                   {(a.horseSupplements || []).length > 0 && (
                     <div style={{ marginBottom: "12px" }}>
                       {(a.horseSupplements || []).map((r, i) => (
                         <div key={i} style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", marginBottom: "8px", fontSize: "14px", display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
-                          <div><strong>{r.name || "—"}</strong> {r.dosage && `· ${r.dosage}`} {r.cost != null && r.cost !== "" && <span style={{ color: "var(--muted)" }}> · ${Number(r.cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>}</div>
+                          <div>
+                            <div><strong>{r.name || "—"}</strong> {r.dosage && `· ${r.dosage}`} {r.cost != null && r.cost !== "" && <span style={{ color: "var(--muted)" }}> · ${Number(r.cost).toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>}</div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px", flexWrap: "wrap" }}>
+                              <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", padding: "2px 6px", borderRadius: "var(--radius)", background: "var(--cream2)" }}>{r.frequency || "Daily"}</span>
+                              {r.date && <span style={{ fontSize: "12px", color: "var(--muted)" }}>Started {fmt(r.date)}</span>}
+                            </div>
+                          </div>
                           <div style={{ display: "flex", gap: "4px", flexShrink: 0 }}>
-                            <Btn size="sm" variant="ghost" onClick={() => { setEditingHorseHealth({ section: "Supplements", index: i }); setHorseHealthForm(p => ({ ...p, suppName: r.name || "", suppDosage: r.dosage || "", suppCost: r.cost != null && r.cost !== "" ? String(r.cost) : "" })); setShowHorseHealthForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingHorseHealth({ section: "Supplements", index: i }); setHorseHealthForm(p => ({ ...p, suppName: r.name || "", suppDosage: r.dosage || "", suppCost: r.cost != null && r.cost !== "" ? String(r.cost) : "", suppDate: r.date || "", suppFrequency: r.frequency || "Daily" })); setShowHorseHealthForm(true); }}>Edit</Btn>
                             <Btn size="sm" variant="ghost" onClick={() => { if (!confirm("Remove this supplement?")) return; const next = (a.horseSupplements || []).filter((_, j) => j !== i); const updated = { ...a, horseSupplements: next }; setAnimals(prev => prev.map(an => an.id === a.id ? updated : an)); setViewing(updated); if (setExpenses && r.expenseId) setExpenses(prev => (prev || []).filter(e => e.id !== r.expenseId)); }}>Delete</Btn>
                           </div>
                         </div>
@@ -1991,9 +1997,18 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
                       <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Supplements" ? "Edit Supplement" : "Add Supplement"}</div>
                       <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
+                        <Input label="Date" type="date" value={horseHealthForm.suppDate} onChange={e => setHorseHealthForm(p => ({ ...p, suppDate: e.target.value }))} />
                         <Input label="Name" value={horseHealthForm.suppName} onChange={e => setHorseHealthForm(p => ({ ...p, suppName: e.target.value }))} placeholder="e.g. Joint supplement" />
                         <Input label="Dosage" value={horseHealthForm.suppDosage} onChange={e => setHorseHealthForm(p => ({ ...p, suppDosage: e.target.value }))} placeholder="e.g. 1 scoop daily" />
-                        <Input label="Cost per month ($)" type="number" min="0" step="0.01" value={horseHealthForm.suppCost} onChange={e => setHorseHealthForm(p => ({ ...p, suppCost: e.target.value }))} placeholder="e.g. 25.00" />
+                        <div style={{ gridColumn: "1 / -1" }}>
+                          <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Frequency</label>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "4px" }}>
+                            {["Daily", "Monthly", "Yearly"].map(opt => (
+                              <Btn key={opt} size="sm" variant={horseHealthForm.suppFrequency === opt ? "secondary" : "ghost"} onClick={() => setHorseHealthForm(p => ({ ...p, suppFrequency: opt }))} style={{ minWidth: "72px" }}>{opt}</Btn>
+                            ))}
+                          </div>
+                        </div>
+                        <Input label={horseHealthForm.suppFrequency === "Daily" ? "COST PER DAY ($)" : horseHealthForm.suppFrequency === "Monthly" ? "COST PER MONTH ($)" : "COST PER YEAR ($)"} type="number" min="0" step="0.01" value={horseHealthForm.suppCost} onChange={e => setHorseHealthForm(p => ({ ...p, suppCost: e.target.value }))} placeholder="e.g. 25.00" />
                       </div>
                       <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                         <Btn size="sm" onClick={() => {
@@ -2001,14 +2016,15 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           const isEdit = editingHorseHealth?.section === "Supplements";
                           const existingRec = isEdit ? (a.horseSupplements || [])[editingHorseHealth.index] : null;
                           const expenseId = (costNum != null && costNum > 0) ? (existingRec?.expenseId || "horse-supplement-" + Date.now() + "-exp") : undefined;
-                          const rec = { name: horseHealthForm.suppName?.trim() || undefined, dosage: horseHealthForm.suppDosage?.trim() || undefined, cost: costNum, expenseId };
+                          const suppDateVal = horseHealthForm.suppDate?.trim() || undefined;
+                          const rec = { name: horseHealthForm.suppName?.trim() || undefined, dosage: horseHealthForm.suppDosage?.trim() || undefined, cost: costNum, expenseId, date: suppDateVal, frequency: horseHealthForm.suppFrequency || "Daily" };
                           const next = isEdit ? (a.horseSupplements || []).map((r, j) => j === editingHorseHealth.index ? rec : r) : [...(a.horseSupplements || []), rec];
                           const updated = { ...a, horseSupplements: next };
                           setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
                           setViewing(updated);
                           if (setExpenses) {
                             if (costNum != null && costNum > 0) {
-                              const suppDate = new Date().toISOString().split("T")[0];
+                              const suppDate = suppDateVal || new Date().toISOString().split("T")[0];
                               const description = `Supplement — ${getAnimalName(a)} — ${rec.name || "Supplements"}`;
                               const newExp = { id: expenseId, date: suppDate, category: HORSE_HEALTH_EXPENSE_CATEGORY.supplement, amount: costNum, description, animalId: a.id };
                               setExpenses(prev => { const list = prev || []; const idx = list.findIndex(e => e.id === expenseId); if (idx >= 0) return list.map((e, i) => i === idx ? newExp : e); return [...list, newExp]; });
@@ -2016,9 +2032,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           }
                           setShowHorseHealthForm(false);
                           setEditingHorseHealth(null);
-                          setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "" }));
+                          setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "", suppDate: "", suppFrequency: "Daily" }));
                         }}>Save</Btn>
-                        <Btn size="sm" variant="ghost" onClick={() => { setShowHorseHealthForm(false); setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "" })); }}>Cancel</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { setShowHorseHealthForm(false); setEditingHorseHealth(null); setHorseHealthForm(p => ({ ...p, suppName: "", suppDosage: "", suppCost: "", suppDate: "", suppFrequency: "Daily" })); }}>Cancel</Btn>
                       </div>
                     </Card>
                   )}
@@ -2334,7 +2350,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Ongoing supplements</div>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
                     {(a.horseSupplements || []).map((s, i) => (
-                      <span key={i} style={{ fontSize: "13px", color: "var(--ink2)" }}><strong>{s.name || "—"}</strong>{s.dosage ? ` · ${s.dosage}` : ""}{s.cost != null && s.cost !== "" ? ` · $${Number(s.cost).toFixed(2)}` : ""}</span>
+                      <span key={i} style={{ fontSize: "13px", color: "var(--ink2)", display: "inline-flex", alignItems: "center", gap: "6px", flexWrap: "wrap" }}>
+                        <strong>{s.name || "—"}</strong>{s.dosage ? ` · ${s.dosage}` : ""}{s.cost != null && s.cost !== "" ? ` · $${Number(s.cost).toFixed(2)}` : ""}
+                        <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", padding: "2px 6px", borderRadius: "var(--radius)", background: "rgba(0,0,0,0.06)" }}>{s.frequency || "Daily"}</span>
+                        {s.date && <span style={{ fontSize: "12px", color: "var(--muted)" }}>Started {fmt(s.date)}</span>}
+                      </span>
                     ))}
                   </div>
                 </div>

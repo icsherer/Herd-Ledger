@@ -4,6 +4,12 @@ import { supabase } from "./supabase";
 import Auth, { ResetPasswordPage } from "./components/Auth.jsx";
 import { GLOBAL_CSS, USER_DATA_KEYS, GUEST_STORAGE_KEY, GUEST_USER, DEFAULT_TAB_VISIBILITY, DEFAULT_SETTINGS } from "./lib/constants.js";
 import { getMoonPhase, getSeason, isFemale, cleanupOrphanedRecords } from "./lib/helpers.js";
+import {
+  loadAllData,
+  persistAnimals, persistTasks, persistGestations, persistContacts,
+  persistExpenses, persistFeederPrograms, persistLoadSales, persistNotes,
+  persistPastures, persistPastureFeedLogs, persistSettings, persistOffspring,
+} from './lib/db.js';
 import Dashboard from "./components/Dashboard.jsx";
 import Animals from "./components/Animals.jsx";
 import Gestation from "./components/Gestation.jsx";
@@ -139,59 +145,6 @@ export default function App() {
 
   // Persist one key to Supabase (user_data table). No-op for guest or missing session.
   // On timeout (57014): retry with exponential backoff (2s, 4s, 8s), up to 3 retries before surfacing error.
-  const persistToSupabase = React.useCallback((key, data) => {
-    const TIMEOUT_CODE = "57014";
-    const MAX_RETRIES = 3;
-
-    const doUpsert = (uid) => {
-      const payload = { user_id: uid, key, data };
-      return supabase.from("user_data").upsert(payload, { onConflict: "user_id,key" });
-    };
-
-    const attempt = (uid, tryIndex) => {
-      doUpsert(uid).then(({ data: resData, error }) => {
-        if (!error) return;
-        const isTimeout = String(error?.code) === TIMEOUT_CODE;
-        if (isTimeout && tryIndex < MAX_RETRIES) {
-          const delayMs = 2000 * Math.pow(2, tryIndex);
-          console.warn("[Supabase] write timeout (57014), retrying in", delayMs / 1000, "s — key:", key, "attempt:", tryIndex + 1, "of", MAX_RETRIES);
-          setTimeout(() => attempt(uid, tryIndex + 1), delayMs);
-          return;
-        }
-        console.error("[Supabase] write failed — key:", key);
-        console.error("[Supabase] FULL ERROR OBJECT (paste this for debugging):", error);
-        console.error("[Supabase] FULL ERROR (JSON):", JSON.stringify(error, null, 2));
-        console.error("[Supabase] error.message:", error.message);
-        console.error("[Supabase] error.details:", error.details);
-        console.error("[Supabase] error.hint:", error.hint);
-        console.error("[Supabase] error.code:", error.code);
-        const payload = { user_id: uid, key, data };
-        console.error("[Supabase] EXACT DATA SENT (payload):", payload);
-        try {
-          const payloadJson = JSON.stringify(payload, null, 2);
-          console.error("[Supabase] EXACT DATA SENT (JSON, full):", payloadJson.length > 50000 ? payloadJson.slice(0, 50000) + "\n... (truncated)" : payloadJson);
-        } catch (e) {
-          console.error("[Supabase] Could not stringify payload:", e);
-        }
-      });
-    };
-
-    supabase.auth.getSession().then(({ data: { session }, error: sessionError }) => {
-      if (sessionError) {
-        console.error("[Supabase] getSession failed:", sessionError);
-        return;
-      }
-      const uid = session?.user?.id;
-      if (!uid) return;
-      const dataSummary = Array.isArray(data)
-        ? `array(length=${data.length})`
-        : data && typeof data === "object" && !Array.isArray(data)
-          ? `object(keys=${Object.keys(data).join(",")})`
-          : typeof data;
-      console.log("[Supabase] write: key=", key, "payload summary: data=", dataSummary);
-      attempt(uid, 0);
-    });
-  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -272,179 +225,132 @@ export default function App() {
       initialLoadDone.current = true;
       return;
     }
+    
     initialLoadDone.current = false;
-    supabase
-      .from("user_data")
-      .select("key, data")
-      .eq("user_id", user.id)
-      .in("key", USER_DATA_KEYS)
-      .then(({ data: rows, error }) => {
-        if (error) {
-          console.error("[Supabase] load failed:", error);
-          initialLoadDone.current = true;
-          return;
-        }
-        const byKey = (rows || []).reduce((acc, r) => { acc[r.key] = r.data; return acc; }, {});
-        const keysLoaded = (rows || []).map(r => r.key);
-        console.log("[Supabase] load: keys received:", keysLoaded, "gestations row present:", keysLoaded.includes("gestations"));
-        const animalsData = Array.isArray(byKey.animals) ? byKey.animals : [];
-        const gestationsData = Array.isArray(byKey.gestations) ? byKey.gestations : [];
-        console.log("[Supabase] load: gestations count from byKey:", gestationsData.length);
-        const offspringData = byKey.offspring && typeof byKey.offspring === "object" ? byKey.offspring : {};
-        const settingsData = byKey.settings && typeof byKey.settings === "object" ? { ...DEFAULT_SETTINGS, ...byKey.settings } : { ...DEFAULT_SETTINGS };
-        const { gestations: cleanedGestations, offspring: cleanedOffspring } = cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
-        const animalIds = new Set(animalsData.map(a => a.id));
-        const feederData = Array.isArray(byKey.feederPrograms) ? byKey.feederPrograms.filter(f => animalIds.has(f.animalId)) : [];
-        setAnimals(animalsData);
-        setGestations(cleanedGestations);
-        setNotes(Array.isArray(byKey.notes) ? byKey.notes : []);
-        setOffspring(cleanedOffspring);
-        setSettings(settingsData);
-        setFeederPrograms(feederData);
-        setPastures(Array.isArray(byKey.pastures) ? byKey.pastures : []);
-        setPastureFeedLogs(byKey.pastureFeedLogs && typeof byKey.pastureFeedLogs === "object" ? byKey.pastureFeedLogs : {});
-        setExpenses(Array.isArray(byKey.expenses) ? byKey.expenses : []);
-        setLoadSales(Array.isArray(byKey.loadSales) ? byKey.loadSales : []);
-        setTasks(Array.isArray(byKey.tasks) ? byKey.tasks : []);
-        setContacts(Array.isArray(byKey.contacts) ? byKey.contacts : []);
-        initialLoadDone.current = true;
-      });
+    loadAllData(user.id).then(({
+      animals: animalsData, tasks: tasksData, gestations: gestationsData,
+      contacts: contactsData, expenses: expensesData, feederPrograms: feederData,
+      loadSales: salesData, notes: notesData, pastures: pasturesData,
+      pastureFeedLogs: feedLogsData, settings: settingsData, offspring: offspringData,
+    }) => {
+      const { gestations: cleanedGestations, offspring: cleanedOffspring } =
+        cleanupOrphanedRecords(animalsData, gestationsData, offspringData);
+      const animalIds = new Set(animalsData.map(a => a.id));
+      const filteredFeeder = feederData.filter(f => animalIds.has(f.animalId));
+      setAnimals(animalsData);
+      setGestations(cleanedGestations);
+      setNotes(notesData);
+      setOffspring(cleanedOffspring);
+      setSettings({ ...DEFAULT_SETTINGS, ...settingsData });
+      setFeederPrograms(filteredFeeder);
+      setPastures(pasturesData);
+      setPastureFeedLogs(feedLogsData);
+      setExpenses(expensesData);
+      setLoadSales(salesData);
+      setTasks(tasksData);
+      setContacts(contactsData);
+      initialLoadDone.current = true;
+    }).catch(err => {
+      console.error('[DB] loadAllData failed:', err);
+      initialLoadDone.current = true;
+    });
   }, [user]);
 
   const PERSIST_DEBOUNCE_MS = 2000;
 
+  const persistGuest = () => {
+    try {
+      localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
+        animals, gestations, notes, offspring, settings, feederPrograms,
+        pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts,
+      }));
+    } catch (_) {}
+  };
+
+  useEffect(() => {
+    console.log('[PERSIST] animals fired — user:', !!user, 'loadDone:', initialLoadDone.current, 'isGuest:', user?.isGuest);
+    if (!user || !initialLoadDone.current) return;
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistAnimals(user.id, animals), PERSIST_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [user, animals]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("animals", animals), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistGestations(user.id, gestations), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, animals, persistToSupabase]);
+  }, [user, gestations]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("gestations", gestations), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistNotes(user.id, notes), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, gestations, persistToSupabase]);
+  }, [user, notes]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("notes", notes), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistOffspring(user.id, offspring), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, notes, persistToSupabase]);
+  }, [user, offspring]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("offspring", offspring), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistSettings(user.id, settings), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, offspring, persistToSupabase]);
+  }, [user, settings]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("settings", settings), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistFeederPrograms(user.id, feederPrograms), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, settings, persistToSupabase]);
+  }, [user, feederPrograms]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("feederPrograms", feederPrograms), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistPastures(user.id, pastures), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, feederPrograms, persistToSupabase]);
+  }, [user, pastures]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("pastures", pastures), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistPastureFeedLogs(user.id, pastureFeedLogs), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, pastures, persistToSupabase]);
+  }, [user, pastureFeedLogs]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("pastureFeedLogs", pastureFeedLogs), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistExpenses(user.id, expenses), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, pastureFeedLogs, persistToSupabase]);
+  }, [user, expenses]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("expenses", expenses), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistLoadSales(user.id, loadSales), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, expenses, persistToSupabase]);
+  }, [user, loadSales]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("loadSales", loadSales), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistTasks(user.id, tasks), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, loadSales, persistToSupabase]);
+  }, [user, tasks]);
+
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("tasks", tasks), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); return; }
+    const t = setTimeout(() => persistContacts(user.id, contacts), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, tasks, persistToSupabase]);
-  useEffect(() => {
-    if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) {
-      try {
-        localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({ animals, gestations, notes, offspring, settings, feederPrograms, pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts }));
-      } catch (_) {}
-      return;
-    }
-    const t = setTimeout(() => persistToSupabase("contacts", contacts), PERSIST_DEBOUNCE_MS);
-    return () => clearTimeout(t);
-  }, [user, contacts, persistToSupabase]);
+  }, [user, contacts]);devicePixelRatio
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([

@@ -350,7 +350,7 @@ export default function App() {
     if (user.isGuest) { persistGuest(); return; }
     const t = setTimeout(() => persistContacts(user.id, contacts), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
-  }, [user, contacts]);devicePixelRatio
+  }, [user, contacts]);
 
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([

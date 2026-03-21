@@ -1261,7 +1261,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   });
 
   if (viewing) {
-    const a = (animals || []).find(x => x.id === viewing?.id) ?? viewing;
+    const a = ((animals || []).find(x => x.id === viewing?.id)) ?? viewing;
     const offspringForMother = (offspring && offspring[a.id]) || [];
 
     const linkableAnimals = (animals || []).filter(an => {

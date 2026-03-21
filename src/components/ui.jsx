@@ -73,7 +73,7 @@ export function Btn({ children, onClick, variant = "primary", disabled, size = "
   );
 }
 
-export function Input({ label, type, style = {}, ...props }) {
+export function Input({ label, type, style = {}, onFocus: onFocusProp, onBlur: onBlurProp, ...props }) {
   const isDateOrTime = type === "date" || type === "datetime-local" || type === "time";
   return (
     <div>
@@ -101,19 +101,20 @@ export function Input({ label, type, style = {}, ...props }) {
           }),
           ...style,
         }}
-        onFocus={e => e.target.style.borderColor = "var(--green3)"}
-        onBlur={e => e.target.style.borderColor = "var(--cream3)"}
+        onFocus={e => { onFocusProp?.(e); e.target.style.borderColor = "var(--green3)"; }}
+        onBlur={e => { onBlurProp?.(e); e.target.style.borderColor = "var(--cream3)"; }}
       />
     </div>
   );
 }
 
-export function PastureCombo({ label, value, onChange, options = [], placeholder, id: listId, style = {}, ...props }) {
+export function PastureCombo({ label, value, onChange, options = [], placeholder, id: listId, style = {}, onFocus: onFocusProp, onBlur: onBlurProp, ...props }) {
   const lid = listId || "pasture-list-" + Math.random().toString(36).slice(2);
   return (
     <div>
       {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
       <input
+        {...props}
         type="text"
         list={lid}
         value={value}
@@ -133,9 +134,8 @@ export function PastureCombo({ label, value, onChange, options = [], placeholder
           minHeight: "44px",
           ...style,
         }}
-        onFocus={e => e.target.style.borderColor = "var(--green3)"}
-        onBlur={e => e.target.style.borderColor = "var(--cream3)"}
-        {...props}
+        onFocus={e => { onFocusProp?.(e); e.target.style.borderColor = "var(--green3)"; }}
+        onBlur={e => { onBlurProp?.(e); e.target.style.borderColor = "var(--cream3)"; }}
       />
       <datalist id={lid}>
         {options.map(n => <option key={n} value={n} />)}
@@ -161,7 +161,7 @@ export function Select({ label, children, ...props }) {
   );
 }
 
-export function Textarea({ label, ...props }) {
+export function Textarea({ label, onFocus: onFocusProp, onBlur: onBlurProp, ...props }) {
   return (
     <div>
       {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
@@ -175,8 +175,8 @@ export function Textarea({ label, ...props }) {
         minHeight: "44px",
         ...props.style,
       }}
-      onFocus={e => e.target.style.borderColor = "var(--green3)"}
-      onBlur={e => e.target.style.borderColor = "var(--cream3)"}
+      onFocus={e => { onFocusProp?.(e); e.target.style.borderColor = "var(--green3)"; }}
+      onBlur={e => { onBlurProp?.(e); e.target.style.borderColor = "var(--cream3)"; }}
       />
     </div>
   );

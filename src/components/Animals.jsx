@@ -1,10 +1,583 @@
+import {
+  SPECIES,
+  PASTURE_SPECIES,
+  IMPORT_HL_FIELDS,
+  CULL_REASONS,
+  VACCINE_ROUTES,
+  TREATMENT_TYPES,
+  TREATMENT_TYPE_TO_EXPENSE_CATEGORY,
+  SEX_TERM_GENDER,
+  DEFAULT_SETTINGS,
+  CASTRATED_TERM_BY_SPECIES,
+  INTACT_MALE_TERM_BY_SPECIES,
+  EQUINE_VACCINE_SUGGESTIONS,
+  HORSE_DISCIPLINES,
+  HORSE_HEALTH_EXPENSE_CATEGORY,
+  REGISTER_OTHER_SPECIES,
+  REGISTER_SPECIES_TABS,
+} from "../lib/constants.js";
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import { SPECIES, PASTURE_SPECIES, IMPORT_HL_FIELDS, CULL_REASONS, VACCINE_ROUTES, TREATMENT_TYPES, TREATMENT_TYPE_TO_EXPENSE_CATEGORY, SEX_TERM_GENDER, DEFAULT_SETTINGS, CASTRATED_TERM_BY_SPECIES, INTACT_MALE_TERM_BY_SPECIES, REGISTER_SPECIES_TABS, REGISTER_OTHER_SPECIES, HORSE_DISCIPLINES, EQUINE_VACCINE_SUGGESTIONS, HORSE_HEALTH_EXPENSE_CATEGORY } from "../lib/constants.js";
 import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, dueDateRangeFromSingleDate, displaySex, fmtDueRange, fmtExposure, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate, checkInbreedingByParentIds } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 import ContactPicker from "./ContactPicker.jsx";
 import { supabase } from "../supabase";
+
+export function animalToEditInitialValues(a) {
+  const species = a.species || "Cattle";
+  const opts = getSexOptions(species);
+  const sex = opts.includes(a.sex) ? a.sex : (SEX_TERM_GENDER[a.sex] === "Female" ? opts.find(o => SEX_TERM_GENDER[o] === "Female") : opts.find(o => SEX_TERM_GENDER[o] === "Male")) || opts[0];
+  return {
+    name: a.name || "",
+    species,
+    sex: sex || opts[0],
+    dob: a.dob || "",
+    breed: a.breed || "",
+    tag: a.tag || "",
+    notes: a.notes || "",
+    color: a.color || "",
+    acquisitionType: a.acquisitionType || "Home Raised",
+    purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "",
+    purchaseDate: a.purchaseDate || "",
+    purchasedFrom: a.purchasedFrom || "",
+    targetWeaningDate: a.targetWeaningDate || "",
+    heightHands: a.heightHands || "",
+    discipline: a.discipline || "",
+    registrationNumber: a.registrationNumber || "",
+    markings: a.markings || "",
+    damId: a.damId || a.motherId || "",
+    damName: (a.damName || a.motherName) || "",
+    damNotInHerd: !(a.damId || a.motherId),
+    damSearch: "",
+    sireId: a.sireId || "",
+    sireName: a.sireName || "",
+    sireNotInHerd: !a.sireId,
+    sireSearch: "",
+  };
+}
+
+function buildRegisterSingleForm(defaultSpecies, seed) {
+  const sp = defaultSpecies || "Cattle";
+  const opts = getSexOptions(sp);
+  const base = {
+    name: "",
+    species: sp,
+    sex: opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0],
+    dob: "",
+    breed: "",
+    tag: "",
+    notes: "",
+    color: "",
+    currentPasture: "",
+    acquisitionType: "Home Raised",
+    purchasePrice: "",
+    purchaseDate: "",
+    purchasedFrom: "",
+    targetWeaningDate: "",
+    heightHands: "",
+    discipline: "",
+    registrationNumber: "",
+    markings: "",
+    damId: "",
+    damName: "",
+    damNotInHerd: false,
+    sireId: "",
+    sireName: "",
+    sireNotInHerd: false,
+    damSearch: "",
+    sireSearch: "",
+  };
+  return seed ? { ...base, ...seed } : base;
+}
+
+/** Edit animal card — all form state internal; onSave receives the merged animal record (same shape saveEdit produced). */
+export function EditAnimalForm({
+  editingAnimal,
+  initialValues,
+  editingAnimalId,
+  animals,
+  pastures,
+  contacts,
+  setContacts,
+  gestations: _gestations,
+  onSave,
+  onCancel,
+}) {
+  const [form, setForm] = useState(() => ({ ...initialValues }));
+
+  function handleSave() {
+    const current = editingAnimal;
+    if (!current) return;
+    const purchasePriceNum = form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined;
+    const opts = getSexOptions(form.species);
+    const validSex = (form.sex && opts.includes(form.sex)) ? form.sex : (current.sex && opts.includes(current.sex) ? current.sex : opts[0]);
+    const dob = (form.dob || "").trim() || undefined;
+    const months = getAgeInMonths(dob);
+    const targetWeaningDate = (months != null && months >= 12) ? undefined : ((form.targetWeaningDate || "").trim() || undefined);
+    const updated = {
+      ...current,
+      name: (form.name || "").trim() || undefined,
+      species: form.species,
+      sex: validSex,
+      dob,
+      breed: (form.breed || "").trim() || undefined,
+      tag: (form.tag || "").trim() || undefined,
+      notes: (form.notes || "").trim() || undefined,
+      color: (form.color || "").trim() || undefined,
+      acquisitionType: form.acquisitionType || "Home Raised",
+      purchasePrice: purchasePriceNum,
+      purchaseDate: (form.purchaseDate || "").trim() || undefined,
+      purchasedFrom: (form.purchasedFrom || "").trim() || undefined,
+      targetWeaningDate,
+      damId: form.damNotInHerd ? undefined : (form.damId || undefined),
+      damName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
+      motherId: form.damNotInHerd ? undefined : (form.damId || undefined),
+      motherName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
+      sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
+      sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
+      ...(form.species === "Horse" && {
+        heightHands: (form.heightHands || "").trim() || undefined,
+        discipline: (form.discipline || "").trim() || undefined,
+        registrationNumber: (form.registrationNumber || "").trim() || undefined,
+        markings: (form.markings || "").trim() || undefined,
+      }),
+    };
+    onSave(updated);
+  }
+
+  const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && an.id !== editingAnimalId && !an.deceased && !an.sale);
+  const malesSameSpecies = getBreedingMalesForSpecies(animals, form.species).filter(m => m.id !== editingAnimalId);
+  const damOptionsEdit = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
+  const sireOptionsEdit = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
+
+  return (
+    <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+      <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Edit Animal</div>
+      <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+        <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
+        <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
+        <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
+        <Select label="Species" value={form.species} onChange={e => {
+          const newSpecies = e.target.value;
+          const opts = getSexOptions(newSpecies);
+          setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+        }}>
+          {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
+        </Select>
+        <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
+          {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
+        </Select>
+        <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+        <Input label="Color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} placeholder="e.g. Black, Red Baldy, Roan" />
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+            <input type="radio" name="acquisitionType" checked={form.acquisitionType === "Home Raised"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
+            Home Raised
+          </label>
+          <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+            <input type="radio" name="acquisitionType" checked={form.acquisitionType === "Purchased"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
+            Purchased
+          </label>
+        </div>
+        {form.acquisitionType === "Purchased" && (
+          <>
+            <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
+            <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+            {setContacts ? <ContactPicker label="Purchased from (seller)" value={form.purchasedFrom} onChange={v => setForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
+          </>
+        )}
+      </div>
+      {form.species === "Horse" && (
+        <div style={{ marginBottom: "14px", padding: "14px", background: "var(--cream)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Horse details</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "0" }}>
+            <Input label="Height (hands)" value={form.heightHands} onChange={e => setForm(p => ({ ...p, heightHands: e.target.value }))} placeholder="e.g. 15.2" />
+            <Select label="Discipline" value={form.discipline} onChange={e => setForm(p => ({ ...p, discipline: e.target.value }))}>
+              <option value="">— Select —</option>
+              {HORSE_DISCIPLINES.map(d => <option key={d} value={d}>{d}</option>)}
+            </Select>
+            <Input label="Registration number" value={form.registrationNumber} onChange={e => setForm(p => ({ ...p, registrationNumber: e.target.value }))} placeholder="e.g. AQHA 123456" />
+            <Input label="Markings" value={form.markings} onChange={e => setForm(p => ({ ...p, markings: e.target.value }))} placeholder="e.g. Star, sock LF" style={{ gridColumn: "1 / -1" }} />
+          </div>
+        </div>
+      )}
+      <div style={{ marginBottom: "14px", paddingTop: "14px", borderTop: "1px solid var(--cream2)" }}>
+        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Lineage (optional)</div>
+        <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", cursor: "pointer", fontSize: "14px" }}>
+          <input type="checkbox" checked={form.damNotInHerd} onChange={e => setForm(p => ({ ...p, damNotInHerd: e.target.checked, ...(e.target.checked ? { damId: "", damSearch: "" } : { damName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+          <span>Dam not in my herd</span>
+        </label>
+        {!form.damNotInHerd ? (
+          <div style={{ marginBottom: "12px" }}>
+            <Input label="Search dams" value={form.damSearch || ""} onChange={e => setForm(p => ({ ...p, damSearch: e.target.value }))} placeholder="Type to filter..." />
+            <Select label="Dam" value={form.damId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, damId: "", damName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, damId: v, damName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
+              <option value="">— None —</option>
+              {damOptionsEdit.map(f => <option key={f.id} value={f.id}>{getAnimalName(f)}{f.tag ? ` #${f.tag}` : ""}</option>)}
+            </Select>
+          </div>
+        ) : (
+          <div style={{ marginBottom: "12px" }}><Input label="Dam name" value={form.damName || ""} onChange={e => setForm(p => ({ ...p, damName: e.target.value }))} placeholder="e.g. Unknown or name" /></div>
+        )}
+        <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", cursor: "pointer", fontSize: "14px" }}>
+          <input type="checkbox" checked={form.sireNotInHerd} onChange={e => setForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireId: "", sireSearch: "" } : { sireName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+          <span>Sire not in my herd</span>
+        </label>
+        {!form.sireNotInHerd ? (
+          <div style={{ marginBottom: "12px" }}>
+            <Input label="Search sires" value={form.sireSearch || ""} onChange={e => setForm(p => ({ ...p, sireSearch: e.target.value }))} placeholder="Type to filter..." />
+            <Select label="Sire" value={form.sireId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, sireId: "", sireName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, sireId: v, sireName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
+              <option value="">— None —</option>
+              {sireOptionsEdit.map(m => <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>)}
+            </Select>
+          </div>
+        ) : (
+          <div style={{ marginBottom: "12px" }}><Input label="Sire name" value={form.sireName || ""} onChange={e => setForm(p => ({ ...p, sireName: e.target.value }))} placeholder="e.g. Unknown or name" /></div>
+        )}
+      </div>
+      <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
+      <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+        <Btn onClick={handleSave}>Save Changes</Btn>
+        <Btn variant="secondary" onClick={onCancel}>Cancel</Btn>
+      </div>
+    </Card>
+  );
+}
+
+function findDuplicateAnimal(formData, animals) {
+  const tag = (formData.tag || "").trim();
+  const name = (formData.name || "").trim();
+  const species = (formData.species || "").trim().toLowerCase();
+  if (!tag && !name) return null;
+  return (animals || []).find(a => {
+    if (tag && (a.tag || "").toString().trim().toLowerCase() === tag.toLowerCase()) return true;
+    if (name && species && (a.name || "").trim().toLowerCase() === name.toLowerCase() && (a.species || "").toLowerCase() === species) return true;
+    return false;
+  }) || null;
+}
+
+/** Register animals card (single + bulk) — internal state; onRegister({ kind, animal(s) }) then caller updates herd. */
+export function RegisterAnimalForm({
+  defaultSpecies,
+  initialSingleValues,
+  animals,
+  pastures,
+  contacts,
+  setContacts,
+  setNotes,
+  onRegister,
+  onCancel,
+}) {
+  const [registerMode, setRegisterMode] = useState("single");
+  const [form, setForm] = useState(() => buildRegisterSingleForm(defaultSpecies, initialSingleValues));
+  const [bulkRegisterForm, setBulkRegisterForm] = useState(() => {
+    const sp = defaultSpecies || "Cattle";
+    return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: "", count: "1", notes: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
+  });
+  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
+  const [duplicateConfirmExisting, setDuplicateConfirmExisting] = useState(null);
+
+  function addSubmit() {
+    if (!form.name) return;
+    const { currentPasture, purchasePrice: _pp, damSearch: _ds, sireSearch: _ss, damNotInHerd: _dnh, sireNotInHerd: _snh, ...rest } = form;
+    const newAnimal = {
+      ...rest,
+      id: Date.now().toString(),
+      acquisitionType: form.acquisitionType || "Home Raised",
+      purchasePrice: form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined,
+      purchaseDate: form.purchaseDate?.trim() || undefined,
+      purchasedFrom: form.purchasedFrom?.trim() || undefined,
+      targetWeaningDate: form.targetWeaningDate?.trim() || undefined,
+      damId: form.damNotInHerd ? undefined : (form.damId || undefined),
+      damName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
+      motherId: form.damNotInHerd ? undefined : (form.damId || undefined),
+      motherName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
+      sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
+      sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
+      ...(form.species === "Horse" && {
+        heightHands: form.heightHands?.trim() || undefined,
+        discipline: form.discipline?.trim() || undefined,
+        registrationNumber: form.registrationNumber?.trim() || undefined,
+        markings: form.markings?.trim() || undefined,
+      }),
+    };
+    if (currentPasture?.trim() && PASTURE_SPECIES.includes(form.species)) {
+      const canonical = getCanonicalPastureNames(animals, pastures);
+      const resolved = resolvePastureName(currentPasture.trim(), canonical);
+      const dateMovedIn = new Date().toISOString().split("T")[0];
+      const movementId = Date.now().toString() + "-" + newAnimal.id;
+      newAnimal.movements = [{ pastureName: resolved, dateMovedIn, movementId }];
+      if (setNotes) {
+        const journalEntry = createMovementJournalEntry(newAnimal, null, resolved, dateMovedIn, undefined, movementId);
+        setNotes(prev => [journalEntry, ...prev]);
+      }
+    }
+    onRegister({ kind: "single", animal: newAnimal });
+    setShowDuplicateConfirm(false);
+    setDuplicateConfirmExisting(null);
+    onCancel();
+  }
+
+  function add() {
+    if (!form.name) return;
+    const existing = findDuplicateAnimal(form, animals);
+    if (existing) {
+      setDuplicateConfirmExisting(existing);
+      setShowDuplicateConfirm(true);
+      return;
+    }
+    addSubmit();
+  }
+
+  function submitBulkRegister() {
+    const startTag = String(bulkRegisterForm.startingTag || "").trim();
+    const count = parseInt(bulkRegisterForm.count, 10);
+    if (!startTag || !Number.isInteger(count) || count < 1) return;
+    const base = parseInt(startTag, 10);
+    if (isNaN(base)) return;
+    const sp = bulkRegisterForm.species || "Cattle";
+    const opts = getSexOptions(sp);
+    const sex = opts.includes(bulkRegisterForm.sex) ? bulkRegisterForm.sex : opts[0];
+    const dob = bulkRegisterForm.dob?.trim() || undefined;
+    const notes = bulkRegisterForm.notes?.trim() || undefined;
+    const breed = bulkRegisterForm.breed?.trim() || undefined;
+    const newAnimals = [];
+    for (let i = 0; i < count; i++) {
+      const tag = String(base + i);
+      newAnimals.push({
+        id: Date.now().toString() + "-" + i,
+        species: sp,
+        sex,
+        dob,
+        breed,
+        tag,
+        notes,
+        name: undefined,
+        acquisitionType: bulkRegisterForm.acquisitionType || "Home Raised",
+        purchasePrice: bulkRegisterForm.purchasePrice?.trim() ? parseFloat(bulkRegisterForm.purchasePrice) : undefined,
+        purchaseDate: bulkRegisterForm.purchaseDate?.trim() || undefined,
+        purchasedFrom: bulkRegisterForm.purchasedFrom?.trim() || undefined,
+      });
+    }
+    onRegister({ kind: "bulk", animals: newAnimals });
+    const sp2 = defaultSpecies || "Cattle";
+    setBulkRegisterForm({
+      species: sp2,
+      breed: "",
+      sex: getSexOptions(sp2).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp2)[0],
+      dob: "",
+      startingTag: String(base + count),
+      count: "1",
+      notes: "",
+      acquisitionType: "Home Raised",
+      purchasePrice: "",
+      purchaseDate: "",
+      purchasedFrom: "",
+    });
+    onCancel();
+  }
+
+  const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && !an.deceased && !an.sale);
+  const malesSameSpecies = getBreedingMalesForSpecies(animals, form.species);
+  const damOptions = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
+  const sireOptions = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
+
+  return (
+    <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+      <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Register Animals</div>
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px" }}>
+        <Btn variant={registerMode === "single" ? undefined : "ghost"} size="sm" onClick={() => setRegisterMode("single")} style={registerMode === "single" ? { background: "var(--green3)", color: "var(--green)" } : {}}>Single Animal</Btn>
+        <Btn variant={registerMode === "bulk" ? undefined : "ghost"} size="sm" onClick={() => setRegisterMode("bulk")} style={registerMode === "bulk" ? { background: "var(--green3)", color: "var(--green)" } : {}}>Bulk Register</Btn>
+      </div>
+
+      {registerMode === "single" ? (
+        <>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "20px", borderBottom: "1px solid var(--cream2)", paddingBottom: "12px" }}>
+            {REGISTER_SPECIES_TABS.map(tab => {
+              const isOther = tab === "Other";
+              const isSelected = isOther ? REGISTER_OTHER_SPECIES.includes(form.species) : form.species === tab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => {
+                    const newSpecies = isOther ? REGISTER_OTHER_SPECIES[0] : tab;
+                    const opts = getSexOptions(newSpecies);
+                    setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+                  }}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "var(--radius)",
+                    border: "1px solid var(--cream3)",
+                    background: isSelected ? "var(--green3)" : "#fff",
+                    color: isSelected ? "var(--green)" : "var(--ink2)",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    cursor: "pointer",
+                  }}
+                >
+                  {tab === "Other" ? "Other" : (SPECIES[tab]?.emoji ? SPECIES[tab].emoji + " " : "") + tab}
+                </button>
+              );
+            })}
+          </div>
+          {REGISTER_SPECIES_TABS.includes(form.species) && form.species !== "Other" ? null : REGISTER_OTHER_SPECIES.includes(form.species) && (
+            <div style={{ marginBottom: "14px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Species (Other)</label>
+              <Select value={form.species} onChange={e => { const v = e.target.value; const opts = getSexOptions(v); setForm(p => ({ ...p, species: v, sex: opts.includes(p.sex) ? p.sex : opts[0] })); }} style={{ maxWidth: "200px" }}>
+                {REGISTER_OTHER_SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+            </div>
+          )}
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
+            <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
+            <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
+            <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
+              {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
+            </Select>
+            <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+            <Input label="Color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} placeholder="e.g. Black, Red Baldy, Roan" />
+            {PASTURE_SPECIES.includes(form.species) && (
+              <PastureCombo label="Current Pasture (optional)" value={form.currentPasture} onChange={v => setForm(p => ({ ...p, currentPasture: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-add-animal" />
+            )}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", gridColumn: "1 / -1" }}>
+              <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                <input type="radio" name="addAcquisitionType" checked={form.acquisitionType === "Home Raised"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
+                Home Raised
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                <input type="radio" name="addAcquisitionType" checked={form.acquisitionType === "Purchased"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
+                Purchased
+              </label>
+            </div>
+            {form.acquisitionType === "Purchased" && (
+              <>
+                <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
+                <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                {setContacts ? <ContactPicker label="Purchased from (seller)" value={form.purchasedFrom} onChange={v => setForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
+              </>
+            )}
+          </div>
+          {form.species === "Horse" && (
+            <div style={{ marginBottom: "14px", padding: "14px", background: "var(--cream)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)" }}>
+              <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Horse details</div>
+              <div className="hl-form-grid-3" style={{ marginBottom: "0" }}>
+                <Input label="Height (hands)" value={form.heightHands} onChange={e => setForm(p => ({ ...p, heightHands: e.target.value }))} placeholder="e.g. 15.2" />
+                <Select label="Discipline" value={form.discipline} onChange={e => setForm(p => ({ ...p, discipline: e.target.value }))}>
+                  <option value="">— Select —</option>
+                  {HORSE_DISCIPLINES.map(d => <option key={d} value={d}>{d}</option>)}
+                </Select>
+                <Input label="Registration number" value={form.registrationNumber} onChange={e => setForm(p => ({ ...p, registrationNumber: e.target.value }))} placeholder="e.g. AQHA 123456" />
+                <Input label="Markings" value={form.markings} onChange={e => setForm(p => ({ ...p, markings: e.target.value }))} placeholder="e.g. Star, sock LF" style={{ gridColumn: "1 / -1" }} />
+              </div>
+            </div>
+          )}
+          <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
+          <div style={{ marginTop: "18px", paddingTop: "18px", borderTop: "1px solid var(--cream2)" }}>
+            <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "12px" }}>Lineage (optional)</div>
+            <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px" }}>
+              <input type="checkbox" checked={form.damNotInHerd} onChange={e => setForm(p => ({ ...p, damNotInHerd: e.target.checked, ...(e.target.checked ? { damId: "", damSearch: "" } : { damName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+              <span>Dam not in my herd</span>
+            </label>
+            {!form.damNotInHerd ? (
+              <div style={{ marginBottom: "14px" }}>
+                <Input label="Search dams" value={form.damSearch || ""} onChange={e => setForm(p => ({ ...p, damSearch: e.target.value }))} placeholder="Type to filter..." />
+                <Select label="Dam" value={form.damId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, damId: "", damName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, damId: v, damName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
+                  <option value="">— None —</option>
+                  {damOptions.map(f => <option key={f.id} value={f.id}>{getAnimalName(f)}{f.tag ? ` #${f.tag}` : ""}</option>)}
+                </Select>
+              </div>
+            ) : (
+              <div style={{ marginBottom: "14px" }}>
+                <Input label="Dam name" value={form.damName || ""} onChange={e => setForm(p => ({ ...p, damName: e.target.value }))} placeholder="e.g. Unknown or name" />
+              </div>
+            )}
+            <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px" }}>
+              <input type="checkbox" checked={form.sireNotInHerd} onChange={e => setForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireId: "", sireSearch: "" } : { sireName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+              <span>Sire not in my herd (outside sire)</span>
+            </label>
+            {!form.sireNotInHerd ? (
+              <div style={{ marginBottom: "14px" }}>
+                <Input label="Search sires" value={form.sireSearch || ""} onChange={e => setForm(p => ({ ...p, sireSearch: e.target.value }))} placeholder="Type to filter..." />
+                <Select label="Sire" value={form.sireId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, sireId: "", sireName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, sireId: v, sireName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
+                  <option value="">— None —</option>
+                  {sireOptions.map(m => <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>)}
+                </Select>
+              </div>
+            ) : (
+              <div style={{ marginBottom: "14px" }}>
+                <Input label="Sire name" value={form.sireName || ""} onChange={e => setForm(p => ({ ...p, sireName: e.target.value }))} placeholder="e.g. Unknown or name" />
+              </div>
+            )}
+          </div>
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+            <Btn onClick={add}>Register</Btn>
+            <Btn variant="secondary" onClick={onCancel}>Cancel</Btn>
+          </div>
+          {showDuplicateConfirm && duplicateConfirmExisting && (
+            <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => { setShowDuplicateConfirm(false); setDuplicateConfirmExisting(null); }}>
+              <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "24px", maxWidth: "400px", boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--cream2)" }} onClick={e => e.stopPropagation()}>
+                <p style={{ fontSize: "15px", color: "var(--ink2)", marginBottom: "20px", lineHeight: 1.5 }}>
+                  An animal named <strong>{getAnimalName(duplicateConfirmExisting)}</strong> or with tag <strong>{duplicateConfirmExisting.tag ? `#${duplicateConfirmExisting.tag}` : "—"}</strong> already exists in your herd. Are you sure you want to add another?
+                </p>
+                <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                  <Btn variant="secondary" onClick={() => { setShowDuplicateConfirm(false); setDuplicateConfirmExisting(null); }}>Cancel</Btn>
+                  <Btn onClick={addSubmit}>Continue</Btn>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      ) : (
+        <>
+          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>Create multiple animals with the same species, breed, sex, and optional DOB. Tag numbers will auto-increment from the starting tag.</p>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <Select label="Species" value={bulkRegisterForm.species} onChange={e => {
+              const newSpecies = e.target.value;
+              const opts = getSexOptions(newSpecies);
+              setBulkRegisterForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+            }}>
+              {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
+            </Select>
+            <Select label="Sex" value={bulkRegisterForm.sex} onChange={e => setBulkRegisterForm(p => ({ ...p, sex: e.target.value }))}>
+              {getSexOptions(bulkRegisterForm.species).map(opt => <option key={opt}>{opt}</option>)}
+            </Select>
+            <Input label="Breed" value={bulkRegisterForm.breed} onChange={e => setBulkRegisterForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
+            <Input label="Date of birth (optional)" type="date" value={bulkRegisterForm.dob} onChange={e => setBulkRegisterForm(p => ({ ...p, dob: e.target.value }))} />
+            <Input label="Starting tag number" value={bulkRegisterForm.startingTag} onChange={e => setBulkRegisterForm(p => ({ ...p, startingTag: e.target.value }))} placeholder="e.g. 1001" />
+            <Input label="Number of animals" type="number" min={1} value={bulkRegisterForm.count} onChange={e => setBulkRegisterForm(p => ({ ...p, count: e.target.value }))} placeholder="e.g. 10" />
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", gridColumn: "1 / -1" }}>
+              <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                <input type="radio" name="bulkAcquisitionType" checked={bulkRegisterForm.acquisitionType === "Home Raised"} onChange={() => setBulkRegisterForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
+                Home Raised
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                <input type="radio" name="bulkAcquisitionType" checked={bulkRegisterForm.acquisitionType === "Purchased"} onChange={() => setBulkRegisterForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
+                Purchased
+              </label>
+            </div>
+            {bulkRegisterForm.acquisitionType === "Purchased" && (
+              <>
+                <Input label="Purchase price per head ($)" type="number" min="0" step="0.01" value={bulkRegisterForm.purchasePrice} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
+                <Input label="Purchase date" type="date" value={bulkRegisterForm.purchaseDate} onChange={e => setBulkRegisterForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                {setContacts ? <ContactPicker label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={v => setBulkRegisterForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
+              </>
+            )}
+          </div>
+          <Textarea label="Notes" value={bulkRegisterForm.notes} onChange={e => setBulkRegisterForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Applied to all animals (optional)" style={{ marginBottom: "14px" }} />
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={submitBulkRegister} disabled={!bulkRegisterForm.startingTag?.trim() || parseInt(bulkRegisterForm.count, 10) < 1}>Register {Math.max(0, parseInt(bulkRegisterForm.count, 10) || 0)} animals</Btn>
+            <Btn variant="secondary" onClick={onCancel}>Cancel</Btn>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
 
 const HORSE_DOCUMENT_TYPES = ["Registration Papers", "Coggins Test", "Health Certificate", "Brand Inspection", "Vaccination Record", "Insurance", "Other"];
 const ANIMAL_DOCUMENTS_BUCKET = "animal-documents";
@@ -22,10 +595,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     }
   }, [forceList, setSettings, settings?.animalsViewMode]);
   const [editingId, setEditingId] = useState(null);
-  const [form, setForm] = useState(() => {
-    const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "", heightHands: "", discipline: "", registrationNumber: "", markings: "", damId: "", damName: "", damNotInHerd: false, sireId: "", sireName: "", sireNotInHerd: false, damSearch: "", sireSearch: "" };
-  });
+  const [registerFormKey, setRegisterFormKey] = useState(0);
+  const [registerInitialSingle, setRegisterInitialSingle] = useState(null);
   const viewing = viewingAnimal;
   const setViewing = setViewingAnimal;
   const [searchLocal, setSearchLocal] = useState("");
@@ -124,9 +695,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [importPreviewRowIndex, setImportPreviewRowIndex] = useState(0); // 0-4 for first 5 rows
   const [showImportInstructions, setShowImportInstructions] = useState(false);
   const importFileInputRef = useRef(null);
-  const [showDuplicateConfirm, setShowDuplicateConfirm] = useState(false);
-  const [duplicateConfirmExisting, setDuplicateConfirmExisting] = useState(null);
-
   useEffect(() => {
     setShowCullForm(false);
     setCullForm({ reason: "", notes: "", targetCullDate: "" });
@@ -225,11 +793,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [documentPreview, setDocumentPreview] = useState(null); // selected doc object for preview modal
   const [documentDeleteConfirmId, setDocumentDeleteConfirmId] = useState(null);
   const documentFileInputRef = useRef(null);
-  const [registerMode, setRegisterMode] = useState("single"); // "single" | "bulk"
-  const [bulkRegisterForm, setBulkRegisterForm] = useState(() => {
-    const sp = defaultSpecies || "Cattle";
-    return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: "", count: "1", notes: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
-  });
   const [runningWithBullPrompt, setRunningWithBullPrompt] = useState(null);
   const [runningWithBullStep, setRunningWithBullStep] = useState("ask");
   const [runningWithBullForm, setRunningWithBullForm] = useState({ startDate: "", endDate: "" });
@@ -288,11 +851,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setRunningWithBullStep("ask");
     setRunningWithBullForm({ startDate: "", endDate: "" });
   }
-
-  const emptyForm = () => {
-    const sp = defaultSpecies || "Cattle";
-    return { name: "", species: sp, sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", breed: "", tag: "", notes: "", color: "", currentPasture: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "", targetWeaningDate: "", heightHands: "", discipline: "", registrationNumber: "", markings: "", damId: "", damName: "", damNotInHerd: false, sireId: "", sireName: "", sireNotInHerd: false, damSearch: "", sireSearch: "" };
-  };
 
   function parseImportFile(file, onDone) {
     const isCsv = /\.(csv|txt)$/i.test(file.name);
@@ -581,153 +1139,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setImportSuccess(null);
     setImportDuplicateChoices({});
     setImportPreviewRowIndex(0);
-  }
-
-  function findDuplicateAnimal(formData) {
-    const tag = (formData.tag || "").trim();
-    const name = (formData.name || "").trim();
-    const species = (formData.species || "").trim().toLowerCase();
-    if (!tag && !name) return null;
-    return (animals || []).find(a => {
-      if (tag && (a.tag || "").toString().trim().toLowerCase() === tag.toLowerCase()) return true;
-      if (name && species && (a.name || "").trim().toLowerCase() === name.toLowerCase() && (a.species || "").toLowerCase() === species) return true;
-      return false;
-    }) || null;
-  }
-
-  function addSubmit() {
-    if (!form.name) return;
-    const { currentPasture, purchasePrice: _pp, damSearch: _ds, sireSearch: _ss, damNotInHerd: _dnh, sireNotInHerd: _snh, ...rest } = form;
-    const newAnimal = {
-      ...rest,
-      id: Date.now().toString(),
-      acquisitionType: form.acquisitionType || "Home Raised",
-      purchasePrice: form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined,
-      purchaseDate: form.purchaseDate?.trim() || undefined,
-      purchasedFrom: form.purchasedFrom?.trim() || undefined,
-      targetWeaningDate: form.targetWeaningDate?.trim() || undefined,
-      damId: form.damNotInHerd ? undefined : (form.damId || undefined),
-      damName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
-      motherId: form.damNotInHerd ? undefined : (form.damId || undefined),
-      motherName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
-      sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
-      sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
-      ...(form.species === "Horse" && {
-        heightHands: form.heightHands?.trim() || undefined,
-        discipline: form.discipline?.trim() || undefined,
-        registrationNumber: form.registrationNumber?.trim() || undefined,
-        markings: form.markings?.trim() || undefined,
-      }),
-    };
-    if (currentPasture?.trim() && PASTURE_SPECIES.includes(form.species)) {
-      const canonical = getCanonicalPastureNames(animals, pastures);
-      const resolved = resolvePastureName(currentPasture.trim(), canonical);
-      const dateMovedIn = new Date().toISOString().split("T")[0];
-      const movementId = Date.now().toString() + "-" + newAnimal.id;
-      newAnimal.movements = [{ pastureName: resolved, dateMovedIn, movementId }];
-      if (setNotes) {
-        const journalEntry = createMovementJournalEntry(newAnimal, null, resolved, dateMovedIn, undefined, movementId);
-        setNotes(prev => [journalEntry, ...prev]);
-      }
-    }
-    setAnimals(p => [...p, newAnimal]);
-    setForm(emptyForm());
-    setShowAdd(false);
-    setShowDuplicateConfirm(false);
-    setDuplicateConfirmExisting(null);
-  }
-
-  function add() {
-    if (!form.name) return;
-    const existing = findDuplicateAnimal(form);
-    if (existing) {
-      setDuplicateConfirmExisting(existing);
-      setShowDuplicateConfirm(true);
-      return;
-    }
-    addSubmit();
-  }
-
-  function submitBulkRegister() {
-    const startTag = String(bulkRegisterForm.startingTag || "").trim();
-    const count = parseInt(bulkRegisterForm.count, 10);
-    if (!startTag || !Number.isInteger(count) || count < 1) return;
-    const base = parseInt(startTag, 10);
-    if (isNaN(base)) return;
-    const sp = bulkRegisterForm.species || "Cattle";
-    const opts = getSexOptions(sp);
-    const sex = opts.includes(bulkRegisterForm.sex) ? bulkRegisterForm.sex : opts[0];
-    const dob = bulkRegisterForm.dob?.trim() || undefined;
-    const notes = bulkRegisterForm.notes?.trim() || undefined;
-    const breed = bulkRegisterForm.breed?.trim() || undefined;
-    const newAnimals = [];
-    for (let i = 0; i < count; i++) {
-      const tag = String(base + i);
-      newAnimals.push({
-        id: Date.now().toString() + "-" + i,
-        species: sp,
-        sex,
-        dob,
-        breed,
-        tag,
-        notes,
-        name: undefined,
-        acquisitionType: bulkRegisterForm.acquisitionType || "Home Raised",
-        purchasePrice: bulkRegisterForm.purchasePrice?.trim() ? parseFloat(bulkRegisterForm.purchasePrice) : undefined,
-        purchaseDate: bulkRegisterForm.purchaseDate?.trim() || undefined,
-        purchasedFrom: bulkRegisterForm.purchasedFrom?.trim() || undefined,
-      });
-    }
-    setAnimals(p => [...p, ...newAnimals]);
-    setShowAdd(false);
-    setBulkRegisterForm(() => {
-      const sp = defaultSpecies || "Cattle";
-      return { species: sp, breed: "", sex: getSexOptions(sp).find(o => SEX_TERM_GENDER[o] === "Female") || getSexOptions(sp)[0], dob: "", startingTag: String(base + count), count: "1", notes: "", acquisitionType: "Home Raised", purchasePrice: "", purchaseDate: "", purchasedFrom: "" };
-    });
-  }
-
-  function saveEdit() {
-    if (!editingId) return;
-    const current = (animals || []).find(x => x.id === editingId) || viewing;
-    if (!current) return;
-    const purchasePriceNum = form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined;
-    const opts = getSexOptions(form.species);
-    const validSex = (form.sex && opts.includes(form.sex)) ? form.sex : (current.sex && opts.includes(current.sex) ? current.sex : opts[0]);
-    const dob = (form.dob || "").trim() || undefined;
-    const months = getAgeInMonths(dob);
-    const targetWeaningDate = (months != null && months >= 12) ? undefined : ((form.targetWeaningDate || "").trim() || undefined);
-    const updated = {
-      ...current,
-      name: (form.name || "").trim() || undefined,
-      species: form.species,
-      sex: validSex,
-      dob,
-      breed: (form.breed || "").trim() || undefined,
-      tag: (form.tag || "").trim() || undefined,
-      notes: (form.notes || "").trim() || undefined,
-      color: (form.color || "").trim() || undefined,
-      acquisitionType: form.acquisitionType || "Home Raised",
-      purchasePrice: purchasePriceNum,
-      purchaseDate: (form.purchaseDate || "").trim() || undefined,
-      purchasedFrom: (form.purchasedFrom || "").trim() || undefined,
-      targetWeaningDate,
-      damId: form.damNotInHerd ? undefined : (form.damId || undefined),
-      damName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
-      motherId: form.damNotInHerd ? undefined : (form.damId || undefined),
-      motherName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
-      sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
-      sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
-      ...(form.species === "Horse" && {
-        heightHands: (form.heightHands || "").trim() || undefined,
-        discipline: (form.discipline || "").trim() || undefined,
-        registrationNumber: (form.registrationNumber || "").trim() || undefined,
-        markings: (form.markings || "").trim() || undefined,
-      }),
-    };
-    setAnimals(prev => prev.map(x => (x.id === editingId ? updated : x)));
-    setViewing(updated);
-    setEditingId(null);
-    setForm(emptyForm());
   }
 
   function remove(id) {
@@ -1524,115 +1935,28 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             ← Back to Animals
           </button>
           {editingId !== a.id && (
-            <Btn onClick={() => {
-                const species = a.species || "Cattle";
-                const opts = getSexOptions(species);
-                const sex = opts.includes(a.sex) ? a.sex : (SEX_TERM_GENDER[a.sex] === "Female" ? opts.find(o => SEX_TERM_GENDER[o] === "Female") : opts.find(o => SEX_TERM_GENDER[o] === "Male")) || opts[0];
-                setEditingId(a.id);
-                setForm({ name: a.name || "", species, sex: sex || opts[0], dob: a.dob || "", breed: a.breed || "", tag: a.tag || "", notes: a.notes || "", color: a.color || "", acquisitionType: a.acquisitionType || "Home Raised", purchasePrice: a.purchasePrice != null ? String(a.purchasePrice) : "", purchaseDate: a.purchaseDate || "", purchasedFrom: a.purchasedFrom || "", targetWeaningDate: a.targetWeaningDate || "", heightHands: a.heightHands || "", discipline: a.discipline || "", registrationNumber: a.registrationNumber || "", markings: a.markings || "", damId: a.damId || a.motherId || "", damName: (a.damName || a.motherName) || "", damNotInHerd: !(a.damId || a.motherId), damSearch: "", sireId: a.sireId || "", sireName: a.sireName || "", sireNotInHerd: !a.sireId, sireSearch: "" });
-              }}>Edit</Btn>
+            <Btn onClick={() => { setEditingId(a.id); }}>Edit</Btn>
           )}
         </div>
 
         {editingId === a.id && (
-          <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Edit Animal</div>
-            <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-              <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
-              <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
-              <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
-              <Select label="Species" value={form.species} onChange={e => {
-                const newSpecies = e.target.value;
-                const opts = getSexOptions(newSpecies);
-                setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
-              }}>
-                {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
-              </Select>
-              <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
-                {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
-              </Select>
-              <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
-              <Input label="Color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} placeholder="e.g. Black, Red Baldy, Roan" />
-              <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
-                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
-                  <input type="radio" name="acquisitionType" checked={form.acquisitionType === "Home Raised"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
-                  Home Raised
-                </label>
-                <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
-                  <input type="radio" name="acquisitionType" checked={form.acquisitionType === "Purchased"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
-                  Purchased
-                </label>
-              </div>
-              {form.acquisitionType === "Purchased" && (
-                <>
-                  <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
-                  <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
-                  {setContacts ? <ContactPicker label="Purchased from (seller)" value={form.purchasedFrom} onChange={v => setForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
-                </>
-              )}
-            </div>
-            {form.species === "Horse" && (
-              <div style={{ marginBottom: "14px", padding: "14px", background: "var(--cream)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)" }}>
-                <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Horse details</div>
-                <div className="hl-form-grid-3" style={{ marginBottom: "0" }}>
-                  <Input label="Height (hands)" value={form.heightHands} onChange={e => setForm(p => ({ ...p, heightHands: e.target.value }))} placeholder="e.g. 15.2" />
-                  <Select label="Discipline" value={form.discipline} onChange={e => setForm(p => ({ ...p, discipline: e.target.value }))}>
-                    <option value="">— Select —</option>
-                    {HORSE_DISCIPLINES.map(d => <option key={d} value={d}>{d}</option>)}
-                  </Select>
-                  <Input label="Registration number" value={form.registrationNumber} onChange={e => setForm(p => ({ ...p, registrationNumber: e.target.value }))} placeholder="e.g. AQHA 123456" />
-                  <Input label="Markings" value={form.markings} onChange={e => setForm(p => ({ ...p, markings: e.target.value }))} placeholder="e.g. Star, sock LF" style={{ gridColumn: "1 / -1" }} />
-                </div>
-              </div>
-            )}
-            {(() => {
-              const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && an.id !== editingId && !an.deceased && !an.sale);
-              const malesSameSpecies = getBreedingMalesForSpecies(animals, form.species).filter(m => m.id !== editingId);
-              const damOptionsEdit = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
-              const sireOptionsEdit = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
-              return (
-                <div style={{ marginBottom: "14px", paddingTop: "14px", borderTop: "1px solid var(--cream2)" }}>
-                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Lineage (optional)</div>
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", cursor: "pointer", fontSize: "14px" }}>
-                    <input type="checkbox" checked={form.damNotInHerd} onChange={e => setForm(p => ({ ...p, damNotInHerd: e.target.checked, ...(e.target.checked ? { damId: "", damSearch: "" } : { damName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
-                    <span>Dam not in my herd</span>
-                  </label>
-                  {!form.damNotInHerd ? (
-                    <div style={{ marginBottom: "12px" }}>
-                      <Input label="Search dams" value={form.damSearch || ""} onChange={e => setForm(p => ({ ...p, damSearch: e.target.value }))} placeholder="Type to filter..." />
-                      <Select label="Dam" value={form.damId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, damId: "", damName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, damId: v, damName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
-                        <option value="">— None —</option>
-                        {damOptionsEdit.map(f => <option key={f.id} value={f.id}>{getAnimalName(f)}{f.tag ? ` #${f.tag}` : ""}</option>)}
-                      </Select>
-                    </div>
-                  ) : (
-                    <div style={{ marginBottom: "12px" }}><Input label="Dam name" value={form.damName || ""} onChange={e => setForm(p => ({ ...p, damName: e.target.value }))} placeholder="e.g. Unknown or name" /></div>
-                  )}
-                  <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px", cursor: "pointer", fontSize: "14px" }}>
-                    <input type="checkbox" checked={form.sireNotInHerd} onChange={e => setForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireId: "", sireSearch: "" } : { sireName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
-                    <span>Sire not in my herd</span>
-                  </label>
-                  {!form.sireNotInHerd ? (
-                    <div style={{ marginBottom: "12px" }}>
-                      <Input label="Search sires" value={form.sireSearch || ""} onChange={e => setForm(p => ({ ...p, sireSearch: e.target.value }))} placeholder="Type to filter..." />
-                      <Select label="Sire" value={form.sireId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, sireId: "", sireName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, sireId: v, sireName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
-                        <option value="">— None —</option>
-                        {sireOptionsEdit.map(m => <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>)}
-                      </Select>
-                    </div>
-                  ) : (
-                    <div style={{ marginBottom: "12px" }}><Input label="Sire name" value={form.sireName || ""} onChange={e => setForm(p => ({ ...p, sireName: e.target.value }))} placeholder="e.g. Unknown or name" /></div>
-                  )}
-                </div>
-              );
-            })()}
-            <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
-            <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <Btn onClick={saveEdit}>Save Changes</Btn>
-              <Btn variant="secondary" onClick={() => { setEditingId(null); setForm(emptyForm()); }}>Cancel</Btn>
-            </div>
-          </Card>
+          <EditAnimalForm
+            key={a.id}
+            editingAnimal={a}
+            initialValues={animalToEditInitialValues(a)}
+            editingAnimalId={a.id}
+            animals={animals}
+            pastures={pastures}
+            contacts={contacts}
+            setContacts={setContacts}
+            gestations={gestations}
+            onSave={(updated) => {
+              setAnimals(prev => prev.map(x => (x.id === a.id ? updated : x)));
+              setViewing(updated);
+              setEditingId(null);
+            }}
+            onCancel={() => { setEditingId(null); }}
+          />
         )}
 
         <Card className="hl-card-no-padding" style={{ padding: "0", overflow: "hidden" }}>
@@ -3723,7 +4047,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   const species = a.species || "Cattle";
                   const opts = getSexOptions(species);
                   const sex = opts.includes(a.sex) ? a.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]);
-                  setForm({ name: "", species, sex, breed: a.breed || "", tag: a.tag || "", dob: "", notes: a.notes || "" });
+                  setRegisterInitialSingle({ name: "", species, sex, breed: a.breed || "", tag: a.tag || "", dob: "", notes: a.notes || "" });
+                  setRegisterFormKey(k => k + 1);
                   setShowAdd(true);
                   setViewing(null);
                 }}>Duplicate Animal</Btn>
@@ -4332,7 +4657,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span className="hl-animals-header-btn-text">Import Animals</span>
             </button>
-            <Btn onClick={() => { setEditingId(null); setForm(emptyForm()); setRegisterMode("single"); setShowAdd(true); }}>+ Register Animals</Btn>
+            <Btn onClick={() => { setEditingId(null); setRegisterInitialSingle(null); setRegisterFormKey(k => k + 1); setShowAdd(true); }}>+ Register Animals</Btn>
           </div>
         </div>
       }>
@@ -4843,206 +5168,21 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       )}
 
       {showAdd && (
-        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Register Animals</div>
-          <div style={{ display: "flex", gap: "4px", marginBottom: "20px" }}>
-            <Btn variant={registerMode === "single" ? undefined : "ghost"} size="sm" onClick={() => setRegisterMode("single")} style={registerMode === "single" ? { background: "var(--green3)", color: "var(--green)" } : {}}>Single Animal</Btn>
-            <Btn variant={registerMode === "bulk" ? undefined : "ghost"} size="sm" onClick={() => setRegisterMode("bulk")} style={registerMode === "bulk" ? { background: "var(--green3)", color: "var(--green)" } : {}}>Bulk Register</Btn>
-          </div>
-
-          {registerMode === "single" ? (
-            <>
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "20px", borderBottom: "1px solid var(--cream2)", paddingBottom: "12px" }}>
-                {REGISTER_SPECIES_TABS.map(tab => {
-                  const isOther = tab === "Other";
-                  const isSelected = isOther ? REGISTER_OTHER_SPECIES.includes(form.species) : form.species === tab;
-                  return (
-                    <button
-                      key={tab}
-                      type="button"
-                      onClick={() => {
-                        const newSpecies = isOther ? REGISTER_OTHER_SPECIES[0] : tab;
-                        const opts = getSexOptions(newSpecies);
-                        setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
-                      }}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: "var(--radius)",
-                        border: "1px solid var(--cream3)",
-                        background: isSelected ? "var(--green3)" : "#fff",
-                        color: isSelected ? "var(--green)" : "var(--ink2)",
-                        fontWeight: 600,
-                        fontSize: "13px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      {tab === "Other" ? "Other" : (SPECIES[tab]?.emoji ? SPECIES[tab].emoji + " " : "") + tab}
-                    </button>
-                  );
-                })}
-              </div>
-              {REGISTER_SPECIES_TABS.includes(form.species) && form.species !== "Other" ? null : REGISTER_OTHER_SPECIES.includes(form.species) && (
-                <div style={{ marginBottom: "14px" }}>
-                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Species (Other)</label>
-                  <Select value={form.species} onChange={e => { const v = e.target.value; const opts = getSexOptions(v); setForm(p => ({ ...p, species: v, sex: opts.includes(p.sex) ? p.sex : opts[0] })); }} style={{ maxWidth: "200px" }}>
-                    {REGISTER_OTHER_SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
-                  </Select>
-                </div>
-              )}
-              <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-                <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
-                <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
-                <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
-                <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
-                  {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
-                </Select>
-                <Input label="Breed" value={form.breed} onChange={e => setForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
-                <Input label="Color" value={form.color} onChange={e => setForm(p => ({ ...p, color: e.target.value }))} placeholder="e.g. Black, Red Baldy, Roan" />
-                {PASTURE_SPECIES.includes(form.species) && (
-                  <PastureCombo label="Current Pasture (optional)" value={form.currentPasture} onChange={v => setForm(p => ({ ...p, currentPasture: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-add-animal" />
-                )}
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", gridColumn: "1 / -1" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
-                    <input type="radio" name="addAcquisitionType" checked={form.acquisitionType === "Home Raised"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
-                    Home Raised
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
-                    <input type="radio" name="addAcquisitionType" checked={form.acquisitionType === "Purchased"} onChange={() => setForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
-                    Purchased
-                  </label>
-                </div>
-                {form.acquisitionType === "Purchased" && (
-                  <>
-                    <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
-                    <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
-                    {setContacts ? <ContactPicker label="Purchased from (seller)" value={form.purchasedFrom} onChange={v => setForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
-                  </>
-                )}
-              </div>
-              {form.species === "Horse" && (
-                <div style={{ marginBottom: "14px", padding: "14px", background: "var(--cream)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)" }}>
-                  <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Horse details</div>
-                  <div className="hl-form-grid-3" style={{ marginBottom: "0" }}>
-                    <Input label="Height (hands)" value={form.heightHands} onChange={e => setForm(p => ({ ...p, heightHands: e.target.value }))} placeholder="e.g. 15.2" />
-                    <Select label="Discipline" value={form.discipline} onChange={e => setForm(p => ({ ...p, discipline: e.target.value }))}>
-                      <option value="">— Select —</option>
-                      {HORSE_DISCIPLINES.map(d => <option key={d} value={d}>{d}</option>)}
-                    </Select>
-                    <Input label="Registration number" value={form.registrationNumber} onChange={e => setForm(p => ({ ...p, registrationNumber: e.target.value }))} placeholder="e.g. AQHA 123456" />
-                    <Input label="Markings" value={form.markings} onChange={e => setForm(p => ({ ...p, markings: e.target.value }))} placeholder="e.g. Star, sock LF" style={{ gridColumn: "1 / -1" }} />
-                  </div>
-                </div>
-              )}
-              <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
-              {(() => {
-                const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && !an.deceased && !an.sale);
-                const malesSameSpecies = getBreedingMalesForSpecies(animals, form.species);
-                const damOptions = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
-                const sireOptions = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
-                return (
-                  <div style={{ marginTop: "18px", paddingTop: "18px", borderTop: "1px solid var(--cream2)" }}>
-                    <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "12px" }}>Lineage (optional)</div>
-                    <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px" }}>
-                      <input type="checkbox" checked={form.damNotInHerd} onChange={e => setForm(p => ({ ...p, damNotInHerd: e.target.checked, ...(e.target.checked ? { damId: "", damSearch: "" } : { damName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
-                      <span>Dam not in my herd</span>
-                    </label>
-                    {!form.damNotInHerd ? (
-                      <div style={{ marginBottom: "14px" }}>
-                        <Input label="Search dams" value={form.damSearch || ""} onChange={e => setForm(p => ({ ...p, damSearch: e.target.value }))} placeholder="Type to filter..." />
-                        <Select label="Dam" value={form.damId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, damId: "", damName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, damId: v, damName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
-                          <option value="">— None —</option>
-                          {damOptions.map(f => <option key={f.id} value={f.id}>{getAnimalName(f)}{f.tag ? ` #${f.tag}` : ""}</option>)}
-                        </Select>
-                      </div>
-                    ) : (
-                      <div style={{ marginBottom: "14px" }}>
-                        <Input label="Dam name" value={form.damName || ""} onChange={e => setForm(p => ({ ...p, damName: e.target.value }))} placeholder="e.g. Unknown or name" />
-                      </div>
-                    )}
-                    <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px" }}>
-                      <input type="checkbox" checked={form.sireNotInHerd} onChange={e => setForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireId: "", sireSearch: "" } : { sireName: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
-                      <span>Sire not in my herd (outside sire)</span>
-                    </label>
-                    {!form.sireNotInHerd ? (
-                      <div style={{ marginBottom: "14px" }}>
-                        <Input label="Search sires" value={form.sireSearch || ""} onChange={e => setForm(p => ({ ...p, sireSearch: e.target.value }))} placeholder="Type to filter..." />
-                        <Select label="Sire" value={form.sireId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, sireId: "", sireName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, sireId: v, sireName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
-                          <option value="">— None —</option>
-                          {sireOptions.map(m => <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>)}
-                        </Select>
-                      </div>
-                    ) : (
-                      <div style={{ marginBottom: "14px" }}>
-                        <Input label="Sire name" value={form.sireName || ""} onChange={e => setForm(p => ({ ...p, sireName: e.target.value }))} placeholder="e.g. Unknown or name" />
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-              <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-                <Btn onClick={add}>Register</Btn>
-                <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
-              </div>
-              {showDuplicateConfirm && duplicateConfirmExisting && (
-                <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => { setShowDuplicateConfirm(false); setDuplicateConfirmExisting(null); }}>
-                  <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "24px", maxWidth: "400px", boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--cream2)" }} onClick={e => e.stopPropagation()}>
-                    <p style={{ fontSize: "15px", color: "var(--ink2)", marginBottom: "20px", lineHeight: 1.5 }}>
-                      An animal named <strong>{getAnimalName(duplicateConfirmExisting)}</strong> or with tag <strong>{duplicateConfirmExisting.tag ? `#${duplicateConfirmExisting.tag}` : "—"}</strong> already exists in your herd. Are you sure you want to add another?
-                    </p>
-                    <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
-                      <Btn variant="secondary" onClick={() => { setShowDuplicateConfirm(false); setDuplicateConfirmExisting(null); }}>Cancel</Btn>
-                      <Btn onClick={addSubmit}>Continue</Btn>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "16px" }}>Create multiple animals with the same species, breed, sex, and optional DOB. Tag numbers will auto-increment from the starting tag.</p>
-              <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-                <Select label="Species" value={bulkRegisterForm.species} onChange={e => {
-                  const newSpecies = e.target.value;
-                  const opts = getSexOptions(newSpecies);
-                  setBulkRegisterForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
-                }}>
-                  {Object.keys(SPECIES).map(s => <option key={s}>{s}</option>)}
-                </Select>
-                <Select label="Sex" value={bulkRegisterForm.sex} onChange={e => setBulkRegisterForm(p => ({ ...p, sex: e.target.value }))}>
-                  {getSexOptions(bulkRegisterForm.species).map(opt => <option key={opt}>{opt}</option>)}
-                </Select>
-                <Input label="Breed" value={bulkRegisterForm.breed} onChange={e => setBulkRegisterForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
-                <Input label="Date of birth (optional)" type="date" value={bulkRegisterForm.dob} onChange={e => setBulkRegisterForm(p => ({ ...p, dob: e.target.value }))} />
-                <Input label="Starting tag number" value={bulkRegisterForm.startingTag} onChange={e => setBulkRegisterForm(p => ({ ...p, startingTag: e.target.value }))} placeholder="e.g. 1001" />
-                <Input label="Number of animals" type="number" min={1} value={bulkRegisterForm.count} onChange={e => setBulkRegisterForm(p => ({ ...p, count: e.target.value }))} placeholder="e.g. 10" />
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", gridColumn: "1 / -1" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 500, color: "var(--ink2)" }}>Acquisition</span>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
-                    <input type="radio" name="bulkAcquisitionType" checked={bulkRegisterForm.acquisitionType === "Home Raised"} onChange={() => setBulkRegisterForm(p => ({ ...p, acquisitionType: "Home Raised" }))} style={{ accentColor: "var(--green)" }} />
-                    Home Raised
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
-                    <input type="radio" name="bulkAcquisitionType" checked={bulkRegisterForm.acquisitionType === "Purchased"} onChange={() => setBulkRegisterForm(p => ({ ...p, acquisitionType: "Purchased" }))} style={{ accentColor: "var(--green)" }} />
-                    Purchased
-                  </label>
-                </div>
-                {bulkRegisterForm.acquisitionType === "Purchased" && (
-                  <>
-                    <Input label="Purchase price per head ($)" type="number" min="0" step="0.01" value={bulkRegisterForm.purchasePrice} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
-                    <Input label="Purchase date" type="date" value={bulkRegisterForm.purchaseDate} onChange={e => setBulkRegisterForm(p => ({ ...p, purchaseDate: e.target.value }))} />
-                    {setContacts ? <ContactPicker label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={v => setBulkRegisterForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
-                  </>
-                )}
-              </div>
-              <Textarea label="Notes" value={bulkRegisterForm.notes} onChange={e => setBulkRegisterForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Applied to all animals (optional)" style={{ marginBottom: "14px" }} />
-              <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
-                <Btn onClick={submitBulkRegister} disabled={!bulkRegisterForm.startingTag?.trim() || parseInt(bulkRegisterForm.count, 10) < 1}>Register {Math.max(0, parseInt(bulkRegisterForm.count, 10) || 0)} animals</Btn>
-                <Btn variant="secondary" onClick={() => setShowAdd(false)}>Cancel</Btn>
-              </div>
-            </>
-          )}
-        </Card>
+        <RegisterAnimalForm
+          key={registerFormKey}
+          defaultSpecies={defaultSpecies}
+          initialSingleValues={registerInitialSingle}
+          animals={animals}
+          pastures={pastures}
+          contacts={contacts}
+          setContacts={setContacts}
+          setNotes={setNotes}
+          onRegister={(payload) => {
+            if (payload.kind === "single") setAnimals(p => [...p, payload.animal]);
+            else setAnimals(p => [...p, ...payload.animals]);
+          }}
+          onCancel={() => setShowAdd(false)}
+        />
       )}
 
       {!sorted.length && (

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { Input, Btn } from "./ui.jsx";
 
 /** Dropdown of contacts with type-to-search + optional "Add New Contact" inline. value/onChange for single field; onSelectContact(contact) for buyer (sets name + contact). */
-export default function ContactPicker({ label, value, onChange, contacts = [], setContacts, placeholder = "Search or type name", onSelectContact }) {
+export default function ContactPicker({ label, value, onChange, onBlur, contacts = [], setContacts, placeholder = "Search or type name", onSelectContact }) {
   const [open, setOpen] = useState(false);
   const [addNew, setAddNew] = useState(false);
   const [newContact, setNewContact] = useState({ name: "", ranchCompany: "", phone: "", email: "", notes: "" });
@@ -50,6 +50,7 @@ export default function ContactPicker({ label, value, onChange, contacts = [], s
         type="text"
         value={value}
         onChange={e => { onChange(e.target.value); setOpen(true); }}
+        onBlur={onBlur}
         onFocus={() => setOpen(true)}
         placeholder={placeholder}
         className="hl-input"

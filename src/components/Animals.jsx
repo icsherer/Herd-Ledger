@@ -15,13 +15,22 @@ import {
   HORSE_HEALTH_EXPENSE_CATEGORY,
   REGISTER_OTHER_SPECIES,
   REGISTER_SPECIES_TABS,
+  BREEDING_MALE_SEX_TERMS,
 } from "../lib/constants.js";
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, dueDateRangeFromSingleDate, displaySex, fmtDueRange, fmtExposure, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, getBreedingMalesForSpecies, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate, checkInbreedingByParentIds } from "../lib/helpers.js";
+import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffspringTerm, getCalculatedWeaningDate, getExpectedWeaningDate, getHealthStatus, getAnimalName, fmt, ageFromDob, getAgeInMonths, getAgeBasedSexTerm, getCanonicalPastureNames, resolvePastureName, pastureNameEq, getBreedingMaleInPasture, getEligibleFemalesForRunningWithBull, getRunningWithMaleForFemale, createMovementJournalEntry, compressImageToBase64, isFemale, isMale, dueDate, dueDateRangeFromSingleDate, displaySex, fmtDueRange, fmtExposure, progress, breedingDateForProgress, daysUntilDue, birthDateWithinGestationWindow, breedingDateFromDelivery, isBreedingMale, feederDaysOnFeed, estimatedWeightFromADG, getLatestWeightForAnimal, getADGDefault, getNextExpectedHeatDate, checkInbreedingByParentIds } from "../lib/helpers.js";
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 import ContactPicker from "./ContactPicker.jsx";
 import { supabase } from "../supabase";
+
+/** Intact males of the species for sire dropdowns (edit / register / breeding / offspring). No age or DOB requirement — differs from getBreedingMalesForSpecies → isBreedingMale used elsewhere. */
+function getSireDropdownMalesForSpecies(animals, species) {
+  if (!species) return [];
+  return (animals || []).filter(
+    a => !a.deceased && !a.sale && a.species === species && BREEDING_MALE_SEX_TERMS.includes(a.sex)
+  );
+}
 
 export function animalToEditInitialValues(a) {
   const species = a.species || "Cattle";
@@ -146,7 +155,7 @@ export function EditAnimalForm({
   }
 
   const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && an.id !== editingAnimalId && !an.deceased && !an.sale);
-  const malesSameSpecies = getBreedingMalesForSpecies(animals, form.species).filter(m => m.id !== editingAnimalId);
+  const malesSameSpecies = getSireDropdownMalesForSpecies(animals, form.species).filter(m => m.id !== editingAnimalId);
   const damOptionsEdit = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
   const sireOptionsEdit = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
 
@@ -378,7 +387,7 @@ export function RegisterAnimalForm({
   }
 
   const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && !an.deceased && !an.sale);
-  const malesSameSpecies = getBreedingMalesForSpecies(animals, form.species);
+  const malesSameSpecies = getSireDropdownMalesForSpecies(animals, form.species);
   const damOptions = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
   const sireOptions = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
 
@@ -1868,7 +1877,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       setHeatForm({ observedDate: "", intensity: "Moderate", notes: "" });
     }
 
-    const breedingSireOptions = getBreedingMalesForSpecies(animals, a.species);
+    const breedingSireOptions = getSireDropdownMalesForSpecies(animals, a.species);
     const heatCyclesSorted = [...(a.heatCycles || [])].sort((x, y) => (y.observedDate || "").localeCompare(x.observedDate || ""));
     const nextExpectedHeat = getNextExpectedHeatDate(a);
     const gestationsForLinking = (gestations || []).filter(g => g.animalId === a.id);
@@ -3789,7 +3798,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                               style={{ width: "100%" }}
                             >
                               <option value="">— Select sire —</option>
-                              {(getBreedingMalesForSpecies(animals, "Horse") || []).map(st => (
+                              {(getSireDropdownMalesForSpecies(animals, "Horse") || []).map(st => (
                                 <option key={st.id} value={st.id}>{getAnimalName(st)}{st.tag ? ` #${st.tag}` : ""}</option>
                               ))}
                               <option value="outside">Outside stallion (not in herd)</option>

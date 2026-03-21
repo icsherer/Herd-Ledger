@@ -23,6 +23,8 @@ import { getSexOptions, getOffspringSexOptions, getOffspringDefaultSex, getOffsp
 import { Card, Badge, Btn, Input, Select, Textarea, PastureCombo, SectionTitle } from "./ui.jsx";
 import ContactPicker from "./ContactPicker.jsx";
 import { supabase } from "../supabase";
+import { sanitizeDate, sanitizeBirthDate, isValidDate, fixBreedingDueTwoDigitYear, DATE_WARN_INVALID } from "../lib/dateUtils.js";
+import DateInputWithValidation from "./DateInputWithValidation.jsx";
 
 /** Intact males of the species for sire dropdowns (edit / register / breeding / offspring). No age or DOB requirement — differs from getBreedingMalesForSpecies → isBreedingMale used elsewhere. */
 function getSireDropdownMalesForSpecies(animals, species) {
@@ -120,9 +122,9 @@ export function EditAnimalForm({
     const purchasePriceNum = form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined;
     const opts = getSexOptions(form.species);
     const validSex = (form.sex && opts.includes(form.sex)) ? form.sex : (current.sex && opts.includes(current.sex) ? current.sex : opts[0]);
-    const dob = (form.dob || "").trim() || undefined;
+    const dob = sanitizeBirthDate(form.dob) || undefined;
     const months = getAgeInMonths(dob);
-    const targetWeaningDate = (months != null && months >= 12) ? undefined : ((form.targetWeaningDate || "").trim() || undefined);
+    const targetWeaningDate = (months != null && months >= 12) ? undefined : (sanitizeDate(form.targetWeaningDate) || undefined);
     const updated = {
       ...current,
       name: (form.name || "").trim() || undefined,
@@ -135,7 +137,7 @@ export function EditAnimalForm({
       color: (form.color || "").trim() || undefined,
       acquisitionType: form.acquisitionType || "Home Raised",
       purchasePrice: purchasePriceNum,
-      purchaseDate: (form.purchaseDate || "").trim() || undefined,
+      purchaseDate: sanitizeDate(form.purchaseDate) || undefined,
       purchasedFrom: (form.purchasedFrom || "").trim() || undefined,
       targetWeaningDate,
       damId: form.damNotInHerd ? undefined : (form.damId || undefined),
@@ -165,7 +167,7 @@ export function EditAnimalForm({
       <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
         <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
         <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
-        <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
+        <DateInputWithValidation label="Date of Birth" value={form.dob} onValueChange={v => setForm(p => ({ ...p, dob: v }))} birthDate />
         <Select label="Species" value={form.species} onChange={e => {
           const newSpecies = e.target.value;
           const opts = getSexOptions(newSpecies);
@@ -192,7 +194,7 @@ export function EditAnimalForm({
         {form.acquisitionType === "Purchased" && (
           <>
             <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
-            <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+            <DateInputWithValidation label="Purchase date" value={form.purchaseDate} onValueChange={v => setForm(p => ({ ...p, purchaseDate: v }))} />
             {setContacts ? <ContactPicker label="Purchased from (seller)" value={form.purchasedFrom} onChange={v => setForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
           </>
         )}
@@ -288,15 +290,29 @@ export function RegisterAnimalForm({
 
   function addSubmit() {
     if (!form.name) return;
-    const { currentPasture, purchasePrice: _pp, damSearch: _ds, sireSearch: _ss, damNotInHerd: _dnh, sireNotInHerd: _snh, ...rest } = form;
+    const {
+      currentPasture,
+      purchasePrice: _pp,
+      damSearch: _ds,
+      sireSearch: _ss,
+      damNotInHerd: _dnh,
+      sireNotInHerd: _snh,
+      dob: _dobF,
+      purchaseDate: _pdF,
+      targetWeaningDate: _twF,
+      ...rest
+    } = form;
+    const dobSan = sanitizeBirthDate(form.dob) || undefined;
+    const monthsReg = getAgeInMonths(dobSan);
     const newAnimal = {
       ...rest,
       id: Date.now().toString(),
       acquisitionType: form.acquisitionType || "Home Raised",
       purchasePrice: form.purchasePrice?.trim() ? parseFloat(form.purchasePrice) : undefined,
-      purchaseDate: form.purchaseDate?.trim() || undefined,
+      purchaseDate: sanitizeDate(form.purchaseDate) || undefined,
       purchasedFrom: form.purchasedFrom?.trim() || undefined,
-      targetWeaningDate: form.targetWeaningDate?.trim() || undefined,
+      dob: dobSan,
+      targetWeaningDate: (monthsReg != null && monthsReg >= 12) ? undefined : (sanitizeDate(form.targetWeaningDate) || undefined),
       damId: form.damNotInHerd ? undefined : (form.damId || undefined),
       damName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
       motherId: form.damNotInHerd ? undefined : (form.damId || undefined),
@@ -347,7 +363,7 @@ export function RegisterAnimalForm({
     const sp = bulkRegisterForm.species || "Cattle";
     const opts = getSexOptions(sp);
     const sex = opts.includes(bulkRegisterForm.sex) ? bulkRegisterForm.sex : opts[0];
-    const dob = bulkRegisterForm.dob?.trim() || undefined;
+    const dob = sanitizeBirthDate(bulkRegisterForm.dob) || undefined;
     const notes = bulkRegisterForm.notes?.trim() || undefined;
     const breed = bulkRegisterForm.breed?.trim() || undefined;
     const newAnimals = [];
@@ -364,7 +380,7 @@ export function RegisterAnimalForm({
         name: undefined,
         acquisitionType: bulkRegisterForm.acquisitionType || "Home Raised",
         purchasePrice: bulkRegisterForm.purchasePrice?.trim() ? parseFloat(bulkRegisterForm.purchasePrice) : undefined,
-        purchaseDate: bulkRegisterForm.purchaseDate?.trim() || undefined,
+        purchaseDate: sanitizeDate(bulkRegisterForm.purchaseDate) || undefined,
         purchasedFrom: bulkRegisterForm.purchasedFrom?.trim() || undefined,
       });
     }
@@ -441,7 +457,7 @@ export function RegisterAnimalForm({
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
             <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
-            <Input label="Date of Birth" type="date" value={form.dob} onChange={e => setForm(p => ({ ...p, dob: e.target.value }))} />
+            <DateInputWithValidation label="Date of Birth" value={form.dob} onValueChange={v => setForm(p => ({ ...p, dob: v }))} birthDate />
             <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
               {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
             </Select>
@@ -464,7 +480,7 @@ export function RegisterAnimalForm({
             {form.acquisitionType === "Purchased" && (
               <>
                 <Input label="Purchase price ($)" type="number" min="0" step="0.01" value={form.purchasePrice} onChange={e => setForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
-                <Input label="Purchase date" type="date" value={form.purchaseDate} onChange={e => setForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                <DateInputWithValidation label="Purchase date" value={form.purchaseDate} onValueChange={v => setForm(p => ({ ...p, purchaseDate: v }))} />
                 {setContacts ? <ContactPicker label="Purchased from (seller)" value={form.purchasedFrom} onChange={v => setForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={form.purchasedFrom} onChange={e => setForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
               </>
             )}
@@ -554,7 +570,7 @@ export function RegisterAnimalForm({
               {getSexOptions(bulkRegisterForm.species).map(opt => <option key={opt}>{opt}</option>)}
             </Select>
             <Input label="Breed" value={bulkRegisterForm.breed} onChange={e => setBulkRegisterForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" />
-            <Input label="Date of birth (optional)" type="date" value={bulkRegisterForm.dob} onChange={e => setBulkRegisterForm(p => ({ ...p, dob: e.target.value }))} />
+            <DateInputWithValidation label="Date of birth (optional)" value={bulkRegisterForm.dob} onValueChange={v => setBulkRegisterForm(p => ({ ...p, dob: v }))} birthDate />
             <Input label="Starting tag number" value={bulkRegisterForm.startingTag} onChange={e => setBulkRegisterForm(p => ({ ...p, startingTag: e.target.value }))} placeholder="e.g. 1001" />
             <Input label="Number of animals" type="number" min={1} value={bulkRegisterForm.count} onChange={e => setBulkRegisterForm(p => ({ ...p, count: e.target.value }))} placeholder="e.g. 10" />
             <div style={{ display: "flex", alignItems: "center", gap: "12px", gridColumn: "1 / -1" }}>
@@ -571,7 +587,7 @@ export function RegisterAnimalForm({
             {bulkRegisterForm.acquisitionType === "Purchased" && (
               <>
                 <Input label="Purchase price per head ($)" type="number" min="0" step="0.01" value={bulkRegisterForm.purchasePrice} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasePrice: e.target.value }))} placeholder="e.g. 850.00" />
-                <Input label="Purchase date" type="date" value={bulkRegisterForm.purchaseDate} onChange={e => setBulkRegisterForm(p => ({ ...p, purchaseDate: e.target.value }))} />
+                <DateInputWithValidation label="Purchase date" value={bulkRegisterForm.purchaseDate} onValueChange={v => setBulkRegisterForm(p => ({ ...p, purchaseDate: v }))} />
                 {setContacts ? <ContactPicker label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={v => setBulkRegisterForm(p => ({ ...p, purchasedFrom: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" /> : <Input label="Purchased from (seller)" value={bulkRegisterForm.purchasedFrom} onChange={e => setBulkRegisterForm(p => ({ ...p, purchasedFrom: e.target.value }))} placeholder="e.g. Smith Livestock" />}
               </>
             )}
@@ -1338,7 +1354,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const stillborn = !!offspringForm.stillborn;
       const motherSpecies = a.species;
       const effectiveSex = (offspringForm.sex && String(offspringForm.sex).trim()) ? offspringForm.sex : getOffspringDefaultSex(motherSpecies);
-      const weaningDateVal = motherSpecies === "Horse" ? undefined : (() => { const m = getAgeInMonths(offspringForm.dob); if (m != null && m >= 12) return undefined; return offspringForm.weaningDate || undefined; })();
+      const dobOff = sanitizeBirthDate(offspringForm.dob) || undefined;
+      const weanSan = sanitizeDate(offspringForm.weaningDate) || undefined;
+      const weaningDateVal = motherSpecies === "Horse" ? undefined : (() => { const m = getAgeInMonths(dobOff); if (m != null && m >= 12) return undefined; return weanSan || undefined; })();
       const foalSireId = motherSpecies === "Horse" && offspringForm.sireId && offspringForm.sireId !== "outside" ? offspringForm.sireId : undefined;
       const foalSireName = motherSpecies === "Horse" ? (offspringForm.sireId === "outside" ? (offspringForm.sireName || "").trim() || undefined : (foalSireId ? getAnimalName((animals || []).find(an => an.id === foalSireId)) : undefined)) : undefined;
       const rec = {
@@ -1349,7 +1367,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         sex: effectiveSex,
         species: motherSpecies,
         birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
-        dob: offspringForm.dob || undefined,
+        dob: dobOff,
         weaningDate: weaningDateVal,
         stillborn,
         createdAt: isEdit ? (offspringForMother.find(c => c.id === editingOffspringId)?.createdAt) : new Date().toISOString(),
@@ -1378,7 +1396,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           tag: offspringForm.tag || undefined,
           sex: effectiveSex,
           species: motherSpecies,
-          dob: offspringForm.dob || undefined,
+          dob: dobOff,
           breed: a.breed || undefined,
           notes: undefined,
           motherId: a.id,
@@ -1396,7 +1414,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         }
       }
       if (rec.dob) {
-        const calfWeaningDate = motherSpecies === "Horse" ? undefined : (() => { const m = getAgeInMonths(offspringForm.dob); if (m != null && m >= 12) return undefined; return offspringForm.weaningDate || undefined; })();
+        const calfWeaningDate = motherSpecies === "Horse" ? undefined : (() => { const m = getAgeInMonths(dobOff); if (m != null && m >= 12) return undefined; return weanSan || undefined; })();
         const calfData = {
           name: offspringForm.name || undefined,
           tag: offspringForm.tag || undefined,
@@ -2161,9 +2179,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
                       <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Vet Work" ? "Edit Vet Visit" : "Add Vet Visit"}</div>
                       <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
-                        <Input label="Date" type="date" value={horseHealthForm.vetDate} onChange={e => setHorseHealthForm(p => ({ ...p, vetDate: e.target.value }))} />
+                        <DateInputWithValidation label="Date" value={horseHealthForm.vetDate} onValueChange={v => setHorseHealthForm(p => ({ ...p, vetDate: v }))} />
                         <Input label="Vet name" value={horseHealthForm.vetName} onChange={e => setHorseHealthForm(p => ({ ...p, vetName: e.target.value }))} placeholder="e.g. Dr. Smith" />
-                        <Input label="Next appointment" type="date" value={horseHealthForm.vetNextAppointment} onChange={e => setHorseHealthForm(p => ({ ...p, vetNextAppointment: e.target.value }))} />
+                        <DateInputWithValidation label="Next appointment" value={horseHealthForm.vetNextAppointment} onValueChange={v => setHorseHealthForm(p => ({ ...p, vetNextAppointment: v }))} breedingDueTwoDigitYear />
                         <Input label="Cost of visit ($)" type="number" min="0" step="0.01" value={horseHealthForm.vetCost} onChange={e => setHorseHealthForm(p => ({ ...p, vetCost: e.target.value }))} placeholder="Optional" />
                       </div>
                       <Textarea label="Procedure" value={horseHealthForm.vetProcedure} onChange={e => setHorseHealthForm(p => ({ ...p, vetProcedure: e.target.value }))} rows={2} placeholder="Procedure or notes" />
@@ -2226,13 +2244,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
                       <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Farrier" ? "Edit Farrier Visit" : "Add Farrier Visit"}</div>
                       <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
-                        <Input label="Date" type="date" value={horseHealthForm.farrierDate} onChange={e => {
-                          const d = e.target.value;
-                          setHorseHealthForm(p => ({ ...p, farrierDate: d, farrierNextAppointment: addDays(d, 49) || p.farrierNextAppointment }));
-                        }} />
+                        <DateInputWithValidation label="Date" value={horseHealthForm.farrierDate} onValueChange={d => setHorseHealthForm(p => ({ ...p, farrierDate: d, farrierNextAppointment: addDays(d, 49) || p.farrierNextAppointment }))} />
                         <Input label="Farrier name" value={horseHealthForm.farrierName} onChange={e => setHorseHealthForm(p => ({ ...p, farrierName: e.target.value }))} placeholder="e.g. John Smith" />
                         <Input label="Service type" value={horseHealthForm.farrierServiceType} onChange={e => setHorseHealthForm(p => ({ ...p, farrierServiceType: e.target.value }))} placeholder="e.g. Trim, Shoes" />
-                        <Input label="Next appointment" type="date" value={horseHealthForm.farrierNextAppointment} onChange={e => setHorseHealthForm(p => ({ ...p, farrierNextAppointment: e.target.value }))} style={{ gridColumn: "1 / -1" }} />
+                        <DateInputWithValidation label="Next appointment" value={horseHealthForm.farrierNextAppointment} onValueChange={v => setHorseHealthForm(p => ({ ...p, farrierNextAppointment: v }))} style={{ gridColumn: "1 / -1" }} breedingDueTwoDigitYear />
                         <Input label="Cost per visit ($)" type="number" min="0" step="0.01" value={horseHealthForm.farrierCost} onChange={e => setHorseHealthForm(p => ({ ...p, farrierCost: e.target.value }))} placeholder="Optional" />
                       </div>
                       <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
@@ -2295,10 +2310,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
                       <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Worming" ? "Edit Worming" : "Add Worming"}</div>
                       <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
-                        <Input label="Date" type="date" value={horseHealthForm.wormingDate} onChange={e => setHorseHealthForm(p => ({ ...p, wormingDate: e.target.value }))} />
+                        <DateInputWithValidation label="Date" value={horseHealthForm.wormingDate} onValueChange={v => setHorseHealthForm(p => ({ ...p, wormingDate: v }))} />
                         <Input label="Product" value={horseHealthForm.wormingProduct} onChange={e => setHorseHealthForm(p => ({ ...p, wormingProduct: e.target.value }))} placeholder="e.g. Ivermectin" />
                         <Input label="Dosage" value={horseHealthForm.wormingDosage} onChange={e => setHorseHealthForm(p => ({ ...p, wormingDosage: e.target.value }))} placeholder="e.g. 1 tube" />
-                        <Input label="Next worming date" type="date" value={horseHealthForm.wormingNextDate} onChange={e => setHorseHealthForm(p => ({ ...p, wormingNextDate: e.target.value }))} style={{ gridColumn: "1 / -1" }} />
+                        <DateInputWithValidation label="Next worming date" value={horseHealthForm.wormingNextDate} onValueChange={v => setHorseHealthForm(p => ({ ...p, wormingNextDate: v }))} style={{ gridColumn: "1 / -1" }} breedingDueTwoDigitYear />
                         <Input label="Cost per treatment ($)" type="number" min="0" step="0.01" value={horseHealthForm.wormingCost} onChange={e => setHorseHealthForm(p => ({ ...p, wormingCost: e.target.value }))} placeholder="Optional" />
                       </div>
                       <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
@@ -2363,7 +2378,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
                       <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Supplements" ? "Edit Supplement" : "Add Supplement"}</div>
                       <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
-                        <Input label="Date" type="date" value={horseHealthForm.suppDate} onChange={e => setHorseHealthForm(p => ({ ...p, suppDate: e.target.value }))} />
+                        <DateInputWithValidation label="Date" value={horseHealthForm.suppDate} onValueChange={v => setHorseHealthForm(p => ({ ...p, suppDate: v }))} />
                         <Input label="Name" value={horseHealthForm.suppName} onChange={e => setHorseHealthForm(p => ({ ...p, suppName: e.target.value }))} placeholder="e.g. Joint supplement" />
                         <Input label="Dosage" value={horseHealthForm.suppDosage} onChange={e => setHorseHealthForm(p => ({ ...p, suppDosage: e.target.value }))} placeholder="e.g. 1 scoop daily" />
                         <div style={{ gridColumn: "1 / -1" }}>
@@ -2433,12 +2448,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <Card style={{ padding: "16px 18px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
                       <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingHorseHealth?.section === "Dental" ? "Edit Dental Visit" : "Add Dental Visit"}</div>
                       <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
-                        <Input label="Date" type="date" value={horseHealthForm.dentalDate} onChange={e => {
-                          const d = e.target.value;
-                          setHorseHealthForm(p => ({ ...p, dentalDate: d, dentalNextFloatDate: addDays(d, 365) || p.dentalNextFloatDate }));
-                        }} />
+                        <DateInputWithValidation label="Date" value={horseHealthForm.dentalDate} onValueChange={d => setHorseHealthForm(p => ({ ...p, dentalDate: d, dentalNextFloatDate: addDays(d, 365) || p.dentalNextFloatDate }))} />
                         <Input label="Provider" value={horseHealthForm.dentalProvider} onChange={e => setHorseHealthForm(p => ({ ...p, dentalProvider: e.target.value }))} placeholder="e.g. Equine dentist" />
-                        <Input label="Next float date" type="date" value={horseHealthForm.dentalNextFloatDate} onChange={e => setHorseHealthForm(p => ({ ...p, dentalNextFloatDate: e.target.value }))} style={{ gridColumn: "1 / -1" }} />
+                        <DateInputWithValidation label="Next float date" value={horseHealthForm.dentalNextFloatDate} onValueChange={v => setHorseHealthForm(p => ({ ...p, dentalNextFloatDate: v }))} style={{ gridColumn: "1 / -1" }} breedingDueTwoDigitYear />
                         <Input label="Cost per visit ($)" type="number" min="0" step="0.01" value={horseHealthForm.dentalCost} onChange={e => setHorseHealthForm(p => ({ ...p, dentalCost: e.target.value }))} placeholder="Optional" />
                       </div>
                       <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
@@ -2490,7 +2502,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         {CULL_REASONS.map(r => <option key={r} value={r}>{r}</option>)}
                       </Select>
                     </div>
-                    <Input label="Target cull date (optional)" type="date" value={cullForm.targetCullDate} onChange={e => setCullForm(p => ({ ...p, targetCullDate: e.target.value }))} />
+                    <DateInputWithValidation label="Target cull date (optional)" value={cullForm.targetCullDate} onValueChange={v => setCullForm(p => ({ ...p, targetCullDate: v }))} />
                   </div>
                   <div style={{ marginBottom: "12px" }}>
                     <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Notes</label>
@@ -2552,7 +2564,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Add Weight</div>
                   <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                     <Input label="Weight (lbs)" type="number" min="0" step="0.1" value={weightForm.weight} onChange={e => setWeightForm(p => ({ ...p, weight: e.target.value }))} placeholder="e.g. 850" />
-                    <Input label="Date" type="date" value={weightForm.date} onChange={e => setWeightForm(p => ({ ...p, date: e.target.value }))} />
+                    <DateInputWithValidation label="Date" value={weightForm.date} onValueChange={v => setWeightForm(p => ({ ...p, date: v }))} />
                     <Input label="Notes" value={weightForm.notes} onChange={e => setWeightForm(p => ({ ...p, notes: e.target.value }))} placeholder="Optional" />
                   </div>
                   <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
@@ -2590,13 +2602,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               ) : (
                 <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)" }}>
                   <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "8px" }}>Suggested weaning date (from DOB + species default). Adjust if needed.</div>
-                  <Input
+                  <DateInputWithValidation
                     label="Target weaning date"
-                    type="date"
                     value={a.targetWeaningDate || getCalculatedWeaningDate(a) || ""}
-                    onChange={e => {
-                      const v = e.target.value.trim() || undefined;
-                      const updated = { ...a, targetWeaningDate: v };
+                    onValueChange={v => {
+                      const updated = { ...a, targetWeaningDate: v.trim() || undefined };
                       setAnimals(prev => prev.map(an => (an.id === a.id ? updated : an)));
                       setViewing(updated);
                     }}
@@ -2699,7 +2709,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           <span style={{ fontWeight: 600, color: "var(--ink2)" }}>{item.label}</span>
                           {isEditingDate ? (
                             <span style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: "6px" }}>
-                              <input type="date" value={item.date || ""} onChange={e => updateUpcomingDate(e.target.value)} onBlur={() => setEditingUpcomingKey(null)} autoFocus style={{ fontSize: "13px", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius)" }} />
+                              <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
+                                <input type="date" value={item.date || ""} onChange={e => updateUpcomingDate(fixBreedingDueTwoDigitYear(e.target.value))} onBlur={() => setEditingUpcomingKey(null)} autoFocus style={{ fontSize: "13px", padding: "4px 8px", border: "1px solid var(--border)", borderRadius: "var(--radius)" }} />
+                                {String(item.date || "").trim() && !isValidDate(item.date) && (
+                                  <span style={{ fontSize: "11px", color: "#c0392b", maxWidth: "200px", textAlign: "right" }}>{DATE_WARN_INVALID}</span>
+                                )}
+                              </span>
                               <Btn size="sm" variant="ghost" onClick={() => setEditingUpcomingKey(null)}>Done</Btn>
                             </span>
                           ) : (
@@ -2729,7 +2744,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <Card style={{ padding: "18px 20px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
                   <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingTreatmentId ? "Edit Treatment" : "Add Treatment"}</div>
                   <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                    <Input label="Date *" type="date" value={treatmentForm.date} onChange={e => setTreatmentForm(p => ({ ...p, date: e.target.value }))} />
+                    <DateInputWithValidation label="Date *" value={treatmentForm.date} onValueChange={v => setTreatmentForm(p => ({ ...p, date: v }))} />
                     <Select label="Type *" value={treatmentForm.type} onChange={e => setTreatmentForm(p => ({ ...p, type: e.target.value }))}>
                       <option value="">— Select —</option>
                       {TREATMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -2838,8 +2853,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       {HORSE_DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                     </Select>
                     <Input label="Document name" value={documentForm.documentName} onChange={e => setDocumentForm(p => ({ ...p, documentName: e.target.value }))} placeholder="e.g. Coggins 2024 (optional)" />
-                    <Input label="Date issued" type="date" value={documentForm.dateIssued} onChange={e => setDocumentForm(p => ({ ...p, dateIssued: e.target.value }))} placeholder="Optional" />
-                    <Input label="Expiration date" type="date" value={documentForm.expirationDate} onChange={e => setDocumentForm(p => ({ ...p, expirationDate: e.target.value }))} placeholder="Optional" />
+                    <DateInputWithValidation label="Date issued" value={documentForm.dateIssued} onValueChange={v => setDocumentForm(p => ({ ...p, dateIssued: v }))} placeholder="Optional" />
+                    <DateInputWithValidation label="Expiration date" value={documentForm.expirationDate} onValueChange={v => setDocumentForm(p => ({ ...p, expirationDate: v }))} placeholder="Optional" />
                     <Input label="Issuing authority / Vet name" value={documentForm.issuingAuthority} onChange={e => setDocumentForm(p => ({ ...p, issuingAuthority: e.target.value }))} placeholder="Optional" />
                   </div>
                   <Textarea label="Notes" value={documentForm.notes} onChange={e => setDocumentForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="Optional notes" style={{ marginBottom: "12px" }} />
@@ -3187,7 +3202,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Move Animal</div>
                     <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                       <PastureCombo label="Pasture name" value={moveForm.pastureName} onChange={v => setMoveForm(p => ({ ...p, pastureName: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-profile" />
-                      <Input label="Move date" type="date" value={moveForm.dateMovedIn} onChange={e => setMoveForm(p => ({ ...p, dateMovedIn: e.target.value }))} />
+                      <DateInputWithValidation label="Move date" value={moveForm.dateMovedIn} onValueChange={v => setMoveForm(p => ({ ...p, dateMovedIn: v }))} />
                     </div>
                     <Textarea label="Notes (e.g. reason for move)" value={moveForm.notes} onChange={e => setMoveForm(p => ({ ...p, notes: e.target.value }))} rows={2} placeholder="e.g. Rotating to fresh grass, weaning" />
                     <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "12px" }}>
@@ -3274,11 +3289,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       {a.castration ? "Edit Castration" : "Log Castration"}
                     </div>
                     <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                      <Input
+                      <DateInputWithValidation
                         label="Date performed"
-                        type="date"
                         value={castrationForm.date}
-                        onChange={e => setCastrationForm(p => ({ ...p, date: e.target.value }))}
+                        onValueChange={v => setCastrationForm(p => ({ ...p, date: v }))}
                       />
                       <Select
                         label="Method"
@@ -3399,11 +3413,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         <div style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>Dam: <strong>{getAnimalName(a)}</strong> ({a.species})</div>
                         <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
                           {!breedingForm.runningWithBull ? (
-                            <Input label="Breeding Date *" type="date" value={breedingForm.breedingDate} onChange={e => setBreedingForm(p => ({ ...p, breedingDate: e.target.value }))} />
+                            <DateInputWithValidation label="Breeding Date *" breedingDueTwoDigitYear value={breedingForm.breedingDate} onValueChange={v => setBreedingForm(p => ({ ...p, breedingDate: v }))} />
                           ) : (
                             <>
-                              <Input label="Turn Out Date *" type="date" value={breedingForm.breedingDate} onChange={e => setBreedingForm(p => ({ ...p, breedingDate: e.target.value }))} />
-                              <Input label="Pull Date (optional)" type="date" value={breedingForm.breedingDateEnd} onChange={e => setBreedingForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
+                              <DateInputWithValidation label="Turn Out Date *" breedingDueTwoDigitYear value={breedingForm.breedingDate} onValueChange={v => setBreedingForm(p => ({ ...p, breedingDate: v }))} />
+                              <DateInputWithValidation label="Pull Date (optional)" breedingDueTwoDigitYear value={breedingForm.breedingDateEnd} onValueChange={v => setBreedingForm(p => ({ ...p, breedingDateEnd: v }))} />
                             </>
                           )}
                           {!breedingForm.sireNotInHerd ? (
@@ -3518,7 +3532,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       <Card style={{ padding: "24px", borderLeft: "4px solid var(--brass)", marginBottom: "16px" }}>
                         <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Log Heat</div>
                         <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-                          <Input label="Observed date *" type="date" value={heatForm.observedDate} onChange={e => setHeatForm(p => ({ ...p, observedDate: e.target.value }))} />
+                          <DateInputWithValidation label="Observed date *" value={heatForm.observedDate} onValueChange={v => setHeatForm(p => ({ ...p, observedDate: v }))} />
                           <Select label="Intensity" value={heatForm.intensity} onChange={e => setHeatForm(p => ({ ...p, intensity: e.target.value }))}>
                             <option value="Strong">Strong</option>
                             <option value="Moderate">Moderate</option>
@@ -3774,18 +3788,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         onChange={e => setOffspringForm(p => ({ ...p, birthWeight: e.target.value }))}
                         placeholder="e.g. 85"
                       />
-                      <Input
+                      <DateInputWithValidation
                         label="Birthday"
-                        type="date"
+                        birthDate
                         value={offspringForm.dob}
-                        onChange={e => setOffspringForm(p => ({ ...p, dob: e.target.value }))}
+                        onValueChange={v => setOffspringForm(p => ({ ...p, dob: v }))}
                       />
                       {a.species !== "Horse" && (!editingOffspringId || getAgeInMonths(offspringForm.dob) == null || getAgeInMonths(offspringForm.dob) < 12) && (
-                      <Input
+                      <DateInputWithValidation
                         label="Target Weaning Date"
-                        type="date"
                         value={offspringForm.weaningDate}
-                        onChange={e => setOffspringForm(p => ({ ...p, weaningDate: e.target.value }))}
+                        onValueChange={v => setOffspringForm(p => ({ ...p, weaningDate: v }))}
                       />
                       )}
                       {a.species === "Horse" && (
@@ -3974,7 +3987,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         </div>
                       )}
                       <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                        <Input label="Date given" type="date" value={vaccinationForm.dateGiven} onChange={e => setVaccinationForm(p => ({ ...p, dateGiven: e.target.value }))} />
+                        <DateInputWithValidation label="Date given" value={vaccinationForm.dateGiven} onValueChange={v => setVaccinationForm(p => ({ ...p, dateGiven: v }))} />
                         <Select label="Administered by" value={vaccinationForm.administeredBy} onChange={e => setVaccinationForm(p => ({ ...p, administeredBy: e.target.value }))}>
                           <option>Owner</option>
                           <option>Vet</option>
@@ -4003,8 +4016,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       )}
                       <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                         <Input label="Vaccine name" value={vaccinationForm.vaccineName} onChange={e => setVaccinationForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder={a.species === "Horse" ? "e.g. West Nile, Rabies" : "e.g. Clostridial 7-way"} list={a.species === "Horse" ? "equine-vaccine-list" : undefined} />
-                        <Input label="Date given" type="date" value={vaccinationForm.dateGiven} onChange={e => setVaccinationForm(p => ({ ...p, dateGiven: e.target.value }))} />
-                        <Input label="Next due / Booster date" type="date" value={vaccinationForm.nextDueDate} onChange={e => setVaccinationForm(p => ({ ...p, nextDueDate: e.target.value }))} />
+                        <DateInputWithValidation label="Date given" value={vaccinationForm.dateGiven} onValueChange={v => setVaccinationForm(p => ({ ...p, dateGiven: v }))} />
+                        <DateInputWithValidation label="Next due / Booster date" breedingDueTwoDigitYear value={vaccinationForm.nextDueDate} onValueChange={v => setVaccinationForm(p => ({ ...p, nextDueDate: v }))} />
                         <Input label="Dosage" value={vaccinationForm.dosage} onChange={e => setVaccinationForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 2 mL" />
                         <Select label="Route" value={vaccinationForm.route} onChange={e => setVaccinationForm(p => ({ ...p, route: e.target.value }))}>
                           {VACCINE_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -4052,7 +4065,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <Card style={{ padding: "18px 20px", borderLeft: "3px solid var(--brass)" }}>
                   <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Mark as Sold</div>
                   <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                    <Input label="Date sold" type="date" value={saleForm.dateSold} onChange={e => setSaleForm(p => ({ ...p, dateSold: e.target.value }))} />
+                    <DateInputWithValidation label="Date sold" value={saleForm.dateSold} onValueChange={v => setSaleForm(p => ({ ...p, dateSold: v }))} />
                     <Input label="Price per head ($)" type="number" min="0" step="0.01" value={saleForm.pricePerHead} onChange={e => setSaleForm(p => ({ ...p, pricePerHead: e.target.value }))} placeholder="e.g. 1250.00" />
                     {setContacts ? (
                       <ContactPicker label="Buyer" value={saleForm.buyerName} onChange={v => setSaleForm(p => ({ ...p, buyerName: v, buyerContact: p.buyerContact }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" onSelectContact={c => setSaleForm(p => ({ ...p, buyerName: c.name || "", buyerContact: [c.phone, c.email].filter(Boolean).join(" · ") || "" }))} />
@@ -4971,8 +4984,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             ) : (
               <>
                 <div className="hl-form-grid-3" style={{ marginBottom: "16px" }}>
-                  <Input label="Turn Out Date *" type="date" value={runningWithBullForm.startDate} onChange={e => setRunningWithBullForm(p => ({ ...p, startDate: e.target.value }))} />
-                  <Input label="Pull Date (optional)" type="date" value={runningWithBullForm.endDate} onChange={e => setRunningWithBullForm(p => ({ ...p, endDate: e.target.value }))} />
+                  <DateInputWithValidation label="Turn Out Date *" breedingDueTwoDigitYear value={runningWithBullForm.startDate} onValueChange={v => setRunningWithBullForm(p => ({ ...p, startDate: v }))} />
+                  <DateInputWithValidation label="Pull Date (optional)" breedingDueTwoDigitYear value={runningWithBullForm.endDate} onValueChange={v => setRunningWithBullForm(p => ({ ...p, endDate: v }))} />
                 </div>
                 <p style={{ fontSize: "14px", color: "var(--ink2)", marginBottom: "20px", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)" }}>
                   <strong>{runningWithBullPrompt.eligibleFemales.length}</strong> female{runningWithBullPrompt.eligibleFemales.length !== 1 ? "s" : ""} will receive breeding records{runningWithBullPrompt.eligibleFemales.length > 0 ? ": " : ""}
@@ -5018,7 +5031,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           )}
           {bulkProtocolMode ? (
             <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-              <Input label="Date given" type="date" value={bulkForm.dateGiven} onChange={e => setBulkForm(p => ({ ...p, dateGiven: e.target.value }))} />
+              <DateInputWithValidation label="Date given" value={bulkForm.dateGiven} onValueChange={v => setBulkForm(p => ({ ...p, dateGiven: v }))} />
               <Select label="Administered by" value={bulkForm.administeredBy} onChange={e => setBulkForm(p => ({ ...p, administeredBy: e.target.value }))}>
                 <option>Owner</option>
                 <option>Vet</option>
@@ -5027,8 +5040,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           ) : (
             <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
               <Input label="Vaccine name" value={bulkForm.vaccineName} onChange={e => setBulkForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder="e.g. Clostridial 7-way" />
-              <Input label="Date given" type="date" value={bulkForm.dateGiven} onChange={e => setBulkForm(p => ({ ...p, dateGiven: e.target.value }))} />
-              <Input label="Next due / Booster date" type="date" value={bulkForm.nextDueDate} onChange={e => setBulkForm(p => ({ ...p, nextDueDate: e.target.value }))} />
+              <DateInputWithValidation label="Date given" value={bulkForm.dateGiven} onValueChange={v => setBulkForm(p => ({ ...p, dateGiven: v }))} />
+              <DateInputWithValidation label="Next due / Booster date" breedingDueTwoDigitYear value={bulkForm.nextDueDate} onValueChange={v => setBulkForm(p => ({ ...p, nextDueDate: v }))} />
               <Input label="Dosage" value={bulkForm.dosage} onChange={e => setBulkForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 2 mL" />
               <Select label="Route" value={bulkForm.route} onChange={e => setBulkForm(p => ({ ...p, route: e.target.value }))}>
                 {VACCINE_ROUTES.map(r => <option key={r} value={r}>{r}</option>)}
@@ -5054,11 +5067,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Log Breeding ({selectedFemales.length} females)</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             {!bulkForm.runningWithBull ? (
-              <Input label="Breeding Date *" type="date" value={bulkForm.breedingDate} onChange={e => setBulkForm(p => ({ ...p, breedingDate: e.target.value }))} />
+              <DateInputWithValidation label="Breeding Date *" breedingDueTwoDigitYear value={bulkForm.breedingDate} onValueChange={v => setBulkForm(p => ({ ...p, breedingDate: v }))} />
             ) : (
               <>
-                <Input label="Turn Out Date *" type="date" value={bulkForm.breedingDate} onChange={e => setBulkForm(p => ({ ...p, breedingDate: e.target.value }))} />
-                <Input label="Pull Date (optional)" type="date" value={bulkForm.breedingDateEnd} onChange={e => setBulkForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
+                <DateInputWithValidation label="Turn Out Date *" breedingDueTwoDigitYear value={bulkForm.breedingDate} onValueChange={v => setBulkForm(p => ({ ...p, breedingDate: v }))} />
+                <DateInputWithValidation label="Pull Date (optional)" breedingDueTwoDigitYear value={bulkForm.breedingDateEnd} onValueChange={v => setBulkForm(p => ({ ...p, breedingDateEnd: v }))} />
               </>
             )}
             <Input label="Sire (optional)" value={bulkForm.sire} onChange={e => setBulkForm(p => ({ ...p, sire: e.target.value }))} placeholder="Sire name or tag" />
@@ -5080,7 +5093,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Move to Pasture ({selectedPastureEligible.length} Cattle/Horses)</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <PastureCombo label="Pasture name" value={bulkForm.pastureName} onChange={v => setBulkForm(p => ({ ...p, pastureName: v }))} options={getCanonicalPastureNames(animals, pastures)} placeholder="Select or type new pasture" id="pasture-list-bulk" />
-            <Input label="Move date" type="date" value={bulkForm.dateMovedIn} onChange={e => setBulkForm(p => ({ ...p, dateMovedIn: e.target.value }))} />
+            <DateInputWithValidation label="Move date" value={bulkForm.dateMovedIn} onValueChange={v => setBulkForm(p => ({ ...p, dateMovedIn: v }))} />
           </div>
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
@@ -5094,7 +5107,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Apply Treatment ({selectedIds.length} animals)</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-            <Input label="Date *" type="date" value={bulkForm.date} onChange={e => setBulkForm(p => ({ ...p, date: e.target.value }))} />
+            <DateInputWithValidation label="Date *" value={bulkForm.date} onValueChange={v => setBulkForm(p => ({ ...p, date: v }))} />
             <Select label="Type *" value={bulkForm.type} onChange={e => setBulkForm(p => ({ ...p, type: e.target.value }))}>
               <option value="">— Select —</option>
               {TREATMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -5120,7 +5133,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Castrate ({selectedMales.length} males)</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-            <Input label="Date performed" type="date" value={bulkForm.date} onChange={e => setBulkForm(p => ({ ...p, date: e.target.value }))} />
+            <DateInputWithValidation label="Date performed" value={bulkForm.date} onValueChange={v => setBulkForm(p => ({ ...p, date: v }))} />
             <Select label="Method" value={bulkForm.method} onChange={e => setBulkForm(p => ({ ...p, method: e.target.value }))}>
               <option>Banding</option>
               <option>Surgical</option>
@@ -5177,7 +5190,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       {bulkFormType === "purchaseDate" && (
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Edit Purchase Date ({selectedIds.length} animals)</div>
-          <Input label="Purchase date" type="date" value={bulkForm.purchaseDate} onChange={e => setBulkForm(p => ({ ...p, purchaseDate: e.target.value }))} style={{ marginBottom: "14px", maxWidth: "220px" }} />
+          <DateInputWithValidation label="Purchase date" value={bulkForm.purchaseDate} onValueChange={v => setBulkForm(p => ({ ...p, purchaseDate: v }))} style={{ marginBottom: "14px", maxWidth: "220px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkPurchaseDate}>Apply to {selectedIds.length} animals</Btn>
             <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>

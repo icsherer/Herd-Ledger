@@ -1,7 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
 import { SPECIES } from "../lib/constants.js";
 import { getAnimalName, fmt, dueDate, dueDateRangeFromSingleDate, progress, fmtDueRange, fmtExposure, daysUntilDue, isOverdue, formatGestationDaysRemaining, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies, getAgeBasedSexTerm } from "../lib/helpers.js";
+import { sanitizeDate, sanitizeBirthDate, todayLocalISODate } from "../lib/dateUtils.js";
 import { Card, Btn, Input, Select, Textarea, SectionTitle, ProgressBar, Badge } from "./ui.jsx";
+import DateInputWithValidation from "./DateInputWithValidation.jsx";
 
 const ACTIVE_SORT_OPTIONS = [
   { id: "dueSoonest", label: "Due Soonest" },
@@ -58,11 +60,6 @@ function sortActiveGestations(items, mode, animalsList) {
   }
 }
 
-function todayISO() {
-  const d = new Date();
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-}
-
 // ── Gestation ─────────────────────────────────────────────────────────────────
 export default function Gestation({ animals, setAnimals, gestations, setGestations, user, offspring, setOffspring, setTab, setViewingAnimal, deliveryGestureId, setDeliveryGestureId, setPromptAddOffspring }) {
   const animalsList = animals ?? [];
@@ -73,7 +70,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   const [deliveringId, setDeliveringId] = useState(null);
   const [editingCalfGestationId, setEditingCalfGestationId] = useState(null);
   const [deliveryForm, setDeliveryForm] = useState({
-    deliveryDate: todayISO(),
+    deliveryDate: todayLocalISODate(),
     outcome: "live",
     offspringCount: 1,
     birthWeight: "",
@@ -109,19 +106,19 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
       setDeliveringId(deliveryGestureId);
       setShowCalfForm(true);
       setEditingCalfGestationId(null);
-      setDeliveryForm({ deliveryDate: todayISO(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
+      setDeliveryForm({ deliveryDate: todayLocalISODate(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
       setDeliveryGestureId(null);
     }
   }, [deliveryGestureId, setDeliveryGestureId]);
 
   function add() {
-    const start = form.breedingDate;
+    const start = sanitizeDate(form.breedingDate);
     if (!form.animalId || !start) return;
     const animal = animalsList.find(a => a.id === form.animalId);
     const totalDays = SPECIES[animal.species]?.days || 150;
     const minDays = SPECIES[animal.species]?.minDays ?? totalDays;
     const maxDays = SPECIES[animal.species]?.maxDays ?? totalDays;
-    const end = (form.runningWithBull && (form.breedingDateEnd || "").trim()) ? form.breedingDateEnd : null;
+    const end = (form.runningWithBull && (form.breedingDateEnd || "").trim()) ? (sanitizeDate(form.breedingDateEnd) || null) : null;
     let dueStart, dueEnd;
     if (end) {
       dueStart = dueDate(start, totalDays);
@@ -157,7 +154,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     setEditingCalfGestationId(null);
     setDeliveringId(id);
     setShowCalfForm(true);
-    setDeliveryForm({ deliveryDate: todayISO(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
+    setDeliveryForm({ deliveryDate: todayLocalISODate(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
   }
 
   function saveDeliveryRecord(gestationId) {
@@ -166,7 +163,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     const mother = g ? animalsList.find(m => m.id === g.animalId) : null;
     const stillborn = deliveryForm.outcome === "stillborn";
     const count = Math.max(1, Math.min(20, parseInt(deliveryForm.offspringCount, 10) || 1));
-    const deliveryDate = deliveryForm.deliveryDate || todayISO();
+    const deliveryDate = sanitizeBirthDate(deliveryForm.deliveryDate) || todayLocalISODate();
     const deliveredAt = deliveryDate.includes("T") ? deliveryDate : deliveryDate + "T12:00:00.000Z";
     const birthWeightVal = deliveryForm.birthWeight.trim() ? parseFloat(deliveryForm.birthWeight) : undefined;
 
@@ -205,7 +202,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     setShowCalfForm(false);
     setDeliveringId(null);
     setEditingCalfGestationId(null);
-    setDeliveryForm({ deliveryDate: todayISO(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
+    setDeliveryForm({ deliveryDate: todayLocalISODate(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
 
     if (!stillborn && count > 0 && mother && setTab && setViewingAnimal && setPromptAddOffspring) {
       setTab("animals");
@@ -216,7 +213,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
 
   function skipCalfRecord() {
     if (deliveringId && !editingCalfGestationId) {
-      const deliveryDate = todayISO();
+      const deliveryDate = todayLocalISODate();
       const deliveredAt = deliveryDate + "T12:00:00.000Z";
       setGestations(p => (p ?? []).map(g =>
         g.id === deliveringId ? { ...g, status: "Delivered", deliveredAt } : g
@@ -225,7 +222,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     setShowCalfForm(false);
     setDeliveringId(null);
     setEditingCalfGestationId(null);
-    setDeliveryForm({ deliveryDate: todayISO(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
+    setDeliveryForm({ deliveryDate: todayLocalISODate(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
   }
 
   function deleteCalfRecord(gestationId) {
@@ -266,11 +263,11 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
               {females.filter(a => a.species !== "Mule").map(a => <option key={a.id} value={a.id}>{getAnimalName(a)} ({a.species})</option>)}
             </Select>
             {!form.runningWithBull ? (
-              <Input label="Breeding Date *" type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} />
+              <DateInputWithValidation label="Breeding Date *" breedingDueTwoDigitYear value={form.breedingDate} onValueChange={v => setForm(p => ({ ...p, breedingDate: v }))} />
             ) : (
               <>
-                <Input label="Turn Out Date *" type="date" value={form.breedingDate} onChange={e => setForm(p => ({ ...p, breedingDate: e.target.value }))} />
-                <Input label="Pull Date (optional)" type="date" value={form.breedingDateEnd} onChange={e => setForm(p => ({ ...p, breedingDateEnd: e.target.value }))} />
+                <DateInputWithValidation label="Turn Out Date *" breedingDueTwoDigitYear value={form.breedingDate} onValueChange={v => setForm(p => ({ ...p, breedingDate: v }))} />
+                <DateInputWithValidation label="Pull Date (optional)" breedingDueTwoDigitYear value={form.breedingDateEnd} onValueChange={v => setForm(p => ({ ...p, breedingDateEnd: v }))} />
               </>
             )}
             <Select label="Sire (optional)" value={form.sireAnimalId || ""} onChange={e => {
@@ -328,7 +325,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
               Record birth for <strong>{getAnimalName(animal)}</strong>
             </div>
             <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-              <Input label="Delivery date *" type="date" value={deliveryForm.deliveryDate} onChange={e => setDeliveryForm(p => ({ ...p, deliveryDate: e.target.value }))} />
+              <DateInputWithValidation label="Delivery date *" birthDate value={deliveryForm.deliveryDate} onValueChange={v => setDeliveryForm(p => ({ ...p, deliveryDate: v }))} />
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)" }}>Outcome</span>
                 <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
@@ -481,7 +478,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                     <div style={{ marginTop: "2px" }}>
                       <button
                         type="button"
-                        onClick={() => { setDeliveringId(g.id); setEditingCalfGestationId(null); setShowCalfForm(true); setDeliveryForm({ deliveryDate: todayISO(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" }); }}
+                        onClick={() => { setDeliveringId(g.id); setEditingCalfGestationId(null); setShowCalfForm(true); setDeliveryForm({ deliveryDate: todayLocalISODate(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" }); }}
                         style={{ background: "none", border: "none", padding: 0, fontSize: "13px", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}
                       >
                         Add delivery record
@@ -495,8 +492,8 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                       <div style={{ display: "flex", gap: "6px" }}>
                         <Btn size="sm" variant="ghost" onClick={() => {
                           setEditingCalfGestationId(g.id); setDeliveringId(g.id);
-                          const d = g.deliveredAt ? (g.deliveredAt.slice(0, 10) || todayISO()) : todayISO();
-                          setDeliveryForm({ deliveryDate: d, outcome: g.calf.stillborn ? "stillborn" : "live", offspringCount: g.calf.offspringCount ?? 1, birthWeight: g.calf.birthWeight != null ? String(g.calf.birthWeight) : "", notes: g.calf.notes || "" });
+                          const rawD = g.deliveredAt ? (g.deliveredAt.slice(0, 10) || todayLocalISODate()) : todayLocalISODate();
+                          setDeliveryForm({ deliveryDate: sanitizeDate(rawD) || todayLocalISODate(), outcome: g.calf.stillborn ? "stillborn" : "live", offspringCount: g.calf.offspringCount ?? 1, birthWeight: g.calf.birthWeight != null ? String(g.calf.birthWeight) : "", notes: g.calf.notes || "" });
                           setShowCalfForm(true);
                         }}>Edit</Btn>
                         <Btn size="sm" variant="ghost" onClick={() => deleteCalfRecord(g.id)}>Delete</Btn>

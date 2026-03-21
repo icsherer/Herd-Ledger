@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { fmt, getAnimalName, formatCompactDollar } from "../lib/helpers.js";
 import { SPECIES } from "../lib/constants.js";
+import { sanitizeDate, todayLocalISODate } from "../lib/dateUtils.js";
 import { Card, Btn, Input, Select, SectionTitle, Textarea } from "./ui.jsx";
+import DateInputWithValidation from "./DateInputWithValidation.jsx";
 
 const emptySaleEditForm = () => ({
   dateSold: "",
@@ -25,7 +27,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
   const [editingSaleAnimalId, setEditingSaleAnimalId] = useState(null);
   const [saleEditForm, setSaleEditForm] = useState(emptySaleEditForm);
   const [loadForm, setLoadForm] = useState({
-    date: new Date().toISOString().split("T")[0],
+    date: todayLocalISODate(),
     headCount: "",
     species: "Cattle",
     averageWeight: "",
@@ -44,10 +46,12 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     ...(loadSales || []).map(l => l.species).filter(Boolean),
   ])).sort((a, b) => a.localeCompare(b));
 
+  const filterStartSan = sanitizeDate(filterStartDate);
+  const filterEndSan = sanitizeDate(filterEndDate);
   const inDateRange = (dateStr) => {
     if (!dateStr) return false;
-    if (filterStartDate && dateStr < filterStartDate) return false;
-    if (filterEndDate && dateStr > filterEndDate) return false;
+    if (filterStartSan && dateStr < filterStartSan) return false;
+    if (filterEndSan && dateStr > filterEndSan) return false;
     return true;
   };
 
@@ -82,8 +86,8 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     const [y, m] = value.split("-").map(Number);
     const first = new Date(y, m - 1, 1);
     const last = new Date(y, m, 0);
-    setFilterStartDate(first.toISOString().split("T")[0]);
-    setFilterEndDate(last.toISOString().split("T")[0]);
+    setFilterStartDate(sanitizeDate(first.toISOString().split("T")[0]) || first.toISOString().split("T")[0]);
+    setFilterEndDate(sanitizeDate(last.toISOString().split("T")[0]) || last.toISOString().split("T")[0]);
   }
 
   function clearFilters() {
@@ -119,7 +123,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     }
     setLoadSales(prev => [...(prev || []), {
       id: Date.now().toString(),
-      date: loadForm.date || undefined,
+      date: sanitizeDate(loadForm.date) || undefined,
       headCount: headCount >= 1 ? headCount : undefined,
       species: loadForm.species || undefined,
       averageWeight: avgWt ?? undefined,
@@ -129,7 +133,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
       buyerName: loadForm.buyerName?.trim() || undefined,
       notes: loadForm.notes?.trim() || undefined,
     }]);
-    setLoadForm({ date: new Date().toISOString().split("T")[0], headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" });
+    setLoadForm({ date: todayLocalISODate(), headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" });
     setShowLoadForm(false);
   }
 
@@ -141,7 +145,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     const s = animal?.sale;
     setEditingSaleAnimalId(animal.id);
     setSaleEditForm({
-      dateSold: s?.dateSold ?? "",
+      dateSold: sanitizeDate(s?.dateSold ?? "") || (s?.dateSold ?? ""),
       pricePerHead: s?.pricePerHead != null ? String(s.pricePerHead) : "",
       buyerName: s?.buyerName ?? "",
       buyerContact: s?.buyerContact ?? "",
@@ -162,7 +166,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     const priceVal = saleEditForm.pricePerHead?.trim() ? parseFloat(saleEditForm.pricePerHead) : undefined;
     const weightVal = saleEditForm.weightAtSale?.trim() ? parseFloat(saleEditForm.weightAtSale) : undefined;
     const saleRec = {
-      dateSold: saleEditForm.dateSold?.trim() || undefined,
+      dateSold: sanitizeDate(saleEditForm.dateSold) || undefined,
       pricePerHead: priceVal,
       buyerName: saleEditForm.buyerName?.trim() || undefined,
       buyerContact: saleEditForm.buyerContact?.trim() || undefined,
@@ -322,8 +326,8 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
       <Card style={{ padding: "16px 20px", marginBottom: "12px", borderLeft: "4px solid var(--green3)" }}>
         <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "12px" }}>Filters</div>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "12px" }}>
-          <Input label="Start date" type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} style={{ width: "140px" }} />
-          <Input label="End date" type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} style={{ width: "140px" }} />
+          <DateInputWithValidation label="Start date" value={filterStartDate} onValueChange={setFilterStartDate} style={{ width: "140px" }} />
+          <DateInputWithValidation label="End date" value={filterEndDate} onValueChange={setFilterEndDate} style={{ width: "140px" }} />
           <div style={{ minWidth: "140px" }}>
             <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Month / Year</label>
             {!hasAnySales ? (
@@ -362,7 +366,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
             <div style={{ padding: "20px", background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
               <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Edit sale — {getAnimalName(animal)}{animal.tag ? ` #${animal.tag}` : ""}</div>
               <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                <Input label="Sale date" type="date" value={saleEditForm.dateSold} onChange={e => setSaleEditForm(p => ({ ...p, dateSold: e.target.value }))} />
+                <DateInputWithValidation label="Sale date" value={saleEditForm.dateSold} onValueChange={v => setSaleEditForm(p => ({ ...p, dateSold: v }))} />
                 <Input label="Sale price ($)" type="number" min="0" step="0.01" value={saleEditForm.pricePerHead} onChange={e => setSaleEditForm(p => ({ ...p, pricePerHead: e.target.value }))} placeholder="e.g. 1250.00" />
                 <Input label="Buyer name" value={saleEditForm.buyerName} onChange={e => setSaleEditForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Livestock" />
                 <Input label="Buyer contact" value={saleEditForm.buyerContact} onChange={e => setSaleEditForm(p => ({ ...p, buyerContact: e.target.value }))} placeholder="Phone or email" />
@@ -446,7 +450,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           <div style={{ padding: "20px", background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Log sale barn load</div>
             <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-              <Input label="Date" type="date" value={loadForm.date} onChange={e => setLoadForm(p => ({ ...p, date: e.target.value }))} />
+              <DateInputWithValidation label="Date" value={loadForm.date} onValueChange={v => setLoadForm(p => ({ ...p, date: v }))} />
               <Input label="Number of head" type="number" min="1" value={loadForm.headCount} onChange={e => setLoadForm(p => ({ ...p, headCount: e.target.value }))} placeholder="e.g. 12" />
               <Select label="Species" value={loadForm.species} onChange={e => setLoadForm(p => ({ ...p, species: e.target.value }))}>
                 {Object.keys(SPECIES).map(s => <option key={s} value={s}>{s}</option>)}
@@ -466,7 +470,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
             <Textarea label="Notes" value={loadForm.notes} onChange={e => setLoadForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
             <div style={{ display: "flex", gap: "10px" }}>
               <Btn size="sm" onClick={saveLoadSale} disabled={!loadForm.date || !loadForm.headCount || parseInt(loadForm.headCount, 10) < 1}>Save load sale</Btn>
-              <Btn size="sm" variant="ghost" onClick={() => { setShowLoadForm(false); setLoadForm({ date: new Date().toISOString().split("T")[0], headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" }); }}>Cancel</Btn>
+              <Btn size="sm" variant="ghost" onClick={() => { setShowLoadForm(false); setLoadForm({ date: todayLocalISODate(), headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" }); }}>Cancel</Btn>
             </div>
           </div>
         )}

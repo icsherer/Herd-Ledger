@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { EXPENSE_CATEGORIES } from "../lib/constants.js";
 import { fmt, getAnimalName, getCanonicalPastureNames, formatCompactDollar } from "../lib/helpers.js";
+import { sanitizeDate, todayLocalISODate } from "../lib/dateUtils.js";
 import { Card, Btn, Input, Select, SectionTitle, Textarea, Badge } from "./ui.jsx";
+import DateInputWithValidation from "./DateInputWithValidation.jsx";
 
 const emptyForm = () => ({
-  date: new Date().toISOString().split("T")[0],
+  date: todayLocalISODate(),
   category: "Feed",
   amount: "",
   description: "",
@@ -36,10 +38,11 @@ export default function Expenses({ expenses, setExpenses, animals, pastures, set
 
   function addExpense() {
     const amount = form.amount?.trim() ? parseFloat(form.amount) : 0;
-    if (!form.date || amount < 0) return;
+    const dateSan = sanitizeDate(form.date);
+    if (!dateSan || amount < 0) return;
     setExpenses(prev => [...prev, {
       id: Date.now().toString(),
-      date: form.date,
+      date: dateSan,
       category: form.category || "Other",
       amount,
       description: (form.description || "").trim() || undefined,
@@ -55,10 +58,11 @@ export default function Expenses({ expenses, setExpenses, animals, pastures, set
 
   function updateExpense() {
     const amount = form.amount?.trim() ? parseFloat(form.amount) : 0;
-    if (!editingId || !form.date || amount < 0) return;
+    const dateSan = sanitizeDate(form.date);
+    if (!editingId || !dateSan || amount < 0) return;
     setExpenses(prev => prev.map(e => e.id !== editingId ? e : {
       ...e,
-      date: form.date,
+      date: dateSan,
       category: form.category || "Other",
       amount,
       description: (form.description || "").trim() || undefined,
@@ -75,7 +79,7 @@ export default function Expenses({ expenses, setExpenses, animals, pastures, set
   function startEdit(expense) {
     setEditingId(expense.id);
     setForm({
-      date: expense.date || new Date().toISOString().split("T")[0],
+      date: sanitizeDate(expense.date || "") || todayLocalISODate(),
       category: expense.category || "Feed",
       amount: expense.amount != null ? String(expense.amount) : "",
       description: expense.description ?? "",
@@ -133,7 +137,7 @@ export default function Expenses({ expenses, setExpenses, animals, pastures, set
         <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>{editingId ? "Edit Expense" : "Add Expense"}</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-            <Input label="Date *" type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} />
+            <DateInputWithValidation label="Date *" value={form.date} onValueChange={v => setForm(p => ({ ...p, date: v }))} />
             <Select label="Category *" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
               {EXPENSE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </Select>

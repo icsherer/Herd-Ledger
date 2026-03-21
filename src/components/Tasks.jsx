@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { TASK_CATEGORIES, TASK_PRIORITIES, RECURRING_OPTIONS } from "../lib/constants.js";
 import { fmt, getAnimalName, daysUntil, daysUntilDue, fmtDueRange, getCanonicalPastureNames } from "../lib/helpers.js";
+import { sanitizeDate, todayLocalISODate } from "../lib/dateUtils.js";
 import { Card, Btn, Input, Select, SectionTitle, Textarea, Badge } from "./ui.jsx";
+import DateInputWithValidation from "./DateInputWithValidation.jsx";
 
 export default function Tasks({ tasks, setTasks, animals, gestations, offspring, pastures, setTab }) {
   const [showAdd, setShowAdd] = useState(false);
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = todayLocalISODate();
   const [form, setForm] = useState({
     name: "",
     dueDate: todayStr,
@@ -26,14 +28,16 @@ export default function Tasks({ tasks, setTasks, animals, gestations, offspring,
       (a.vaccinations || []).forEach(v => {
         const nextDue = v.nextDueDate || v.dateGiven;
         if (!nextDue) return;
-        const d = daysUntil(nextDue);
+        const dueSan = sanitizeDate(nextDue);
+        if (!dueSan) return;
+        const d = daysUntil(dueSan);
         if (d < 0 || d > 7) return;
         const sourceId = `vaccination-${a.id}-${v.id}`;
         if (existingSourceIds.has(sourceId)) return;
         toAdd.push({
           id: `auto-${sourceId}-${Date.now()}`,
           name: `Vaccination due: ${(v.vaccineName || "Vaccine")} — ${getAnimalName(a)}`,
-          dueDate: nextDue,
+          dueDate: dueSan,
           category: "Vaccination",
           priority: "Medium",
           animalId: a.id,
@@ -46,14 +50,16 @@ export default function Tasks({ tasks, setTasks, animals, gestations, offspring,
     Object.values(offspring || {}).forEach(list => {
       (list || []).forEach(c => {
         if (!c.weaningDate) return;
-        const d = daysUntil(c.weaningDate);
+        const weanSan = sanitizeDate(c.weaningDate);
+        if (!weanSan) return;
+        const d = daysUntil(weanSan);
         if (d < 0 || d > 7) return;
         const sourceId = `weaning-${c.id || c.name || Math.random()}`;
         if (existingSourceIds.has(sourceId)) return;
         toAdd.push({
           id: `auto-${sourceId}-${Date.now()}`,
           name: `Weaning due: ${c.name || "Offspring"}`,
-          dueDate: c.weaningDate,
+          dueDate: weanSan,
           category: "Weaning",
           priority: "Medium",
           sourceId,
@@ -86,11 +92,12 @@ export default function Tasks({ tasks, setTasks, animals, gestations, offspring,
   const gestationUpcoming = gestationTaskItems.filter(i => i.status === "upcoming").sort((a, b) => (a.dueD.start - b.dueD.start));
 
   function addTask() {
-    if (!form.name?.trim() || !form.dueDate) return;
+    const dueSan = sanitizeDate(form.dueDate);
+    if (!form.name?.trim() || !dueSan) return;
     setTasks(prev => [...(prev || []), {
       id: Date.now().toString(),
       name: form.name.trim(),
-      dueDate: form.dueDate,
+      dueDate: dueSan,
       dueTime: (form.dueTime || "").trim() || undefined,
       category: form.category || "General",
       priority: form.priority || "Medium",
@@ -198,7 +205,7 @@ export default function Tasks({ tasks, setTasks, animals, gestations, offspring,
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add Task</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Input label="Task name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Feed hay" />
-            <Input label="Due date *" type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} />
+            <DateInputWithValidation label="Due date *" breedingDueTwoDigitYear value={form.dueDate} onValueChange={v => setForm(p => ({ ...p, dueDate: v }))} />
             <Input label="Due time (optional)" type="time" value={form.dueTime} onChange={e => setForm(p => ({ ...p, dueTime: e.target.value }))} />
             <Select label="Category" value={form.category} onChange={e => setForm(p => ({ ...p, category: e.target.value }))}>
               {TASK_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}

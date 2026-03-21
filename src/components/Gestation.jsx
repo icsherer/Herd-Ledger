@@ -1,7 +1,62 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { SPECIES } from "../lib/constants.js";
 import { getAnimalName, fmt, dueDate, dueDateRangeFromSingleDate, progress, fmtDueRange, fmtExposure, daysUntilDue, isOverdue, formatGestationDaysRemaining, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies, getAgeBasedSexTerm } from "../lib/helpers.js";
 import { Card, Btn, Input, Select, Textarea, SectionTitle, ProgressBar, Badge } from "./ui.jsx";
+
+const ACTIVE_SORT_OPTIONS = [
+  { id: "dueSoonest", label: "Due Soonest" },
+  { id: "overdueFirst", label: "Overdue First" },
+  { id: "byAnimalName", label: "By Animal Name" },
+  { id: "bySpecies", label: "By Species" },
+];
+
+function sortActiveGestations(items, mode, animalsList) {
+  const list = [...items];
+  const animalOf = g => animalsList.find(a => a.id === g.animalId);
+  const dueKey = g => g.dueDateStart || g.dueDate || "";
+  const cmpDueAsc = (a, b) => dueKey(a).localeCompare(dueKey(b)) || String(a.id).localeCompare(String(b.id));
+  switch (mode) {
+    case "dueSoonest":
+      return list.sort(cmpDueAsc);
+    case "overdueFirst":
+      return list.sort((a, b) => {
+        const oa = isOverdue(a);
+        const ob = isOverdue(b);
+        if (oa !== ob) return oa ? -1 : 1;
+        if (oa && ob) {
+          const da = daysUntilDue(a);
+          const db = daysUntilDue(b);
+          const sa = da.isRange ? da.end : da.start;
+          const sb = db.isRange ? db.end : db.start;
+          if (sa !== sb) return sa - sb;
+          return String(a.id).localeCompare(String(b.id));
+        }
+        return cmpDueAsc(a, b);
+      });
+    case "byAnimalName":
+      return list.sort((a, b) => {
+        const na = getAnimalName(animalOf(a));
+        const nb = getAnimalName(animalOf(b));
+        const c = na.localeCompare(nb, undefined, { sensitivity: "base" });
+        if (c !== 0) return c;
+        return cmpDueAsc(a, b);
+      });
+    case "bySpecies":
+      return list.sort((a, b) => {
+        const sa = animalOf(a)?.species || "";
+        const sb = animalOf(b)?.species || "";
+        const c = sa.localeCompare(sb, undefined, { sensitivity: "base" });
+        if (c !== 0) return c;
+        const na = getAnimalName(animalOf(a));
+        const nb = getAnimalName(animalOf(b));
+        const n = na.localeCompare(nb, undefined, { sensitivity: "base" });
+        if (n !== 0) return n;
+        return cmpDueAsc(a, b);
+      });
+    default:
+      return list.sort(cmpDueAsc);
+  }
+}
 
 function todayISO() {
   const d = new Date();
@@ -24,11 +79,15 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     birthWeight: "",
     notes: "",
   });
+  const [activeSort, setActiveSort] = useState("dueSoonest");
 
   const females = animalsList.filter(a => isFemale(a));
 
   const selectedDam = form.animalId ? animalsList.find(x => x.id === form.animalId) : null;
   const sireOptions = selectedDam ? getBreedingMalesForSpecies(animalsList, selectedDam.species) : [];
+
+  const active = useMemo(() => gestationsList.filter(g => g.status !== "Delivered"), [gestationsList]);
+  const activeSorted = useMemo(() => sortActiveGestations(active, activeSort, animalsList), [active, activeSort, animalsList]);
 
   useEffect(() => {
     if (!form.animalId) return;
@@ -189,7 +248,6 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     setGestations(p => (p ?? []).filter(g => g.id !== id));
   }
 
-  const active = gestationsList.filter(g => g.status !== "Delivered");
   const delivered = gestationsList.filter(g => g.status === "Delivered");
 
   return (
@@ -303,8 +361,51 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
         </Card>
       )}
 
+      {active.length > 0 && (
+        <div
+          role="toolbar"
+          aria-label="Sort gestations"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            alignItems: "center",
+            gap: "8px",
+            marginBottom: "14px",
+            padding: "10px 12px",
+            background: "var(--cream)",
+            borderRadius: "var(--radius)",
+            border: "1px solid var(--cream2)",
+          }}
+        >
+          <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginRight: "4px" }}>Sort</span>
+          {ACTIVE_SORT_OPTIONS.map(opt => {
+            const selected = activeSort === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => setActiveSort(opt.id)}
+                style={{
+                  padding: "6px 12px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  borderRadius: "999px",
+                  border: selected ? "1px solid var(--green)" : "1px solid var(--cream2)",
+                  background: selected ? "var(--green)" : "#fff",
+                  color: selected ? "#fff" : "var(--ink2)",
+                  cursor: "pointer",
+                  fontFamily: "inherit",
+                }}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
-        {active.map(g => {
+        {activeSorted.map(g => {
           const animal = animalsList.find(a => a.id === g.animalId);
           const dueD = daysUntilDue(g);
           const pct = progress(breedingDateForProgress(g), g.gestationDays);

@@ -8,6 +8,7 @@ import { supabase } from "../supabase";
 
 const HORSE_DOCUMENT_TYPES = ["Registration Papers", "Coggins Test", "Health Certificate", "Brand Inspection", "Vaccination Record", "Insurance", "Other"];
 const ANIMAL_DOCUMENTS_BUCKET = "animal-documents";
+const ANIMAL_PHOTOS_BUCKET = "animal-photos";
 
 // ── Animals ───────────────────────────────────────────────────────────────────
 export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, filterHeatDue = false, setFilterHeatDue, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring, contacts = [], setContacts }) {
@@ -1638,8 +1639,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <div className="hl-detail-header" style={{ background: "var(--green)", padding: "28px 32px", display: "flex", alignItems: "center", gap: "20px" }}>
             <div className="hl-animal-profile-photo-wrap" style={{ position: "relative", flexShrink: 0 }}>
               <div className="hl-animal-profile-photo" style={{ width: "96px", height: "96px", borderRadius: "50%", overflow: "hidden", background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", border: "3px solid rgba(255,255,255,0.4)" }}>
-                {a.photo ? (
-                  <img src={a.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {(a.photoUrl || a.photo) ? (
+                  <img src={a.photoUrl || a.photo} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                 ) : (
                   <span style={{ fontSize: "48px" }}>{SPECIES[a.species]?.emoji}</span>
                 )}
@@ -1655,8 +1656,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   if (!file) return;
                   setPhotoUploading(true);
                   try {
-                    const dataUrl = await compressImageToBase64(file);
-                    const updated = { ...a, photo: dataUrl };
+                    const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+                    const path = `${a.id}/photo.${ext}`;
+                    const { error } = await supabase.storage
+                      .from(ANIMAL_PHOTOS_BUCKET)
+                      .upload(path, file, { contentType: file.type || "image/jpeg", upsert: true });
+                    if (error) throw new Error(error.message);
+                    const { data: urlData } = supabase.storage
+                      .from(ANIMAL_PHOTOS_BUCKET)
+                      .getPublicUrl(path);
+                    const updated = { ...a, photoUrl: urlData.publicUrl, photo: undefined };
                     setAnimals(prev => prev.map(an => an.id === a.id ? updated : an));
                     setViewing(updated);
                   } catch (err) {
@@ -5074,8 +5083,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     </div>
                   )}
                   <div className="hl-animals-list-cell hl-animals-list-emoji">
-                    {a.photo ? (
-                      <img src={a.photo} alt="" style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "cover", display: "block" }} />
+                  {(a.photoUrl || a.photo) ? (
+                      <img src={a.photoUrl || a.photo} alt="" style={{ width: "32px", height: "32px", borderRadius: "6px", objectFit: "cover", display: "block" }} />
                     ) : (
                       <span>{SPECIES[a.species]?.emoji}</span>
                     )}
@@ -5142,8 +5151,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 {!a.deceased && (
                   <span style={{ width: "10px", height: "10px", flexShrink: 0, borderRadius: "50%", background: getHealthStatus(a) === "red" ? "var(--danger2)" : getHealthStatus(a) === "yellow" ? "var(--brass2)" : "var(--green3)", boxShadow: "0 0 0 2px #fff" }} title={getHealthStatus(a) === "red" ? "Recent illness" : getHealthStatus(a) === "yellow" ? "Treatment in last 30 days" : "No recent issues"} />
                 )}
-                {a.photo ? (
-                  <img src={a.photo} alt="" style={{ width: "40px", height: "40px", borderRadius: "8px", objectFit: "cover", flexShrink: 0 }} />
+                {(a.photoUrl || a.photo) ? (
+                  <img src={a.photoUrl || a.photo} alt="" style={{ width: "40px", height: "40px", borderRadius: "8px", objectFit: "cover", flexShrink: 0 }} />
                 ) : (
                   <span style={{ fontSize: "28px" }}>{SPECIES[a.species]?.emoji}</span>
                 )}

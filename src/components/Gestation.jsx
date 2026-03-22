@@ -77,6 +77,8 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     notes: "",
   });
   const [activeSort, setActiveSort] = useState("dueSoonest");
+  const [editingGestationId, setEditingGestationId] = useState(null);
+  const [editForm, setEditForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false });
 
   const females = animalsList.filter(a => isFemale(a));
 
@@ -243,6 +245,62 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   function remove(id) {
     if (!confirm("Remove this breeding record?")) return;
     setGestations(p => (p ?? []).filter(g => g.id !== id));
+  }
+
+  function startEdit(g) {
+    const hasSireAnimalId = g.sireAnimalId && g.sireAnimalId !== "unknown";
+    const isUnknown = !hasSireAnimalId && g.sire === "Unknown";
+    const sireNotInHerd = !hasSireAnimalId && !isUnknown && !!g.sire;
+    setEditForm({
+      breedingDate: g.breedingDate || "",
+      breedingDateEnd: g.breedingDateEnd || "",
+      runningWithBull: g.runningWithBull || false,
+      sire: sireNotInHerd ? (g.sire || "") : "",
+      sireAnimalId: hasSireAnimalId ? g.sireAnimalId : (isUnknown ? "unknown" : ""),
+      sireNotInHerd,
+    });
+    setEditingGestationId(g.id);
+  }
+
+  function saveEdit(gestationId) {
+    const g = gestationsList.find(x => x.id === gestationId);
+    const animal = animalsList.find(a => a.id === g?.animalId);
+    if (!g || !animal) return;
+    const start = sanitizeDate(editForm.breedingDate);
+    if (!start) return;
+    const totalDays = g.gestationDays || SPECIES[animal.species]?.days || 150;
+    const minDays = SPECIES[animal.species]?.minDays ?? totalDays;
+    const maxDays = SPECIES[animal.species]?.maxDays ?? totalDays;
+    const end = (editForm.runningWithBull && (editForm.breedingDateEnd || "").trim()) ? (sanitizeDate(editForm.breedingDateEnd) || null) : null;
+    let dueStart, dueEnd;
+    if (end) {
+      dueStart = dueDate(start, totalDays);
+      dueEnd = dueDate(end, totalDays);
+    } else {
+      const range = dueDateRangeFromSingleDate(start, minDays, maxDays);
+      dueStart = range.dueDateStart;
+      dueEnd = range.dueDateEnd;
+    }
+    const sireDisplay = editForm.sireNotInHerd
+      ? ((editForm.sire || "").trim() || "Unknown")
+      : (editForm.sireAnimalId === "unknown" ? "Unknown" : (editForm.sire || undefined));
+    const sireId = editForm.sireNotInHerd ? undefined : (editForm.sireAnimalId && editForm.sireAnimalId !== "unknown" ? editForm.sireAnimalId : undefined);
+    setGestations(p => (p ?? []).map(gr =>
+      gr.id === gestationId
+        ? {
+            ...gr,
+            breedingDate: start,
+            breedingDateEnd: end || undefined,
+            runningWithBull: editForm.runningWithBull || false,
+            dueDate: dueStart,
+            dueDateStart: dueStart,
+            dueDateEnd: dueEnd,
+            sire: sireDisplay,
+            sireAnimalId: sireId,
+          }
+        : gr
+    ));
+    setEditingGestationId(null);
   }
 
   const delivered = gestationsList.filter(g => g.status === "Delivered");
@@ -443,8 +501,63 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
               {g.notes && <p style={{ fontSize: "13px", color: "var(--ink2)", fontStyle: "italic", marginBottom: "12px" }}>{g.notes}</p>}
               <div style={{ display: "flex", gap: "8px" }}>
                 <Btn size="sm" onClick={() => markDelivered(g.id)}>✓ Mark Delivered</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => editingGestationId === g.id ? setEditingGestationId(null) : startEdit(g)}>
+                  {editingGestationId === g.id ? "Cancel Edit" : "Edit"}
+                </Btn>
                 <Btn size="sm" variant="ghost" onClick={() => remove(g.id)}>Remove</Btn>
               </div>
+              {editingGestationId === g.id && (() => {
+                const editSireOptions = getBreedingMalesForSpecies(animalsList, animal?.species);
+                return (
+                  <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--cream2)" }}>
+                    <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "12px" }}>Edit Breeding Record</div>
+                    <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                      <DateInputWithValidation
+                        label={editForm.runningWithBull ? "Turn Out Date *" : "Breeding Date *"}
+                        breedingDueTwoDigitYear
+                        value={editForm.breedingDate}
+                        onValueChange={v => setEditForm(p => ({ ...p, breedingDate: v }))}
+                      />
+                      {editForm.runningWithBull && (
+                        <DateInputWithValidation
+                          label="Pull Date (optional)"
+                          breedingDueTwoDigitYear
+                          value={editForm.breedingDateEnd}
+                          onValueChange={v => setEditForm(p => ({ ...p, breedingDateEnd: v }))}
+                        />
+                      )}
+                      {!editForm.sireNotInHerd ? (
+                        <Select label="Sire (optional)" value={editForm.sireAnimalId || ""} onChange={e => {
+                          const v = e.target.value;
+                          if (v === "unknown") setEditForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
+                          else if (!v) setEditForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
+                          else { const m = animalsList.find(x => x.id === v); setEditForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" })); }
+                        }}>
+                          <option value="">— None —</option>
+                          <option value="unknown">Unknown</option>
+                          {editSireOptions.map(m => (
+                            <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>
+                          ))}
+                        </Select>
+                      ) : (
+                        <Input label="Sire (outside bull)" value={editForm.sire} onChange={e => setEditForm(p => ({ ...p, sire: e.target.value }))} placeholder="Unknown or type bull name" />
+                      )}
+                    </div>
+                    <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
+                      <input type="checkbox" checked={editForm.runningWithBull} onChange={e => setEditForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDateEnd : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                      <span>Running with Bull (date range)</span>
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
+                      <input type="checkbox" checked={editForm.sireNotInHerd} onChange={e => setEditForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireAnimalId: "", sire: p.sire || "" } : { sireAnimalId: "", sire: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                      <span>Bull not in my herd</span>
+                    </label>
+                    <div style={{ display: "flex", gap: "8px" }}>
+                      <Btn size="sm" onClick={() => saveEdit(g.id)}>Save Changes</Btn>
+                      <Btn size="sm" variant="secondary" onClick={() => setEditingGestationId(null)}>Cancel</Btn>
+                    </div>
+                  </div>
+                );
+              })()}
             </Card>
           );
         })}

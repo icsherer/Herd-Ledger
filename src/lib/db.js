@@ -88,6 +88,11 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
       status: r.status, dueDate: r.due_date, breedingDate: r.breeding_date,
       gestationDays: r.gestation_days, deliveredAt: r.delivered_at,
       createdAt: r.created_at_src,
+      dueDateStart: r.due_date_start || null,
+      dueDateEnd: r.due_date_end || null,
+      breedingDateEnd: r.breeding_date_end || null,
+      runningWithBull: r.running_with_bull || false,
+      sireAnimalId: r.sire_animal_id || null,
     };
     const hasCalf = r.calf_notes != null || r.calf_stillborn != null ||
                     r.calf_birth_weight != null || r.calf_animal_id != null ||
@@ -215,6 +220,11 @@ export async function persistGestations(userId, gestations) {
     id: g.id, user_id: userId, animal_id: g.animalId ?? null,
     sire: g.sire ?? null, notes: g.notes ?? null, status: g.status ?? null,
     due_date: g.dueDate || null, breeding_date: g.breedingDate || null,
+    due_date_start: g.dueDateStart || null,
+    due_date_end: g.dueDateEnd || null,
+    breeding_date_end: g.breedingDateEnd || null,
+    running_with_bull: g.runningWithBull || false,
+    sire_animal_id: g.sireAnimalId || null,
     gestation_days: g.gestationDays ?? null, delivered_at: g.deliveredAt ?? null,
     created_at_src: g.createdAt ?? null,
     calf_notes: g.calf?.notes ?? null,

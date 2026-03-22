@@ -556,22 +556,26 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
       )}
 
       {logFeedPasture && (
-        <Card style={{ padding: "18px", marginBottom: "16px", borderLeft: "4px solid var(--brass)" }}>
-          <div style={{ fontWeight: 600, marginBottom: "12px" }}>{editingFeedEntryId ? "Edit feed" : "Log feed"} – {logFeedPasture}</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", alignItems: "flex-end" }}>
-            <Select label="Feed type" value={feedForm.feedType} onChange={e => setFeedForm(f => ({ ...f, feedType: e.target.value }))}>
-              {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </Select>
-            <Input label="Quantity" type="number" min={1} value={feedForm.quantity} onChange={e => setFeedForm(f => ({ ...f, quantity: e.target.value }))} />
-            <Input label="Cost (optional)" type="number" step="0.01" min={0} value={feedForm.cost} onChange={e => setFeedForm(f => ({ ...f, cost: e.target.value }))} placeholder="0" />
-            <Input label="Date" type="date" value={feedForm.date} onChange={e => setFeedForm(f => ({ ...f, date: e.target.value }))} />
-            <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-              <Textarea label="Notes" value={feedForm.notes} onChange={e => setFeedForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional" rows={1} />
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => { setLogFeedPasture(null); setEditingFeedEntryId(null); }}>
+          <Card style={{ maxWidth: "480px", width: "100%", margin: "20px", padding: "24px", borderLeft: "4px solid var(--brass)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>{editingFeedEntryId ? "Edit feed" : "Log feed"} – {logFeedPasture}</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <Select label="Feed type" value={feedForm.feedType} onChange={e => setFeedForm(f => ({ ...f, feedType: e.target.value }))}>
+                {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+              <div style={{ display: "flex", gap: "12px" }}>
+                <Input label="Quantity" type="number" min={1} value={feedForm.quantity} onChange={e => setFeedForm(f => ({ ...f, quantity: e.target.value }))} />
+                <Input label="Cost (optional)" type="number" step="0.01" min={0} value={feedForm.cost} onChange={e => setFeedForm(f => ({ ...f, cost: e.target.value }))} placeholder="0" />
+              </div>
+              <Input label="Date" type="date" value={feedForm.date} onChange={e => setFeedForm(f => ({ ...f, date: e.target.value }))} />
+              <Textarea label="Notes" value={feedForm.notes} onChange={e => setFeedForm(f => ({ ...f, notes: e.target.value }))} placeholder="Optional" rows={2} />
             </div>
-            <Btn size="sm" onClick={submitLogFeed}>Save</Btn>
-            <Btn size="sm" variant="secondary" onClick={() => { setLogFeedPasture(null); setEditingFeedEntryId(null); }}>Cancel</Btn>
-          </div>
-        </Card>
+            <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
+              <Btn onClick={submitLogFeed}>Save</Btn>
+              <Btn variant="secondary" onClick={() => { setLogFeedPasture(null); setEditingFeedEntryId(null); }}>Cancel</Btn>
+            </div>
+          </Card>
+        </div>
       )}
 
       {markEmptyPasture && (

@@ -8,11 +8,16 @@ export default function Notes({ notes, setNotes, user, animals = [] }) {
   const [showAdd, setShowAdd] = useState(false);
   const [journalSearch, setJournalSearch] = useState("");
   const [journalFilter, setJournalFilter] = useState("all"); // "all" | "manual" | "movement"
+  const [collapsedDays, setCollapsedDays] = useState({});
 
   function add() {
     if (!newBody.trim()) return;
     setNotes(p => [{ id: Date.now().toString(), title: newTitle || `Entry — ${new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`, body: newBody, date: new Date().toISOString() }, ...p]);
     setNewTitle(""); setNewBody(""); setShowAdd(false);
+  }
+
+  function toggleDay(dateKey) {
+    setCollapsedDays(prev => ({ ...prev, [dateKey]: !prev[dateKey] }));
   }
 
   const filteredNotes = (() => {
@@ -30,6 +35,28 @@ export default function Notes({ notes, setNotes, user, animals = [] }) {
       return false;
     });
   })();
+
+  // Sort by date desc, tiebreak by createdAt or id desc
+  const sortedNotes = [...filteredNotes].sort((a, b) => {
+    const da = (a.date || "").slice(0, 10);
+    const db = (b.date || "").slice(0, 10);
+    if (db !== da) return db.localeCompare(da);
+    const ca = a.createdAt || a.date || a.id;
+    const cb = b.createdAt || b.date || b.id;
+    return String(cb).localeCompare(String(ca));
+  });
+
+  // Group by date (YYYY-MM-DD)
+  const groups = [];
+  const seen = {};
+  for (const n of sortedNotes) {
+    const dateKey = (n.date || "").slice(0, 10);
+    if (!seen[dateKey]) {
+      seen[dateKey] = true;
+      groups.push({ dateKey, entries: [] });
+    }
+    groups[groups.length - 1].entries.push(n);
+  }
 
   return (
     <div className="hl-page hl-page-narrow hl-fade-in">
@@ -68,21 +95,54 @@ export default function Notes({ notes, setNotes, user, animals = [] }) {
         </Card>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-        {filteredNotes.map(n => (
-          <Card key={n.id} style={{ padding: "20px 24px" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-              <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{n.title}</div>
-              <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
-                {n.movementId && <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--green)", background: "rgba(46,99,71,0.12)", padding: "2px 8px", borderRadius: "4px" }}>Movement</span>}
-                <span style={{ fontSize: "12px", color: "var(--muted)" }}>{fmt(n.date.split("T")[0])}</span>
-                <Btn size="sm" variant="ghost" onClick={() => setNotes(p => p.filter(x => x.id !== n.id))}>×</Btn>
-              </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        {groups.map(({ dateKey, entries }) => {
+          const collapsed = !!collapsedDays[dateKey];
+          const label = dateKey ? fmt(dateKey) : "Unknown date";
+          return (
+            <div key={dateKey}>
+              <button
+                type="button"
+                onClick={() => toggleDay(dateKey)}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "10px",
+                  width: "100%",
+                  background: "none",
+                  border: "none",
+                  padding: "6px 0",
+                  cursor: "pointer",
+                  marginBottom: "8px",
+                  fontFamily: "inherit",
+                }}
+              >
+                <span style={{ fontSize: "13px", color: "var(--muted)", lineHeight: 1 }}>{collapsed ? "▶" : "▼"}</span>
+                <span style={{ fontFamily: "'Playfair Display'", fontSize: "15px", fontWeight: 600, color: "var(--ink2)" }}>{label}</span>
+                <span style={{ fontSize: "12px", color: "var(--muted)", fontWeight: 400 }}>{entries.length} {entries.length === 1 ? "entry" : "entries"}</span>
+                <span style={{ flex: 1, height: "1px", background: "var(--cream2)", marginLeft: "4px" }} />
+              </button>
+              {!collapsed && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  {entries.map(n => (
+                    <Card key={n.id} style={{ padding: "20px 24px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                        <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600 }}>{n.title}</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexShrink: 0 }}>
+                          {n.movementId && <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--green)", background: "rgba(46,99,71,0.12)", padding: "2px 8px", borderRadius: "4px" }}>Movement</span>}
+                          <span style={{ fontSize: "12px", color: "var(--muted)" }}>{fmt(n.date.split("T")[0])}</span>
+                          <Btn size="sm" variant="ghost" onClick={() => setNotes(p => p.filter(x => x.id !== n.id))}>×</Btn>
+                        </div>
+                      </div>
+                      <div style={{ height: "1px", background: "var(--cream2)", marginBottom: "12px" }} />
+                      <p style={{ fontSize: "14px", lineHeight: 1.8, color: "var(--ink2)", whiteSpace: "pre-wrap" }}>{n.body}</p>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
-            <div style={{ height: "1px", background: "var(--cream2)", marginBottom: "12px" }} />
-            <p style={{ fontSize: "14px", lineHeight: 1.8, color: "var(--ink2)", whiteSpace: "pre-wrap" }}>{n.body}</p>
-          </Card>
-        ))}
+          );
+        })}
       </div>
       {notes.length > 0 && filteredNotes.length === 0 && (
         <p style={{ fontSize: "14px", color: "var(--muted)", marginTop: "8px" }}>No entries match your search or filter.</p>

@@ -131,6 +131,7 @@ export default function App() {
   const [promptAddOffspring, setPromptAddOffspring] = useState(null);
   const [contacts, setContacts] = useState([]);
   const initialLoadDone = useRef(false);
+  const [loadDone, setLoadDone] = useState(false);
 
   const isGuest = user?.isGuest === true;
   const moon = getMoonPhase();
@@ -185,10 +186,12 @@ export default function App() {
       setTasks([]);
       setContacts([]);
       initialLoadDone.current = false;
+      setLoadDone(false);
       return;
     }
     if (user.isGuest) {
       initialLoadDone.current = false;
+      setLoadDone(false);
       try {
         const raw = localStorage.getItem(GUEST_STORAGE_KEY);
         const data = raw ? JSON.parse(raw) : {};
@@ -223,10 +226,12 @@ export default function App() {
         setContacts([]);
       }
       initialLoadDone.current = true;
+      setLoadDone(true);
       return;
     }
-    
+
     initialLoadDone.current = false;
+    setLoadDone(false);
     loadAllData(user.id).then(({
       animals: animalsData, tasks: tasksData, gestations: gestationsData,
       contacts: contactsData, expenses: expensesData, feederPrograms: feederData,
@@ -250,9 +255,11 @@ export default function App() {
       setTasks(tasksData);
       setContacts(contactsData);
       initialLoadDone.current = true;
+      setLoadDone(true);
     }).catch(err => {
       console.error('[DB] loadAllData failed:', err);
       initialLoadDone.current = true;
+      setLoadDone(true);
     });
   }, [user]);
 
@@ -388,7 +395,7 @@ export default function App() {
         </div>
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
-      {tab === "dashboard" && <TabErrorBoundary key="dashboard" setTab={setTab}><Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} setAnimalsFilterHeatDue={setAnimalsFilterHeatDue} expenses={expenses} tasks={tasks} settings={settings} /></TabErrorBoundary>}
+      {tab === "dashboard" && <TabErrorBoundary key="dashboard" setTab={setTab}><Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} setAnimalsFilterHeatDue={setAnimalsFilterHeatDue} expenses={expenses} tasks={tasks} settings={settings} loadDone={loadDone} /></TabErrorBoundary>}
       {tab === "animals"   && <TabErrorBoundary key="animals" setTab={setTab}><Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} filterHeatDue={animalsFilterHeatDue} setFilterHeatDue={setAnimalsFilterHeatDue} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} notes={notes} setNotes={setNotes} setDeliveryGestureId={setDeliveryGestureId} promptAddOffspring={promptAddOffspring} setPromptAddOffspring={setPromptAddOffspring} contacts={contacts} setContacts={setContacts} /></TabErrorBoundary>}
       {tab === "gestation" && <TabErrorBoundary key="gestation" setTab={setTab}><Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} offspring={offspring} setOffspring={setOffspring} setTab={setTab} setViewingAnimal={setViewingAnimal} deliveryGestureId={deliveryGestureId} setDeliveryGestureId={setDeliveryGestureId} setPromptAddOffspring={setPromptAddOffspring} /></TabErrorBoundary>}
       {tab === "feeder"    && <TabErrorBoundary key="feeder" setTab={setTab}><FeederCattle animals={animals} setAnimals={setAnimals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} /></TabErrorBoundary>}

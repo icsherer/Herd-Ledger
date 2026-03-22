@@ -2,7 +2,7 @@ import { TIPS, SPECIES, DEFAULT_TAB_VISIBILITY, PASTURE_SPECIES } from "../lib/c
 import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, formatGestationDaysRemaining, progress, breedingDateForProgress, formatCompactDollar, getNextExpectedHeatDate, isFemale } from "../lib/helpers.js";
 import { Card, Badge, ProgressBar } from "./ui.jsx";
 
-export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, setAnimalsFilterHeatDue, expenses, tasks, settings }) {
+export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, setAnimalsFilterHeatDue, expenses, tasks, settings, loadDone }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
   const currentYear = today.getFullYear();
@@ -71,7 +71,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
   const overdue = overdueList.map(g => {
     const d = daysUntilDue(g);
     const due = d.isRange ? d.end : d.start;
-    return { ...g, due, dueD: d, animal: activeAnimals.find(x => x.id === g.animalId) };
+    return { ...g, due, dueD: d, animal: animals.find(x => x.id === g.animalId) };
   });
 
   // DUE THIS MONTH: due this month and not already overdue (uses same overdueIds).
@@ -96,7 +96,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
 
   const upcoming = activeGestations
     .map(g => {
-      const a = activeAnimals.find(x => x.id === g.animalId);
+      const a = animals.find(x => x.id === g.animalId);
       const d = daysUntilDue(g);
       const due = d.isRange ? d.start : d.start;
       const dueEnd = d.isRange ? d.end : d.start;
@@ -153,7 +153,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
         <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
 
           {/* Overdue alerts */}
-          {overdueCount > 0 && (
+          {!loadDone ? null : overdueCount > 0 && (
             <Card className="hl-card-no-padding" style={{ borderLeft: "4px solid var(--danger2)", padding: "0" }}>
               <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", display: "flex", alignItems: "center", gap: "8px" }}>
                 <span style={{ fontSize: "16px" }}>⚠️</span>
@@ -172,7 +172,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
           )}
 
           {/* Upcoming births */}
-          {upcoming.length > 0 && (
+          {!loadDone ? null : upcoming.length > 0 && (
             <Card className="hl-card-no-padding" style={{ padding: "0" }}>
               <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)" }}>
                 <span style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600 }}>Upcoming Births</span>

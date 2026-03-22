@@ -85,7 +85,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   const selectedDam = form.animalId ? animalsList.find(x => x.id === form.animalId) : null;
   const sireOptions = selectedDam ? getBreedingMalesForSpecies(animalsList, selectedDam.species) : [];
 
-  const active = useMemo(() => gestationsList.filter(g => g.status !== "Delivered"), [gestationsList]);
+  const active = useMemo(() => gestationsList.filter(g => g.status !== "Delivered" && animalsList.some(a => a.id === g.animalId)), [gestationsList, animalsList]);
   const activeSorted = useMemo(() => sortActiveGestations(active, activeSort, animalsList), [active, activeSort, animalsList]);
 
   useEffect(() => {

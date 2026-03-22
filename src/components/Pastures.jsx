@@ -29,6 +29,7 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
   const [detailPasture, setDetailPasture] = useState(null);
   const [markEmptyPasture, setMarkEmptyPasture] = useState(null);
   const [markEmptyDate, setMarkEmptyDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [deletePastureConfirm, setDeletePastureConfirm] = useState(null); // pasture name to delete
 
   function countIntactMalesBySpecies(animalList) {
     const bySpecies = {};
@@ -555,6 +556,27 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
         </Card>
       )}
 
+      {deletePastureConfirm && (
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setDeletePastureConfirm(null)}>
+          <Card style={{ maxWidth: "440px", width: "100%", margin: "20px", padding: "24px", borderLeft: "4px solid var(--danger2)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "12px" }}>Delete pasture?</div>
+            <p style={{ fontSize: "14px", color: "var(--ink2)", marginBottom: "8px" }}>
+              Are you sure you want to delete <strong>{deletePastureConfirm}</strong>?
+            </p>
+            <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>
+              Animals currently assigned to this pasture will not be moved — they will simply have no pasture assigned. Their movement history is preserved.
+            </p>
+            <div style={{ display: "flex", gap: "10px" }}>
+              <Btn onClick={() => {
+                setPastures(prev => (prev || []).filter(p => p !== deletePastureConfirm));
+                setDeletePastureConfirm(null);
+              }}>Delete</Btn>
+              <Btn variant="secondary" onClick={() => setDeletePastureConfirm(null)}>Cancel</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
+
       {logFeedPasture && (
         <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => { setLogFeedPasture(null); setEditingFeedEntryId(null); }}>
           <Card style={{ maxWidth: "480px", width: "100%", margin: "20px", padding: "24px", borderLeft: "4px solid var(--brass)" }} onClick={e => e.stopPropagation()}>
@@ -699,6 +721,11 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
                   ))
                 )}
               </div>
+              {!isVirtualPasture && (
+                <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--cream2)" }}>
+                  <Btn size="sm" variant="ghost" onClick={() => setDeletePastureConfirm(pastureName)}>Delete pasture</Btn>
+                </div>
+              )}
             </Card>
           );
         })}

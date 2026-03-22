@@ -26,6 +26,15 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
   const [filterMonthYear, setFilterMonthYear] = useState("");
   const [editingSaleAnimalId, setEditingSaleAnimalId] = useState(null);
   const [saleEditForm, setSaleEditForm] = useState(emptySaleEditForm);
+  const [showFlatSaleModal, setShowFlatSaleModal] = useState(false);
+  const [flatSaleForm, setFlatSaleForm] = useState({
+    date: todayLocalISODate(),
+    species: "Cattle",
+    headCount: "",
+    totalAmount: "",
+    buyerName: "",
+    notes: "",
+  });
   const [loadForm, setLoadForm] = useState({
     date: todayLocalISODate(),
     headCount: "",
@@ -139,6 +148,24 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
 
   function removeLoadSale(id) {
     setLoadSales(prev => (prev || []).filter(l => l.id !== id));
+  }
+
+  function saveFlatSale() {
+    const headCount = parseInt(flatSaleForm.headCount, 10);
+    if (!flatSaleForm.date || !Number.isFinite(headCount) || headCount < 1) return;
+    const total = flatSaleForm.totalAmount.trim() ? parseFloat(flatSaleForm.totalAmount) : null;
+    setLoadSales(prev => [...(prev || []), {
+      id: Date.now().toString(),
+      type: "flat",
+      date: sanitizeDate(flatSaleForm.date) || undefined,
+      species: flatSaleForm.species || undefined,
+      headCount,
+      totalAmount: total ?? undefined,
+      buyerName: flatSaleForm.buyerName.trim() || undefined,
+      notes: flatSaleForm.notes.trim() || undefined,
+    }]);
+    setFlatSaleForm({ date: todayLocalISODate(), species: "Cattle", headCount: "", totalAmount: "", buyerName: "", notes: "" });
+    setShowFlatSaleModal(false);
   }
 
   function openSaleEdit(animal) {
@@ -289,6 +316,8 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
 
   const displaySoldAnimals = filterActive ? filteredSoldAnimals : soldAnimals;
   const displayLoadSales = filterActive ? filteredLoadSales : loadSalesSorted;
+  const displayGroupLoadSales = displayLoadSales.filter(l => l.type !== "flat");
+  const displayFlatSales = displayLoadSales.filter(l => l.type === "flat");
 
   const monthYearOptions = (() => {
     const seen = new Set();
@@ -318,9 +347,36 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
 
   return (
     <div className="hl-page hl-fade-in">
-      <SectionTitle action={<Btn onClick={exportScheduleF}>Export Schedule F CSV</Btn>}>
+      <SectionTitle action={
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+          <Btn variant="secondary" onClick={() => setShowFlatSaleModal(true)}>+ Flat Sale</Btn>
+          <Btn onClick={exportScheduleF}>Export Schedule F CSV</Btn>
+        </div>
+      }>
         Sales
       </SectionTitle>
+
+      {showFlatSaleModal && (
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setShowFlatSaleModal(false)}>
+          <Card style={{ maxWidth: "480px", width: "100%", margin: "20px", padding: "24px", borderLeft: "4px solid var(--brass)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "16px" }}>Record Flat Sale</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <DateInputWithValidation label="Date *" value={flatSaleForm.date} onValueChange={v => setFlatSaleForm(p => ({ ...p, date: v }))} />
+              <Select label="Species" value={flatSaleForm.species} onChange={e => setFlatSaleForm(p => ({ ...p, species: e.target.value }))}>
+                {Object.keys(SPECIES).map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+              <Input label="Head count *" type="number" min="1" value={flatSaleForm.headCount} onChange={e => setFlatSaleForm(p => ({ ...p, headCount: e.target.value }))} placeholder="e.g. 25" />
+              <Input label="Total amount ($)" type="number" min="0" step="0.01" value={flatSaleForm.totalAmount} onChange={e => setFlatSaleForm(p => ({ ...p, totalAmount: e.target.value }))} placeholder="e.g. 36250.00" />
+              <Input label="Buyer name" value={flatSaleForm.buyerName} onChange={e => setFlatSaleForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Livestock" />
+              <Textarea label="Notes" value={flatSaleForm.notes} onChange={e => setFlatSaleForm(p => ({ ...p, notes: e.target.value }))} placeholder="Optional" rows={2} />
+            </div>
+            <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
+              <Btn onClick={saveFlatSale} disabled={!flatSaleForm.date || !flatSaleForm.headCount || parseInt(flatSaleForm.headCount, 10) < 1}>Save</Btn>
+              <Btn variant="secondary" onClick={() => setShowFlatSaleModal(false)}>Cancel</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
 
       {/* Filter bar */}
       <Card style={{ padding: "16px 20px", marginBottom: "12px", borderLeft: "4px solid var(--green3)" }}>
@@ -474,7 +530,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
             </div>
           </div>
         )}
-        {[...displayLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).length === 0 ? (
+        {displayGroupLoadSales.length === 0 ? (
           <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No load sales match the current filters." : "No load sales recorded yet. Use the button above to log a sale barn load."}</div>
         ) : (
           <div style={{ overflowX: "auto" }}>
@@ -490,11 +546,48 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                 </tr>
               </thead>
               <tbody>
-                {[...displayLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
+                {[...displayGroupLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
                     <td style={{ padding: "10px 12px" }}>{l.date ? fmt(l.date) : "—"}</td>
                     <td style={{ padding: "10px 12px" }}>{l.headCount ?? "—"}</td>
                     <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{l.species || "—"}</td>
+                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: "10px 12px" }}>{l.buyerName || "—"}</td>
+                    <td style={{ padding: "8px" }}>
+                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }} aria-label="Remove">×</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {/* Flat Sales */}
+      <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Flat Sales</div>
+        {displayFlatSales.length === 0 ? (
+          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No flat sales match the current filters." : "No flat sales recorded yet. Use the \u201c+ Flat Sale\u201d button to record one."}</div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Date</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Species</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Head</th>
+                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Total</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Buyer</th>
+                  <th style={{ width: "40px" }} />
+                </tr>
+              </thead>
+              <tbody>
+                {[...displayFlatSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
+                  <tr key={l.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
+                    <td style={{ padding: "10px 12px" }}>{l.date ? fmt(l.date) : "—"}</td>
+                    <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{l.species || "—"}</td>
+                    <td style={{ padding: "10px 12px" }}>{l.headCount ?? "—"}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                     <td style={{ padding: "10px 12px" }}>{l.buyerName || "—"}</td>
                     <td style={{ padding: "8px" }}>

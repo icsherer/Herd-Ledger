@@ -16,9 +16,10 @@ const emptySaleEditForm = () => ({
   notes: "",
 });
 
-export default function Sales({ animals, setAnimals, loadSales, setLoadSales, expenses }) {
+export default function Sales({ animals, setAnimals, loadSales, setLoadSales, expenses, settings }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
+  const [plYear, setPlYear] = useState(currentYear);
   const [showLoadForm, setShowLoadForm] = useState(false);
   const [filterStartDate, setFilterStartDate] = useState("");
   const [filterEndDate, setFilterEndDate] = useState("");
@@ -345,12 +346,174 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
   })();
   const hasAnySales = soldAnimals.length > 0 || (loadSales || []).length > 0;
 
+  // ── P&L report calculations ────────────────────────────────────────────────
+  const plFarmName = settings?.farmName || "My Farm";
+  const plOwnerName = settings?.ownerName || "";
+  const plGeneratedDate = new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+  const plStr = String(plYear);
+
+  const plIndividualSalesAmt = (animals || [])
+    .filter(a => a.sale?.dateSold?.startsWith(plStr))
+    .reduce((s, a) => s + (Number(a.sale?.pricePerHead) || 0), 0);
+  const plGroupLoadSalesAmt = (loadSales || [])
+    .filter(l => l.date?.startsWith(plStr) && l.type !== "flat")
+    .reduce((s, l) => s + (Number(l.totalAmount) || 0), 0);
+  const plFlatSalesAmt = (loadSales || [])
+    .filter(l => l.date?.startsWith(plStr) && l.type === "flat")
+    .reduce((s, l) => s + (Number(l.totalAmount) || 0), 0);
+  const plTotalIncome = plIndividualSalesAmt + plGroupLoadSalesAmt + plFlatSalesAmt;
+
+  const plExpenseCategories = ["Feed", "Veterinary", "Medicine", "Equipment", "Supplies", "Labor", "Fuel", "Land/Lease", "Other"];
+  const plExpenseRows = plExpenseCategories.map(cat => ({
+    cat,
+    amt: (expenses || []).filter(e => e.date?.startsWith(plStr) && e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0),
+  }));
+  const plLivestockPurchasedAmt = (animals || [])
+    .filter(a => a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchaseDate?.startsWith(plStr))
+    .reduce((s, a) => s + (Number(a.purchasePrice) || 0), 0);
+  const plTotalExpenses = plExpenseRows.reduce((s, r) => s + r.amt, 0) + plLivestockPurchasedAmt;
+  const plNetIncome = plTotalIncome - plTotalExpenses;
+
+  const scheduleFLines = { Feed: "Line 15", Veterinary: "Line 32", Medicine: "Line 32", Equipment: "Line 18", Labor: "Line 22", Fuel: "Line 20", "Land/Lease": "Line 24", Supplies: "—", Other: "—" };
+  const $pl = n => "$" + Math.abs(n).toLocaleString("en-US", { minimumFractionDigits: 2 });
+
+  function printPLReport() {
+    const existing = document.getElementById("hl-pl-print-root");
+    if (existing) existing.remove();
+
+    const netColor = plNetIncome >= 0 ? "#1B3A2B" : "#C0392B";
+    const incomeRows = [
+      { label: "Livestock Sales (Individual)", amt: plIndividualSalesAmt },
+      { label: "Load / Group Sales", amt: plGroupLoadSalesAmt },
+      { label: "Flat Sales", amt: plFlatSalesAmt },
+    ];
+    const expenseRowsWithPurchases = [
+      ...plExpenseRows,
+      { cat: "Livestock Purchased", amt: plLivestockPurchasedAmt },
+    ].filter(r => r.amt > 0);
+    const scheduleFRef = [
+      ...plExpenseRows.filter(r => r.amt > 0).map(r => ({ label: r.cat, line: scheduleFLines[r.cat] || "—" })),
+      ...(plLivestockPurchasedAmt > 0 ? [{ label: "Livestock Purchased", line: "Line 10" }] : []),
+      { label: "Livestock Sales Income", line: "Part I, Line 1a" },
+    ];
+
+    const rowHtml = (label, amt, bold = false, color = "#141A14") =>
+      `<tr style="border-bottom:1px solid #EDE6D6;">
+        <td style="padding:6px 12px;font-weight:${bold ? 700 : 400};color:${color}">${label}</td>
+        <td style="padding:6px 12px;text-align:right;font-weight:${bold ? 700 : 400};color:${color}">${$pl(amt)}</td>
+      </tr>`;
+
+    const html = `
+      <div id="hl-pl-print-root" style="font-family:Georgia,serif;color:#141A14;background:#fff;max-width:760px;margin:0 auto;padding:0;">
+        <!-- Header -->
+        <div style="background:#1B3A2B;color:#fff;padding:32px 40px 28px;margin-bottom:0;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;">
+            <div>
+              <div style="font-family:'Playfair Display',Georgia,serif;font-size:28px;font-weight:700;letter-spacing:0.5px;line-height:1.1;">Herd Ledger</div>
+              <div style="font-size:11px;color:#F0C060;letter-spacing:3px;text-transform:uppercase;margin-top:4px;">Livestock Management</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-size:13px;color:rgba(255,255,255,0.7);">Generated ${plGeneratedDate}</div>
+            </div>
+          </div>
+          <div style="margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.2);">
+            <div style="font-family:'Playfair Display',Georgia,serif;font-size:22px;font-weight:600;color:#F0C060;margin-bottom:6px;">Farm Profit &amp; Loss Statement</div>
+            <div style="font-size:15px;color:rgba(255,255,255,0.9);margin-bottom:2px;">
+              ${plFarmName}${plOwnerName ? ` &mdash; ${plOwnerName}` : ""}
+            </div>
+            <div style="font-size:13px;color:rgba(255,255,255,0.6);">Tax Year ${plStr}</div>
+          </div>
+        </div>
+
+        <!-- Body -->
+        <div style="padding:20px 40px;">
+
+          <!-- Income -->
+          <div style="margin-bottom:18px;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1B3A2B;border-bottom:2px solid #1B3A2B;padding-bottom:6px;margin-bottom:0;">Income</div>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              <tbody>
+                ${incomeRows.map(r => rowHtml(r.label, r.amt)).join("")}
+                ${rowHtml("Total Income", plTotalIncome, true, "#1B3A2B")}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Expenses -->
+          <div style="margin-bottom:18px;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1B3A2B;border-bottom:2px solid #1B3A2B;padding-bottom:6px;margin-bottom:0;">Expenses</div>
+            <table style="width:100%;border-collapse:collapse;font-size:14px;">
+              <tbody>
+                ${expenseRowsWithPurchases.map(r => rowHtml(r.cat, r.amt)).join("")}
+                ${rowHtml("Total Expenses", plTotalExpenses, true, "#C0392B")}
+              </tbody>
+            </table>
+          </div>
+
+          <!-- Net Farm Income -->
+          <div style="background:#F7F2E8;border:2px solid ${netColor};border-radius:6px;padding:20px 24px;margin-bottom:32px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#6B7B6B;margin-bottom:4px;">Net Farm Income</div>
+              <div style="font-size:13px;color:#6B7B6B;">Total Income &minus; Total Expenses</div>
+            </div>
+            <div style="font-family:'Playfair Display',Georgia,serif;font-size:26px;font-weight:700;color:${netColor};">
+              ${plNetIncome < 0 ? "(" : ""}${$pl(plNetIncome)}${plNetIncome < 0 ? ")" : ""}
+            </div>
+          </div>
+
+          <!-- Schedule F Reference -->
+          <div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1B3A2B;border-bottom:2px solid #C9952A;padding-bottom:6px;margin-bottom:0;">Schedule F Reference</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:#F7F2E8;">
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Line Item</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Schedule F Line</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${scheduleFRef.map(r => `<tr style="border-bottom:1px solid #EDE6D6;"><td style="padding:6px 12px;">${r.label}</td><td style="padding:6px 12px;color:#C9952A;font-weight:600;">${r.line}</td></tr>`).join("")}
+              </tbody>
+            </table>
+            <div style="margin-top:8px;padding:8px 16px;background:#FFF8EC;border-left:3px solid #C9952A;font-size:12px;color:#6B7B6B;line-height:1.6;">
+              <strong>Disclaimer:</strong> Consult your tax professional. This report is for reference only and does not constitute tax advice. Line numbers reference IRS Schedule F (Form 1040) and are subject to change.
+            </div>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+    const wrapper = document.createElement("div");
+    wrapper.id = "hl-pl-print-root";
+    wrapper.innerHTML = html;
+    document.body.appendChild(wrapper);
+
+    window.print();
+
+    setTimeout(() => {
+      const el = document.getElementById("hl-pl-print-root");
+      if (el) el.remove();
+    }, 1000);
+  }
+
   return (
     <div className="hl-page hl-fade-in">
       <SectionTitle action={
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
           <Btn variant="secondary" onClick={() => setShowFlatSaleModal(true)}>+ Flat Sale</Btn>
           <Btn onClick={exportScheduleF}>Export Schedule F CSV</Btn>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <select
+              value={plYear}
+              onChange={e => setPlYear(Number(e.target.value))}
+              style={{ padding: "8px 10px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "13px", background: "#fff", height: "36px" }}
+              aria-label="P&L report year"
+            >
+              {[currentYear, currentYear - 1, currentYear - 2, currentYear - 3].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <Btn onClick={printPLReport}>Download P&amp;L Report</Btn>
+          </div>
         </div>
       }>
         Sales

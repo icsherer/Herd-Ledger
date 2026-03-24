@@ -848,3 +848,30 @@
     justify-content: center;
   }
 }
+
+/* ── P&L PDF print styles ─────────────────────────────────────────────────── */
+@media print {
+  /* Hide everything except the P&L report */
+  body > *:not(#hl-pl-print-root) {
+    display: none !important;
+  }
+
+  #hl-pl-print-root {
+    display: block !important;
+    position: static !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  @page {
+    size: letter portrait;
+    margin: 0.6in 0.65in;
+  }
+
+  /* Ensure the dark header background prints */
+  #hl-pl-print-root [style*="background:#1B3A2B"],
+  #hl-pl-print-root [style*="background: #1B3A2B"] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

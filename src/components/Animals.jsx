@@ -605,6 +605,7 @@ export function RegisterAnimalForm({
 
 
 const HORSE_DOCUMENT_TYPES = ["Registration Papers", "Coggins Test", "Health Certificate", "Brand Inspection", "Vaccination Record", "Insurance", "Other"];
+const GENERAL_DOCUMENT_TYPES = ["Health Certificate", "Registration Papers", "Brand Inspection", "Vaccination Record", "Purchase Receipt", "Lease Agreement", "Insurance", "Other"];
 const ANIMAL_DOCUMENTS_BUCKET = "animal-documents";
 const ANIMAL_PHOTOS_BUCKET = "animal-photos";
 
@@ -2839,18 +2840,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               )}
             </div>
 
-            {a.species === "Horse" && (
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Documents</div>
-                <Btn size="sm" variant="secondary" onClick={() => { setEditingDocumentId(null); setDocumentForm({ documentType: "Coggins Test", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" }); setDocumentFormFile(null); setShowDocumentForm(true); documentFileInputRef.current?.value && (documentFileInputRef.current.value = ""); }}>Upload Document</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => { setEditingDocumentId(null); setDocumentForm({ documentType: a.species === "Horse" ? "Coggins Test" : "Health Certificate", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" }); setDocumentFormFile(null); setShowDocumentForm(true); documentFileInputRef.current?.value && (documentFileInputRef.current.value = ""); }}>Upload Document</Btn>
               </div>
               {showDocumentForm && (
                 <Card style={{ padding: "18px 20px", marginBottom: "12px", borderLeft: "3px solid var(--green3)" }}>
                   <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>{editingDocumentId ? "Edit Document" : "Upload Document"}</div>
                   <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
                     <Select label="Document type *" value={documentForm.documentType} onChange={e => setDocumentForm(p => ({ ...p, documentType: e.target.value }))}>
-                      {HORSE_DOCUMENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                      {(a.species === "Horse" ? HORSE_DOCUMENT_TYPES : GENERAL_DOCUMENT_TYPES).map(t => <option key={t} value={t}>{t}</option>)}
                     </Select>
                     <Input label="Document name" value={documentForm.documentName} onChange={e => setDocumentForm(p => ({ ...p, documentName: e.target.value }))} placeholder="e.g. Coggins 2024 (optional)" />
                     <DateInputWithValidation label="Date issued" value={documentForm.dateIssued} onValueChange={v => setDocumentForm(p => ({ ...p, dateIssued: v }))} placeholder="Optional" />
@@ -2935,11 +2935,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       setViewing(updated);
                       setShowDocumentForm(false);
                       setEditingDocumentId(null);
-                      setDocumentForm({ documentType: "Coggins Test", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" });
+                      setDocumentForm({ documentType: a.species === "Horse" ? "Coggins Test" : "Health Certificate", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" });
                       setDocumentFormFile(null);
                       documentFileInputRef.current && (documentFileInputRef.current.value = "");
                     }}>{documentUploading ? "Uploading…" : (editingDocumentId ? "Save Changes" : "Save")}</Btn>
-                    <Btn size="sm" variant="ghost" onClick={() => { setShowDocumentForm(false); setEditingDocumentId(null); setDocumentForm({ documentType: "Coggins Test", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" }); setDocumentFormFile(null); documentFileInputRef.current?.value && (documentFileInputRef.current.value = ""); }}>Cancel</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowDocumentForm(false); setEditingDocumentId(null); setDocumentForm({ documentType: a.species === "Horse" ? "Coggins Test" : "Health Certificate", documentName: "", dateIssued: "", expirationDate: "", issuingAuthority: "", notes: "" }); setDocumentFormFile(null); documentFileInputRef.current?.value && (documentFileInputRef.current.value = ""); }}>Cancel</Btn>
                   </div>
                 </Card>
               )}
@@ -3021,7 +3021,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 );
               })()}
             </div>
-            )}
 
             <div style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", flexWrap: "wrap", gap: "8px" }}>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { DEFAULT_TAB_VISIBILITY, TAB_OPTIONS, SPECIES, VACCINE_ROUTES } from "../lib/constants.js";
 import { Card, Input, Select, Btn } from "./ui.jsx";
+import { supabase } from "../supabase";
 
 const emptyVaccine = () => ({ vaccineName: "", dosage: "", route: "IM", boosterIntervalDays: "", trackBooster: false });
 const emptyProtocol = () => ({ id: "", name: "", vaccines: [emptyVaccine()] });
@@ -12,7 +13,46 @@ export default function Settings({ settings, setSettings, contacts = [], setCont
   const protocols = settings?.vaccinationProtocols ?? [];
   const [protocolForm, setProtocolForm] = useState(null); // null | { id, name, vaccines } for add/edit
   const [contactForm, setContactForm] = useState(null); // null | contact for add/edit
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleteError, setDeleteError] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const setProtocols = (next) => setSettings(prev => ({ ...prev, vaccinationProtocols: next }));
+  async function deleteAccount() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id;
+      if (!userId) throw new Error("Could not identify user.");
+      const tables = ["animals", "gestations", "tasks", "contacts", "expenses", "feeder_programs", "load_sales", "notes", "pastures", "pasture_feed_logs", "user_settings", "user_data"];
+      for (const table of tables) {
+        const { error } = await supabase.from(table).delete().eq("user_id", userId);
+        if (error) throw new Error(`Failed to delete ${table}: ${error.message}`);
+      }
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (token) {
+        const res = await fetch("https://ugjtrdnqrlanrenhsddf.supabase.co/functions/v1/delete-account", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "apikey": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVnanRyZG5xcmxhbnJlbmhzZGRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA0MzMwNzMsImV4cCI6MjA1NjAwOTA3M30.p7DFBtkQ9M3ShLOHQGAY0-8YqfJLj_4pQR0Q5NQBT6c",
+            "Content-Type": "application/json",
+          },
+        });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || "Failed to delete account. Please contact support.");
+        }
+      }
+      await supabase.auth.signOut();
+    } catch (err) {
+      setDeleteError(err.message || "An error occurred. Please try again.");
+      setDeleting(false);
+    }
+  }
+
   const setVisibility = (id, value) => {
     setSettings(prev => ({
       ...prev,
@@ -219,7 +259,58 @@ export default function Settings({ settings, setSettings, contacts = [], setCont
         >
           Log Out
         </Card>
+
+        <div style={{ marginTop: "40px", paddingTop: "32px", borderTop: "2px solid #e8d8d8" }}>
+          <button
+            type="button"
+            onClick={() => { setDeleteConfirmText(""); setDeleteError(null); setShowDeleteModal(true); }}
+            style={{ background: "none", border: "1.5px solid #C0392B", color: "#C0392B", borderRadius: "var(--radius)", padding: "10px 20px", fontSize: "14px", fontWeight: 600, cursor: "pointer", width: "100%" }}
+          >
+            Delete Account
+          </button>
+        </div>
       </div>
+
+      {showDeleteModal && (
+        <div
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "16px" }}
+          onClick={() => { if (!deleting) { setShowDeleteModal(false); setDeleteConfirmText(""); setDeleteError(null); } }}
+        >
+          <Card style={{ padding: "28px", maxWidth: "420px", width: "100%" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "#C0392B", marginBottom: "14px" }}>Delete Account</div>
+            <p style={{ fontSize: "14px", color: "var(--ink2)", lineHeight: 1.6, marginBottom: "20px" }}>
+              This will permanently delete all your animals, records, photos, and account data. <strong>This cannot be undone.</strong>
+            </p>
+            <div style={{ marginBottom: "20px" }}>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>Type <strong>DELETE</strong> to confirm</label>
+              <input
+                type="text"
+                value={deleteConfirmText}
+                onChange={e => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                disabled={deleting}
+                style={{ width: "100%", padding: "10px 12px", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", fontSize: "14px", boxSizing: "border-box", fontFamily: "inherit" }}
+              />
+            </div>
+            {deleteError && (
+              <div style={{ marginBottom: "14px", padding: "10px 12px", background: "rgba(192,57,43,0.08)", border: "1px solid rgba(192,57,43,0.25)", borderRadius: "var(--radius)", fontSize: "13px", color: "#C0392B" }}>
+                {deleteError}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                type="button"
+                onClick={deleteAccount}
+                disabled={deleteConfirmText !== "DELETE" || deleting}
+                style={{ flex: 1, background: deleteConfirmText === "DELETE" && !deleting ? "#C0392B" : "#e0c0bc", border: "none", color: "#fff", borderRadius: "var(--radius)", padding: "10px 16px", fontSize: "14px", fontWeight: 600, cursor: deleteConfirmText === "DELETE" && !deleting ? "pointer" : "not-allowed" }}
+              >
+                {deleting ? "Deleting…" : "Permanently Delete Account"}
+              </button>
+              <Btn variant="secondary" onClick={() => { setShowDeleteModal(false); setDeleteConfirmText(""); setDeleteError(null); }} disabled={deleting}>Cancel</Btn>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

@@ -261,7 +261,7 @@ export default function App() {
       initialLoadDone.current = true;
       setLoadDone(true);
     });
-  }, [user]);
+  }, [user?.id, user?.isGuest]);
 
   const PERSIST_DEBOUNCE_MS = 2000;
 

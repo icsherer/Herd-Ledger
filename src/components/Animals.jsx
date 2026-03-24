@@ -64,6 +64,7 @@ export function animalToEditInitialValues(a) {
     sireName: a.sireName || "",
     sireNotInHerd: !a.sireId,
     sireSearch: "",
+    excludeFromReports: a.excludeFromReports ?? false,
   };
 }
 
@@ -97,6 +98,7 @@ function buildRegisterSingleForm(defaultSpecies, seed) {
     sireNotInHerd: false,
     damSearch: "",
     sireSearch: "",
+    excludeFromReports: sp === "Horse",
   };
   return seed ? { ...base, ...seed } : base;
 }
@@ -146,6 +148,7 @@ export function EditAnimalForm({
       motherName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
       sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
       sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
+      excludeFromReports: form.excludeFromReports ?? false,
       ...(form.species === "Horse" && {
         heightHands: (form.heightHands || "").trim() || undefined,
         discipline: (form.discipline || "").trim() || undefined,
@@ -247,6 +250,10 @@ export function EditAnimalForm({
         )}
       </div>
       <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3} placeholder="Any relevant notes..." />
+      <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "14px", cursor: "pointer", fontSize: "14px" }}>
+        <input type="checkbox" checked={form.excludeFromReports ?? false} onChange={e => setForm(p => ({ ...p, excludeFromReports: e.target.checked }))} style={{ width: "18px", height: "18px", accentColor: "var(--brass)" }} />
+        <span>Exclude from financial reports</span>
+      </label>
       <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
         <Btn onClick={handleSave}>Save Changes</Btn>
         <Btn variant="secondary" onClick={onCancel}>Cancel</Btn>
@@ -319,6 +326,7 @@ export function RegisterAnimalForm({
       motherName: form.damNotInHerd ? (form.damName?.trim() || undefined) : (form.damId ? form.damName : undefined),
       sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
       sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
+      excludeFromReports: form.excludeFromReports ?? false,
       ...(form.species === "Horse" && {
         heightHands: form.heightHands?.trim() || undefined,
         discipline: form.discipline?.trim() || undefined,
@@ -428,7 +436,7 @@ export function RegisterAnimalForm({
                   onClick={() => {
                     const newSpecies = isOther ? REGISTER_OTHER_SPECIES[0] : tab;
                     const opts = getSexOptions(newSpecies);
-                    setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]) }));
+                    setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]), excludeFromReports: newSpecies === "Horse" }));
                   }}
                   style={{
                     padding: "8px 14px",
@@ -449,7 +457,7 @@ export function RegisterAnimalForm({
           {REGISTER_SPECIES_TABS.includes(form.species) && form.species !== "Other" ? null : REGISTER_OTHER_SPECIES.includes(form.species) && (
             <div style={{ marginBottom: "14px" }}>
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Species (Other)</label>
-              <Select value={form.species} onChange={e => { const v = e.target.value; const opts = getSexOptions(v); setForm(p => ({ ...p, species: v, sex: opts.includes(p.sex) ? p.sex : opts[0] })); }} style={{ maxWidth: "200px" }}>
+              <Select value={form.species} onChange={e => { const v = e.target.value; const opts = getSexOptions(v); setForm(p => ({ ...p, species: v, sex: opts.includes(p.sex) ? p.sex : opts[0], excludeFromReports: false })); }} style={{ maxWidth: "200px" }}>
                 {REGISTER_OTHER_SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
             </div>
@@ -537,6 +545,10 @@ export function RegisterAnimalForm({
               </div>
             )}
           </div>
+          <label style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "14px", cursor: "pointer", fontSize: "14px" }}>
+            <input type="checkbox" checked={form.excludeFromReports ?? false} onChange={e => setForm(p => ({ ...p, excludeFromReports: e.target.checked }))} style={{ width: "18px", height: "18px", accentColor: "var(--brass)" }} />
+            <span>Exclude from financial reports</span>
+          </label>
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
             <Btn onClick={add}>Register</Btn>
             <Btn variant="secondary" onClick={onCancel}>Cancel</Btn>
@@ -2093,6 +2105,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
               {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
               {a.tag && a.name && !a.deceased && <Badge color="var(--brass2)">#{a.tag}</Badge>}
+              {a.excludeFromReports && <Badge color="#C0392B" style={{ background: "rgba(192,57,43,0.12)", color: "#C0392B", border: "1px solid rgba(192,57,43,0.3)" }}>Excluded from reports</Badge>}
             </div>
           </div>
           <div className="hl-profile-content" style={{ padding: "28px 32px" }}>

@@ -115,7 +115,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     .reduce((sum, l) => sum + (Number(l.totalAmount) || 0), 0);
   const totalSalesRevenueYTD = individualSalesYTD + loadSalesYTD;
   const purchasesYTD = (animals || [])
-    .filter(a => a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchasePrice > 0 && a.purchaseDate && a.purchaseDate.startsWith(String(year)))
+    .filter(a => !a.excludeFromReports && a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchasePrice > 0 && a.purchaseDate && a.purchaseDate.startsWith(String(year)))
     .reduce((sum, a) => sum + (Number(a.purchasePrice) || 0), 0);
   const expensesYTD = (expenses || [])
     .filter(e => e.date && e.date.startsWith(String(year)))
@@ -246,6 +246,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
   function exportScheduleF() {
     const rows = [];
     soldAnimals.forEach(a => {
+      if (a.excludeFromReports) return;
       if (!a.sale?.dateSold) return;
       const amt = Number(a.sale?.pricePerHead) || 0;
       if (amt === 0) return;
@@ -270,7 +271,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
         notes: l.notes || "",
       });
     });
-    (animals || []).filter(a => a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchasePrice > 0).forEach(a => {
+    (animals || []).filter(a => !a.excludeFromReports && a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchasePrice > 0).forEach(a => {
       rows.push({
         date: a.purchaseDate || "",
         description: `Purchase — ${getAnimalName(a)}${a.species ? ` ${a.species}` : ""}${a.purchasedFrom ? ` from ${a.purchasedFrom}` : ""}`,
@@ -369,7 +370,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     amt: (expenses || []).filter(e => e.date?.startsWith(plStr) && e.category === cat).reduce((s, e) => s + (Number(e.amount) || 0), 0),
   }));
   const plLivestockPurchasedAmt = (animals || [])
-    .filter(a => a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchaseDate?.startsWith(plStr))
+    .filter(a => !a.excludeFromReports && a.acquisitionType === "Purchased" && a.purchasePrice != null && a.purchaseDate?.startsWith(plStr))
     .reduce((s, a) => s + (Number(a.purchasePrice) || 0), 0);
   const plTotalExpenses = plExpenseRows.reduce((s, r) => s + r.amt, 0) + plLivestockPurchasedAmt;
   const plNetIncome = plTotalIncome - plTotalExpenses;
@@ -396,6 +397,14 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
       ...(plLivestockPurchasedAmt > 0 ? [{ label: "Livestock Purchased", line: "Line 10" }] : []),
       { label: "Livestock Sales Income", line: "Part I, Line 1a" },
     ];
+
+    const purchasedDetail = (animals || [])
+      .filter(a => !a.excludeFromReports && a.acquisitionType === "Purchased" && a.purchasePrice != null && Number(a.purchasePrice) > 0 && a.purchaseDate?.startsWith(plStr))
+      .sort((a, b) => (a.purchaseDate || "").localeCompare(b.purchaseDate || ""));
+
+    const soldDetail = (animals || [])
+      .filter(a => !a.excludeFromReports && a.sale?.dateSold?.startsWith(plStr) && (Number(a.sale?.pricePerHead) || 0) > 0)
+      .sort((a, b) => (a.sale.dateSold || "").localeCompare(b.sale.dateSold || ""));
 
     const rowHtml = (label, amt, bold = false, color = "#141A14") =>
       `<tr style="border-bottom:1px solid #EDE6D6;">
@@ -479,6 +488,66 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
               <strong>Disclaimer:</strong> Consult your tax professional. This report is for reference only and does not constitute tax advice. Line numbers reference IRS Schedule F (Form 1040) and are subject to change.
             </div>
           </div>
+
+          ${purchasedDetail.length > 0 ? `
+          <!-- Livestock Purchased Detail -->
+          <div style="margin-top:28px;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1B3A2B;border-bottom:2px solid #1B3A2B;padding-bottom:6px;margin-bottom:0;">Livestock Purchased Detail</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:#F7F2E8;">
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Animal Name</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Species</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Purchase Date</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Purchased From</th>
+                  <th style="text-align:right;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${purchasedDetail.map(a => {
+                  const name = [a.name, a.tag ? `#${a.tag}` : ""].filter(Boolean).join(" ");
+                  return `<tr style="border-bottom:1px solid #EDE6D6;">
+                    <td style="padding:6px 12px;">${name || "—"}</td>
+                    <td style="padding:6px 12px;color:#6B7B6B;">${a.species || "—"}</td>
+                    <td style="padding:6px 12px;">${a.purchaseDate ? fmt(a.purchaseDate) : "—"}</td>
+                    <td style="padding:6px 12px;">${a.purchasedFrom || "—"}</td>
+                    <td style="padding:6px 12px;text-align:right;">${$pl(Number(a.purchasePrice))}</td>
+                  </tr>`;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+          ` : ""}
+
+          ${soldDetail.length > 0 ? `
+          <!-- Livestock Sales Detail -->
+          <div style="margin-top:28px;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:#1B3A2B;border-bottom:2px solid #1B3A2B;padding-bottom:6px;margin-bottom:0;">Livestock Sales Detail</div>
+            <table style="width:100%;border-collapse:collapse;font-size:13px;">
+              <thead>
+                <tr style="background:#F7F2E8;">
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Animal Name</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Species</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Date Sold</th>
+                  <th style="text-align:left;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Buyer</th>
+                  <th style="text-align:right;padding:8px 12px;font-weight:600;color:#6B7B6B;font-size:11px;letter-spacing:0.8px;text-transform:uppercase;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${soldDetail.map(a => {
+                  const name = [a.name, a.tag ? `#${a.tag}` : ""].filter(Boolean).join(" ");
+                  return `<tr style="border-bottom:1px solid #EDE6D6;">
+                    <td style="padding:6px 12px;">${name || "—"}</td>
+                    <td style="padding:6px 12px;color:#6B7B6B;">${a.species || "—"}</td>
+                    <td style="padding:6px 12px;">${a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
+                    <td style="padding:6px 12px;">${a.sale?.buyerName || "—"}</td>
+                    <td style="padding:6px 12px;text-align:right;">${$pl(Number(a.sale?.pricePerHead) || 0)}</td>
+                  </tr>`;
+                }).join("")}
+              </tbody>
+            </table>
+          </div>
+          ` : ""}
 
         </div>
       </div>

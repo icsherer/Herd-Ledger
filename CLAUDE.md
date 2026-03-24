@@ -90,3 +90,4 @@ npm run preview  # Preview build
 - Main test user: 80cd605b-afdf-4b5a-8801-44f20b0f638a
 - RPC: get_user_data(uuid) — returns all tables in one call
 - Old user_data table: keep until fully stable, then drop
+

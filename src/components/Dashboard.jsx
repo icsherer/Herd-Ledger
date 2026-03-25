@@ -74,9 +74,8 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
     return { ...g, due, dueD: d, animal: animals.find(x => x.id === g.animalId) };
   });
 
-  // DUE THIS MONTH: due this month and not already overdue (uses same overdueIds).
+  // DUE THIS MONTH: due this month, including overdue ones whose due date falls in the current month.
   const dueThisMonth = activeGestations.filter(g => {
-    if (overdueIds.has(g.id)) return false;
     if (g.dueDateStart && isCurrentMonth(g.dueDateStart)) return true;
     if (g.dueDateEnd && isCurrentMonth(g.dueDateEnd)) return true;
     if (g.dueDate && !g.dueDateStart && !g.dueDateEnd && isCurrentMonth(g.dueDate)) return true;

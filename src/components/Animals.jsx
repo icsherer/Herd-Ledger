@@ -2018,12 +2018,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (!file) return;
-                  const previousPhotoUrl = a.photoUrl;
-                  const previousPhoto = a.photo;
-                  const previewUrl = URL.createObjectURL(file);
-                  const withPreview = { ...a, photoUrl: previewUrl, photo: undefined };
-                  setAnimals(prev => prev.map(an => an.id === a.id ? withPreview : an));
-                  setViewing(withPreview);
                   setPhotoUploading(true);
                   try {
                     const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
@@ -2037,28 +2031,15 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       .getPublicUrl(path);
                     setAnimals(prev => prev.map(an => {
                       if (an.id !== a.id) return an;
-                      if (an.photoUrl !== previewUrl) return an;
                       return { ...an, photoUrl: urlData.publicUrl, photo: undefined };
                     }));
                     setViewing(prev => {
                       if (!prev || prev.id !== a.id) return prev;
-                      if (prev.photoUrl !== previewUrl) return prev;
                       return { ...prev, photoUrl: urlData.publicUrl, photo: undefined };
                     });
                   } catch (err) {
-                    setAnimals(prev => prev.map(an => {
-                      if (an.id !== a.id) return an;
-                      if (an.photoUrl !== previewUrl) return an;
-                      return { ...an, photoUrl: previousPhotoUrl, photo: previousPhoto };
-                    }));
-                    setViewing(prev => {
-                      if (!prev || prev.id !== a.id) return prev;
-                      if (prev.photoUrl !== previewUrl) return prev;
-                      return { ...prev, photoUrl: previousPhotoUrl, photo: previousPhoto };
-                    });
                     alert(err?.message || "Failed to process image");
                   } finally {
-                    URL.revokeObjectURL(previewUrl);
                     setPhotoUploading(false);
                     e.target.value = "";
                   }

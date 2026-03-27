@@ -1,3 +1,93 @@
+/* ── Bottom tab bar (mobile-first navigation) ────────────────────────────── */
+
+/* Hidden by default on desktop */
+.hl-bottom-nav {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  /* Hide the desktop top-nav tabs on mobile, keep the logo header */
+  .hl-nav-tabs {
+    display: none !important;
+  }
+
+  /* Bottom tab bar */
+  .hl-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 90;
+    background: #1B3A2B;
+    border-top: 1px solid rgba(201, 149, 42, 0.35);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .hl-bottom-tab {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 60px;
+    padding: 8px 4px;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    transition: color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .hl-bottom-tab-active {
+    color: var(--brass) !important;
+  }
+
+  .hl-bottom-tab-icon {
+    font-size: 21px;
+    line-height: 1;
+  }
+
+  .hl-bottom-tab-label {
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    line-height: 1.2;
+  }
+
+  /* Add padding so content doesn't hide behind the bottom bar */
+  .hl-page {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+}
+
+/* More drawer overlay */
+.hl-more-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-end;
+}
+
+.hl-more-drawer {
+  width: 100%;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  padding: 16px 16px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom, 24px));
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.14);
+  animation: hl-drawer-up 0.22s ease-out;
+}
+
+@keyframes hl-drawer-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
 /* ── Mobile responsive (test at 390px) ───────────────────────────────────── */
 
 /* Base: readable text without zooming on small screens (test at 390px) */
@@ -209,7 +299,7 @@
 
 @media (max-width: 480px) {
   .hl-page {
-    padding: 16px 14px;
+    padding: 16px 14px calc(80px + env(safe-area-inset-bottom, 0px));
   }
 }
 

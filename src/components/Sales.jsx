@@ -26,6 +26,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
   const [filterSpecies, setFilterSpecies] = useState("");
   const [filterMonthYear, setFilterMonthYear] = useState("");
   const [editingSaleAnimalId, setEditingSaleAnimalId] = useState(null);
+  const [expandedSaleId, setExpandedSaleId] = useState(null);
   const [saleEditForm, setSaleEditForm] = useState(emptySaleEditForm);
   const [showFlatSaleModal, setShowFlatSaleModal] = useState(false);
   const [flatSaleForm, setFlatSaleForm] = useState({
@@ -681,45 +682,66 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
         {displaySoldAnimals.length === 0 ? (
           <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No sales match the current filters." : "No sold animals recorded yet."}</div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+          <div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}>
+              <colgroup>
+                <col style={{ width: "32%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "22%" }} />
+                <col style={{ width: "10%" }} />
+              </colgroup>
               <thead>
                 <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Name / Tag</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Species</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Sale date</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Buyer</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Sale price</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Acquisition</th>
-                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Purchase price</th>
-                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Net gain</th>
-                  <th style={{ width: "120px", padding: "10px 12px", fontWeight: 600 }}>Actions</th>
+                  <th style={{ padding: "10px 4px" }} />
                 </tr>
               </thead>
               <tbody>
                 {displaySoldAnimals.map(a => {
                   const salePrice = Number(a.sale?.pricePerHead) || 0;
-                  const purchasePrice = a.acquisitionType === "Purchased" && a.purchasePrice != null ? Number(a.purchasePrice) : 0;
-                  const netGain = salePrice - purchasePrice;
+                  const isExpanded = expandedSaleId === a.id;
                   return (
-                    <tr key={a.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
-                      <td style={{ padding: "10px 12px" }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
-                      <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{a.species || "—"}</td>
-                      <td style={{ padding: "10px 12px" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
-                      <td style={{ padding: "10px 12px" }}>{a.sale?.buyerName || "—"}</td>
-                      <td style={{ padding: "10px 12px", textAlign: "right" }}>${salePrice.toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                      <td style={{ padding: "10px 12px" }}>{a.acquisitionType === "Purchased" ? "Purchased" : "Home Raised"}</td>
-                      <td style={{ padding: "10px 12px", textAlign: "right" }}>{a.acquisitionType === "Purchased" && a.purchasePrice != null ? `$${Number(a.purchasePrice).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}</td>
-                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600, color: netGain >= 0 ? "var(--green)" : "var(--danger2)" }}>{a.acquisitionType === "Purchased" || purchasePrice !== 0 ? `$${netGain.toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—"}</td>
-                      <td style={{ padding: "10px 12px" }}>
-                        {setAnimals && (
-                          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                            <Btn size="sm" variant="secondary" onClick={() => openSaleEdit(a)}>Edit</Btn>
-                            <Btn size="sm" variant="danger" onClick={() => deleteSaleRecord(a.id)}>Delete</Btn>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                    <>
+                      <tr
+                        key={a.id}
+                        onClick={() => setExpandedSaleId(isExpanded ? null : a.id)}
+                        style={{
+                          borderBottom: isExpanded ? "none" : "1px solid var(--cream2)",
+                          background: isExpanded ? "rgba(201,149,42,0.06)" : "transparent",
+                          cursor: "pointer",
+                          userSelect: "none",
+                        }}
+                      >
+                        <td style={{ padding: "11px 12px", wordBreak: "break-word" }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
+                        <td style={{ padding: "11px 12px", color: "var(--muted)" }}>{a.species || "—"}</td>
+                        <td style={{ padding: "11px 12px" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
+                        <td style={{ padding: "11px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>${salePrice.toLocaleString("en-US", { minimumFractionDigits: salePrice % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}</td>
+                        <td style={{ padding: "11px 8px 11px 0", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
+                          {isExpanded ? "▲" : "▼"}
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr key={`${a.id}-detail`} style={{ borderBottom: "1px solid var(--cream2)", background: "rgba(201,149,42,0.06)" }}>
+                          <td colSpan={5} style={{ padding: "0 12px 14px" }}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", fontSize: "13px", color: "var(--ink2)", marginBottom: setAnimals ? "12px" : "0" }}>
+                              <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Buyer: </span>{a.sale?.buyerName || "—"}{a.sale?.buyerContact ? ` · ${a.sale.buyerContact}` : ""}</div>
+                              <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Location: </span>{a.sale?.saleLocation || "—"}</div>
+                              {a.sale?.notes && <div style={{ width: "100%" }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>Notes: </span>{a.sale.notes}</div>}
+                            </div>
+                            {setAnimals && (
+                              <div style={{ display: "flex", gap: "8px" }}>
+                                <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); openSaleEdit(a); setExpandedSaleId(null); }}>Edit</Btn>
+                                <Btn size="sm" variant="danger" onClick={e => { e.stopPropagation(); deleteSaleRecord(a.id); }}>Delete</Btn>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </>
                   );
                 })}
               </tbody>

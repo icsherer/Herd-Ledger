@@ -47,8 +47,11 @@ class TabErrorBoundary extends React.Component {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 function Nav({ tab, setTab, hideGestationTab, settings }) {
+  const [showMoreDrawer, setShowMoreDrawer] = useState(false);
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
-  const tabs = [
+
+  // Desktop top-nav: all tabs
+  const allTabs = [
     { id: "dashboard", label: "Dashboard", icon: "⊞" },
     { id: "animals", label: "Animals", icon: "🐄" },
     ...(visibility.gestation !== false && !hideGestationTab ? [{ id: "gestation", label: "Gestation", icon: "📅" }] : []),
@@ -61,46 +64,125 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🥛" }] : []),
     { id: "settings", label: "Settings", icon: "⚙" },
   ];
+
+  // "More" drawer items: everything not in the primary 5 bottom tabs
+  const moreItems = [
+    ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🟩" }] : []),
+    ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
+    ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✓" }] : []),
+    ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾" }] : []),
+    ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🥛" }] : []),
+    ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "📋" }] : []),
+    { id: "settings", label: "Settings", icon: "⚙" },
+  ];
+
+  const moreTabs = new Set(["pastures", "notes", "tasks", "feeder", "weaning", "sales", "settings", "help"]);
+  const isMoreActive = moreTabs.has(tab);
+  const isFinancesActive = tab === "expenses" || tab === "sales";
+
+  function handleMoreItem(id) {
+    setTab(id);
+    setShowMoreDrawer(false);
+  }
+
   return (
-    <header className="no-print" style={{ background: "var(--green)", borderBottom: "3px solid var(--brass)" }}>
-      <div className="hl-nav-inner" style={{ padding: "0 24px", display: "flex", alignItems: "center", gap: "0" }}>
-        {/* Logo */}
-        <div style={{ padding: "14px 0", marginRight: "32px", flexShrink: 0 }}>
-          <div className="hl-nav-logo-title" style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "#fff", letterSpacing: "0.5px", lineHeight: 1 }}>
-            Herd Ledger
+    <>
+      {/* ── Header (logo + desktop top nav) ── */}
+      <header className="no-print" style={{ background: "var(--green)", borderBottom: "3px solid var(--brass)" }}>
+        <div className="hl-nav-inner" style={{ padding: "0 24px", display: "flex", alignItems: "center", gap: "0" }}>
+          {/* Logo */}
+          <div style={{ padding: "14px 0", marginRight: "32px", flexShrink: 0 }}>
+            <div className="hl-nav-logo-title" style={{ fontFamily: "'Playfair Display'", fontSize: "20px", fontWeight: 700, color: "#fff", letterSpacing: "0.5px", lineHeight: 1 }}>
+              Herd Ledger
+            </div>
+            <div className="hl-nav-logo-sub" style={{ fontSize: "10px", color: "var(--brass3)", letterSpacing: "2px", textTransform: "uppercase", marginTop: "2px" }}>
+              Livestock Management
+            </div>
           </div>
-          <div className="hl-nav-logo-sub" style={{ fontSize: "10px", color: "var(--brass3)", letterSpacing: "2px", textTransform: "uppercase", marginTop: "2px" }}>
-            Livestock Management
+
+          {/* Desktop tabs (hidden on mobile via CSS) */}
+          <nav className="hl-nav-tabs" style={{ display: "flex", gap: "2px" }}>
+            {allTabs.map(t => (
+              <button key={t.id} onClick={() => setTab(t.id)} style={{
+                display: "flex", alignItems: "center", gap: "6px",
+                padding: "16px 18px",
+                background: tab === t.id ? "rgba(255,255,255,0.12)" : "transparent",
+                color: tab === t.id ? "#fff" : "rgba(255,255,255,0.6)",
+                border: "none",
+                borderBottom: tab === t.id ? "3px solid var(--brass)" : "3px solid transparent",
+                fontSize: "14px", fontWeight: tab === t.id ? 600 : 400,
+                whiteSpace: "nowrap",
+                transition: "all 0.15s",
+                cursor: "pointer",
+                marginBottom: "-3px",
+              }}
+              onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.color = "#fff"; }}
+              onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
+              className="hl-nav-tab"
+              >
+                <span className="hl-nav-tab-icon" style={{ fontSize: "16px" }}>{t.icon}</span>
+                <span className="hl-nav-tab-label">{t.label}</span>
+              </button>
+            ))}
+          </nav>
+        </div>
+      </header>
+
+      {/* ── Mobile bottom tab bar (hidden on desktop via CSS) ── */}
+      <nav className="hl-bottom-nav no-print" aria-label="Main navigation">
+        <button className={`hl-bottom-tab${tab === "dashboard" ? " hl-bottom-tab-active" : ""}`} onClick={() => setTab("dashboard")}>
+          <span className="hl-bottom-tab-icon">⊞</span>
+          <span className="hl-bottom-tab-label">Dashboard</span>
+        </button>
+        <button className={`hl-bottom-tab${tab === "animals" ? " hl-bottom-tab-active" : ""}`} onClick={() => setTab("animals")}>
+          <span className="hl-bottom-tab-icon">🐄</span>
+          <span className="hl-bottom-tab-label">Animals</span>
+        </button>
+        <button className={`hl-bottom-tab${tab === "gestation" ? " hl-bottom-tab-active" : ""}`} onClick={() => setTab("gestation")}>
+          <span className="hl-bottom-tab-icon">📅</span>
+          <span className="hl-bottom-tab-label">Breeding</span>
+        </button>
+        <button className={`hl-bottom-tab${isFinancesActive ? " hl-bottom-tab-active" : ""}`} onClick={() => setTab("expenses")}>
+          <span className="hl-bottom-tab-icon">💰</span>
+          <span className="hl-bottom-tab-label">Finances</span>
+        </button>
+        <button className={`hl-bottom-tab${isMoreActive ? " hl-bottom-tab-active" : ""}`} onClick={() => setShowMoreDrawer(true)}>
+          <span className="hl-bottom-tab-icon">☰</span>
+          <span className="hl-bottom-tab-label">More</span>
+        </button>
+      </nav>
+
+      {/* ── More slide-up drawer ── */}
+      {showMoreDrawer && (
+        <div className="hl-more-overlay no-print" onClick={() => setShowMoreDrawer(false)}>
+          <div className="hl-more-drawer" onClick={e => e.stopPropagation()}>
+            {/* Drag handle */}
+            <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "var(--cream3)", margin: "0 auto 20px" }} />
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", padding: "0 4px" }}>
+              <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 700, color: "var(--ink)" }}>More</span>
+              <button onClick={() => setShowMoreDrawer(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "22px", lineHeight: 1, cursor: "pointer", padding: "4px 8px" }}>✕</button>
+            </div>
+            {/* Items */}
+            {moreItems.map(item => (
+              <button key={item.id} onClick={() => handleMoreItem(item.id)} style={{
+                display: "flex", alignItems: "center", gap: "16px",
+                width: "100%", padding: "14px 12px",
+                background: tab === item.id ? "rgba(201,149,42,0.1)" : "transparent",
+                border: "none", borderRadius: "var(--radius)", cursor: "pointer",
+                color: tab === item.id ? "var(--brass)" : "var(--ink)",
+                fontSize: "16px", fontWeight: tab === item.id ? 600 : 400,
+                transition: "background 0.15s",
+                textAlign: "left",
+              }}>
+                <span style={{ fontSize: "22px", width: "30px", textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
+                <span>{item.label}</span>
+              </button>
+            ))}
           </div>
         </div>
-
-        {/* Tabs */}
-        <nav className="hl-nav-tabs" style={{ display: "flex", gap: "2px" }}>
-          {tabs.map(t => (
-            <button key={t.id} onClick={() => setTab(t.id)} style={{
-              display: "flex", alignItems: "center", gap: "6px",
-              padding: "16px 18px",
-              background: tab === t.id ? "rgba(255,255,255,0.12)" : "transparent",
-              color: tab === t.id ? "#fff" : "rgba(255,255,255,0.6)",
-              border: "none",
-              borderBottom: tab === t.id ? "3px solid var(--brass)" : "3px solid transparent",
-              fontSize: "14px", fontWeight: tab === t.id ? 600 : 400,
-              whiteSpace: "nowrap",
-              transition: "all 0.15s",
-              cursor: "pointer",
-              marginBottom: "-3px",
-            }}
-            onMouseEnter={e => { if (tab !== t.id) e.currentTarget.style.color = "#fff"; }}
-            onMouseLeave={e => { if (tab !== t.id) e.currentTarget.style.color = "rgba(255,255,255,0.6)"; }}
-            className="hl-nav-tab"
-            >
-              <span className="hl-nav-tab-icon" style={{ fontSize: "16px" }}>{t.icon}</span>
-              <span className="hl-nav-tab-label">{t.label}</span>
-            </button>
-          ))}
-        </nav>
-      </div>
-    </header>
+      )}
+    </>
   );
 }
 

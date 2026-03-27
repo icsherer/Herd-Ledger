@@ -13,10 +13,11 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
     .sort((a, b) => (a.dueDate !== b.dueDate ? a.dueDate.localeCompare(b.dueDate) : (a.dueTime || "").localeCompare(b.dueTime || "")))
     .slice(0, 3);
 
-  const activeAnimals = animals.filter(a => !a.deceased && !a.sale);
+  const activeAnimals = animals.filter(a => !a.deceased && !a.butchered && !a.sale);
   const deceasedCount = animals.filter(a => a.deceased).length;
+  const butcheredCount = animals.filter(a => a.butchered).length;
   const soldCount = animals.filter(a => a.sale).length;
-  const cullCount = (animals || []).filter(a => a.cull && !a.deceased && !a.sale).length;
+  const cullCount = (animals || []).filter(a => a.cull && !a.deceased && !a.butchered && !a.sale).length;
   const speciesCounts = activeAnimals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
   const gestationsList = Array.isArray(gestations) ? gestations : [];
   const activeGestations = gestationsList.filter(g => g.status !== "Delivered");
@@ -40,7 +41,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
   todayPlus7.setDate(todayPlus7.getDate() + 7);
   const todayPlus7Str = todayPlus7.toISOString().split("T")[0];
   const nextWeaningCount = (animals || [])
-    .filter(a => !a.deceased && !a.sale && !a.weaningDate)
+    .filter(a => !a.deceased && !a.butchered && !a.sale && !a.weaningDate)
     .filter(a => {
       const expected = getExpectedWeaningDate(a);
       if (!expected) return false;
@@ -110,7 +111,7 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
       {/* Top stats row */}
       <div className="hl-dash-stats">
         {[
-          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}${soldCount > 0 ? ` · ${soldCount} sold` : ""}${cullCount > 0 ? ` · ${cullCount} marked for cull` : ""}`, icon: "🐄", onClick: () => { setAnimalsSearch?.(""); setTab?.("animals"); } },
+          { label: "Total Animals", value: activeAnimals.length, sub: `${Object.keys(speciesCounts).length} species${deceasedCount > 0 ? ` · ${deceasedCount} deceased` : ""}${butcheredCount > 0 ? ` · ${butcheredCount} butchered` : ""}${soldCount > 0 ? ` · ${soldCount} sold` : ""}${cullCount > 0 ? ` · ${cullCount} marked for cull` : ""}`, icon: "🐄", onClick: () => { setAnimalsSearch?.(""); setTab?.("animals"); } },
           { label: "Marked for Cull", value: cullCount, sub: cullCount === 1 ? "animal to cull" : "animals to cull", icon: "⚠️", onClick: () => setTab?.("animals"), alert: cullCount > 0 },
           { label: "Expecting",     value: activeGestations.length, sub: "active pregnancies", icon: "📅", onClick: () => setTab?.("gestation") },
           { label: "Due This Month", value: dueThisMonth.length, sub: overdueCount > 0 ? `${overdueCount} overdue` : "none overdue", icon: "⚠️", alert: overdueCount > 0, onClick: () => setTab?.("gestation") },

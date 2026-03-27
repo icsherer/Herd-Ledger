@@ -679,8 +679,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     boosterIntervalDays: "",
   });
   const [vaccinationProtocolId, setVaccinationProtocolId] = useState("");
-  const [showDeceasedAnimals, setShowDeceasedAnimals] = useState(false);
   const [showArchivedAnimals, setShowArchivedAnimals] = useState(false);
+  const [showButcheredForm, setShowButcheredForm] = useState(false);
+  const [butcheredForm, setButcheredForm] = useState({ date: "", notes: "" });
+  const [showDeceasedForm, setShowDeceasedForm] = useState(false);
+  const [deceasedForm, setDeceasedForm] = useState({ date: "", notes: "" });
   const [filterSpecies, setFilterSpecies] = useState("All Species");
   const [filterSexStatus, setFilterSexStatus] = useState("All");
   const [filterPasture, setFilterPasture] = useState("All Pastures");
@@ -1219,9 +1222,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   );
 
   const filtered = (animals || []).filter(a => {
-    const showByDeceased = showDeceasedAnimals ? true : !a.deceased;
-    const showByArchived = showArchivedAnimals ? true : !a.sale;
-    if (!showByDeceased || !showByArchived) return false;
+    const showByArchived = showArchivedAnimals ? true : !a.sale && !a.butchered && !a.deceased;
+    if (!showByArchived) return false;
 
     const q = (search || "").trim().toLowerCase();
     const matchesSearch = !q ||
@@ -1534,6 +1536,22 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       );
       setShowSaleForm(false);
       setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" });
+    }
+
+    function saveButchered() {
+      const rec = { date: butcheredForm.date || undefined, notes: butcheredForm.notes?.trim() || undefined };
+      setAnimals(prev => prev.map(an => an.id === a.id ? { ...an, butchered: rec } : an));
+      setViewing(prev => prev && prev.id === a.id ? { ...prev, butchered: rec } : prev);
+      setShowButcheredForm(false);
+      setButcheredForm({ date: "", notes: "" });
+    }
+
+    function saveDeceased() {
+      const rec = { date: deceasedForm.date || undefined, notes: deceasedForm.notes?.trim() || undefined };
+      setAnimals(prev => prev.map(an => an.id === a.id ? { ...an, deceased: rec } : an));
+      setViewing(prev => prev && prev.id === a.id ? { ...prev, deceased: rec } : prev);
+      setShowDeceasedForm(false);
+      setDeceasedForm({ date: "", notes: "" });
     }
 
     function markDeliveredToBuyer(animalId) {
@@ -2083,7 +2101,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               })()}
               {a.cull && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>}
               {getRunningWithMaleForFemale(a, animals) && <Badge color="var(--brass2)" style={{ background: "rgba(201,149,42,0.2)", color: "var(--brass)" }}>Running with {getAnimalName(getRunningWithMaleForFemale(a, animals))}</Badge>}
-              {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
+              {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased{a.deceased.date ? ` ${fmt(a.deceased.date)}` : ""}</Badge>}
+              {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff" }}>Butchered{a.butchered.date ? ` ${fmt(a.butchered.date)}` : ""}</Badge>}
               {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
               {a.tag && a.name && !a.deceased && <Badge color="var(--brass2)">#{a.tag}</Badge>}
               {a.excludeFromReports && <Badge color="#C0392B" style={{ background: "rgba(192,57,43,0.12)", color: "#C0392B", border: "1px solid rgba(192,57,43,0.3)" }}>Excluded from reports</Badge>}
@@ -4051,8 +4070,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                 </div>
               )}
-              {!a.sale && !a.deceased && !showSaleForm && (
-                <Btn size="sm" variant="secondary" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
+              {!a.sale && !a.butchered && !a.deceased && !showSaleForm && !showButcheredForm && !showDeceasedForm && (
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <Btn size="sm" variant="secondary" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
+                  <Btn size="sm" variant="secondary" onClick={() => { setButcheredForm({ date: "", notes: "" }); setShowButcheredForm(true); }}>Mark as Butchered</Btn>
+                  <Btn size="sm" variant="secondary" onClick={() => { setDeceasedForm({ date: "", notes: "" }); setShowDeceasedForm(true); }}>Mark as Deceased</Btn>
+                </div>
               )}
               {showSaleForm && (
                 <Card style={{ padding: "18px 20px", borderLeft: "3px solid var(--brass)" }}>
@@ -4074,6 +4097,50 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
                     <Btn size="sm" onClick={saveSale}>Save</Btn>
                     <Btn size="sm" variant="ghost" onClick={() => { setShowSaleForm(false); setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              )}
+              {/* Butchered info + form */}
+              {a.butchered && !showButcheredForm && (
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid #5a3e2b", marginBottom: "10px", marginTop: "10px" }}>
+                  <div style={{ fontSize: "13px", color: "var(--ink2)" }}>
+                    {a.butchered.date && <div><strong>Date butchered:</strong> {fmt(a.butchered.date)}</div>}
+                    {a.butchered.notes && <div style={{ marginTop: "4px" }}><strong>Notes:</strong> {a.butchered.notes}</div>}
+                  </div>
+                </div>
+              )}
+              {showButcheredForm && (
+                <Card style={{ padding: "18px 20px", borderLeft: "3px solid #5a3e2b", marginTop: "10px" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Mark as Butchered</div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <DateInputWithValidation label="Date butchered" value={butcheredForm.date} onValueChange={v => setButcheredForm(p => ({ ...p, date: v }))} />
+                  </div>
+                  <Textarea label="Notes (optional)" value={butcheredForm.notes} onChange={e => setButcheredForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+                    <Btn size="sm" onClick={saveButchered}>Save</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowButcheredForm(false); setButcheredForm({ date: "", notes: "" }); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              )}
+              {/* Deceased info + form */}
+              {a.deceased && !showDeceasedForm && (
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid #666", marginBottom: "10px", marginTop: "10px" }}>
+                  <div style={{ fontSize: "13px", color: "var(--ink2)" }}>
+                    {a.deceased.date && <div><strong>Date deceased:</strong> {fmt(a.deceased.date)}</div>}
+                    {a.deceased.notes && <div style={{ marginTop: "4px" }}><strong>Notes:</strong> {a.deceased.notes}</div>}
+                  </div>
+                </div>
+              )}
+              {showDeceasedForm && (
+                <Card style={{ padding: "18px 20px", borderLeft: "3px solid #666", marginTop: "10px" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Mark as Deceased</div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <DateInputWithValidation label="Date deceased" value={deceasedForm.date} onValueChange={v => setDeceasedForm(p => ({ ...p, date: v }))} />
+                  </div>
+                  <Textarea label="Notes (optional)" value={deceasedForm.notes} onChange={e => setDeceasedForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+                    <Btn size="sm" onClick={saveDeceased}>Save</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowDeceasedForm(false); setDeceasedForm({ date: "", notes: "" }); }}>Cancel</Btn>
                   </div>
                 </Card>
               )}
@@ -4341,6 +4408,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   }
 
   const deceasedCount = animals.filter(a => a.deceased).length;
+  const butcheredCount = animals.filter(a => a.butchered).length;
+  const archivedCount = animals.filter(a => a.sale || a.butchered || a.deceased).length;
 
   function toggleBulkSelect(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -4703,18 +4772,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         Animal Register
       </SectionTitle>
 
-      {/* Show/hide deceased + archived */}
+      {/* Show/hide archived (sold, butchered, deceased) */}
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "16px", marginBottom: "12px" }}>
-        {deceasedCount > 0 && (
-          <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--muted)", cursor: "pointer" }}>
-            <input type="checkbox" checked={showDeceasedAnimals} onChange={e => setShowDeceasedAnimals(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
-            Show deceased animals ({deceasedCount})
-          </label>
-        )}
-        {(animals || []).filter(a => a.sale).length > 0 && (
+        {archivedCount > 0 && (
           <label style={{ display: "flex", alignItems: "center", gap: "8px", fontSize: "14px", color: "var(--muted)", cursor: "pointer" }}>
             <input type="checkbox" checked={showArchivedAnimals} onChange={e => setShowArchivedAnimals(e.target.checked)} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
-            Show archived (sold) animals ({(animals || []).filter(a => a.sale).length})
+            Show archived animals ({archivedCount})
           </label>
         )}
       </div>
@@ -5311,18 +5374,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleBulkSelect(a.id)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", cursor: "pointer" }} />
               </div>
             )}
-            {a.deceased && (
+            {(a.deceased || a.butchered) && (
               <>
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", pointerEvents: "none" }} />
                 <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none" }}>
-                  <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>
+                  {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
+                  {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff" }}>Butchered</Badge>}
                 </div>
               </>
             )}
-            {(a.cull || (a.sale && !a.deceased)) && (
+            {(a.cull || (a.sale && !a.deceased && !a.butchered)) && (
               <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
-                {a.cull && !a.deceased && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>}
-                {a.sale && !a.deceased && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
+                {a.cull && !a.deceased && !a.butchered && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>}
+                {a.sale && !a.deceased && !a.butchered && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>

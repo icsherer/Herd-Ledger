@@ -417,45 +417,38 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
       )}
 
       {active.length > 0 && (
-        <div
-          role="toolbar"
-          aria-label="Sort gestations"
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            alignItems: "center",
-            gap: "8px",
-            marginBottom: "14px",
-            padding: "10px 12px",
-            background: "var(--cream)",
-            borderRadius: "var(--radius)",
-            border: "1px solid var(--cream2)",
-          }}
-        >
-          <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginRight: "4px" }}>Sort</span>
-          {ACTIVE_SORT_OPTIONS.map(opt => {
-            const selected = activeSort === opt.id;
-            return (
-              <button
-                key={opt.id}
-                type="button"
-                onClick={() => setActiveSort(opt.id)}
-                style={{
-                  padding: "6px 12px",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  borderRadius: "999px",
-                  border: selected ? "1px solid var(--green)" : "1px solid var(--cream2)",
-                  background: selected ? "var(--green)" : "#fff",
-                  color: selected ? "#fff" : "var(--ink2)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                {opt.label}
-              </button>
-            );
-          })}
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+          <label htmlFor="gestation-sort" style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", whiteSpace: "nowrap", flexShrink: 0 }}>Sort by:</label>
+          <div style={{ position: "relative", flex: 1, maxWidth: "260px" }}>
+            <select
+              id="gestation-sort"
+              value={activeSort}
+              onChange={e => setActiveSort(e.target.value)}
+              style={{
+                width: "100%",
+                appearance: "none",
+                WebkitAppearance: "none",
+                padding: "8px 36px 8px 12px",
+                fontSize: "14px",
+                fontWeight: 500,
+                fontFamily: "inherit",
+                color: "var(--ink)",
+                background: "var(--cream)",
+                border: "1.5px solid var(--green)",
+                borderRadius: "var(--radius)",
+                cursor: "pointer",
+                outline: "none",
+              }}
+              onFocus={e => { e.target.style.borderColor = "var(--brass)"; e.target.style.boxShadow = "0 0 0 2px rgba(201,149,42,0.18)"; }}
+              onBlur={e => { e.target.style.borderColor = "var(--green)"; e.target.style.boxShadow = "none"; }}
+            >
+              {ACTIVE_SORT_OPTIONS.map(opt => (
+                <option key={opt.id} value={opt.id}>{opt.label}</option>
+              ))}
+            </select>
+            {/* Chevron */}
+            <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--green)", fontSize: "11px" }}>▼</span>
+          </div>
         </div>
       )}
 

@@ -58,130 +58,84 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
       {/* Overdue Weanings */}
       {overdue.length > 0 && (
         <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden", borderLeft: "4px solid var(--danger2)" }}>
-          <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--danger2)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+          <div style={{ padding: "11px 16px", borderBottom: "1px solid var(--cream2)", fontSize: "12px", fontWeight: 700, color: "var(--danger2)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
             Overdue Weanings
           </div>
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {overdue.map(({ animal: a, expectedDate }) => (
-              <div
-                key={a.id}
-                style={{
-                  padding: "16px 20px",
-                  borderBottom: "1px solid var(--cream2)",
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                }}
-              >
-                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                    <span>{SPECIES[a.species]?.emoji}</span>
-                    <span style={{ fontWeight: 600 }}>{getAnimalName(a)}</span>
-                    {a.tag && <span style={{ color: "var(--muted)", fontSize: "13px" }}>#{a.tag}</span>}
-                  </div>
-                  <div style={{ fontSize: "13px", color: "var(--muted)" }}>
-                    {a.species || "—"} · DOB {a.dob ? fmt(a.dob) : "—"}
-                    {getMotherName(a) && ` · Dam ${getMotherName(a)}`}
-                  </div>
-                  <div style={{ fontSize: "13px", color: "var(--danger2)", fontWeight: 600, marginTop: "4px" }}>
-                    Weaning date was {fmt(expectedDate)}
-                  </div>
+          {overdue.map(({ animal: a, expectedDate }, idx) => (
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px", borderBottom: idx < overdue.length - 1 ? "1px solid var(--cream2)" : "none" }}>
+              <span style={{ fontSize: "20px", flexShrink: 0 }}>{SPECIES[a.species]?.emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "5px", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(a)}</span>
+                  {a.tag && <span style={{ color: "var(--muted)", fontSize: "12px" }}>#{a.tag}</span>}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  {setViewingAnimal && setTab && (
-                    <Btn size="sm" variant="ghost" onClick={() => { setViewingAnimal(a); setTab("animals"); }}>View</Btn>
-                  )}
-                  <Btn size="sm" onClick={() => markAsWeaned(a)}>Mark as Weaned</Btn>
+                <div style={{ fontSize: "12px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {a.species || "—"} · DOB {a.dob ? fmt(a.dob) : "—"}{getMotherName(a) ? ` · Dam ${getMotherName(a)}` : ""}
                 </div>
               </div>
-            ))}
-          </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0 }}>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--danger2)", whiteSpace: "nowrap" }}>Was {fmt(expectedDate)}</span>
+                <Btn size="sm" variant="secondary" onClick={() => markAsWeaned(a)}>Mark as Weaned</Btn>
+              </div>
+            </div>
+          ))}
         </Card>
       )}
 
       {/* Upcoming Weanings */}
       <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+        <div style={{ padding: "11px 16px", borderBottom: "1px solid var(--cream2)", fontSize: "12px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
           Upcoming Weanings
         </div>
         {upcoming.length === 0 ? (
-          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>No animals with a weaning date in the future.</div>
+          <div style={{ padding: "20px 16px", color: "var(--muted)", fontSize: "14px" }}>No animals with a weaning date in the future.</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {upcoming.map(({ animal: a, expectedDate }) => (
-              <div
-                key={a.id}
-                style={{
-                  padding: "16px 20px",
-                  borderBottom: "1px solid var(--cream2)",
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: "12px",
-                }}
-              >
-                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
-                    <span>{SPECIES[a.species]?.emoji}</span>
-                    <span style={{ fontWeight: 600 }}>{getAnimalName(a)}</span>
-                    {a.tag && <span style={{ color: "var(--muted)", fontSize: "13px" }}>#{a.tag}</span>}
-                  </div>
-                  <div style={{ fontSize: "13px", color: "var(--muted)" }}>
-                    {a.species || "—"} · DOB {a.dob ? fmt(a.dob) : "—"}
-                    {getMotherName(a) && ` · Dam ${getMotherName(a)}`}
-                  </div>
-                  <div style={{ fontSize: "13px", color: "var(--green)", fontWeight: 600, marginTop: "4px" }}>
-                    Weaning date: {fmt(expectedDate)}
-                  </div>
+          upcoming.map(({ animal: a, expectedDate }, idx) => (
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px", borderBottom: idx < upcoming.length - 1 ? "1px solid var(--cream2)" : "none" }}>
+              <span style={{ fontSize: "20px", flexShrink: 0 }}>{SPECIES[a.species]?.emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "5px", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(a)}</span>
+                  {a.tag && <span style={{ color: "var(--muted)", fontSize: "12px" }}>#{a.tag}</span>}
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  {setViewingAnimal && setTab && (
-                    <Btn size="sm" variant="ghost" onClick={() => { setViewingAnimal(a); setTab("animals"); }}>View</Btn>
-                  )}
-                  <Btn size="sm" onClick={() => markAsWeaned(a)}>Mark as Weaned</Btn>
+                <div style={{ fontSize: "12px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {a.species || "—"} · DOB {a.dob ? fmt(a.dob) : "—"}{getMotherName(a) ? ` · Dam ${getMotherName(a)}` : ""}
                 </div>
               </div>
-            ))}
-          </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0 }}>
+                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--green)", whiteSpace: "nowrap" }}>{fmt(expectedDate)}</span>
+                <Btn size="sm" variant="secondary" onClick={() => markAsWeaned(a)}>Mark as Weaned</Btn>
+              </div>
+            </div>
+          ))
         )}
       </Card>
 
       {/* Past Weanings */}
       <Card style={{ padding: "0", overflow: "hidden" }}>
-        <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
+        <div style={{ padding: "11px 16px", borderBottom: "1px solid var(--cream2)", fontSize: "12px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
           Past Weanings
         </div>
         {past.length === 0 ? (
-          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>No weaned animals recorded yet.</div>
+          <div style={{ padding: "20px 16px", color: "var(--muted)", fontSize: "14px" }}>No weaned animals recorded yet.</div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column" }}>
-            {past.map(a => (
-              <div
-                key={a.id}
-                style={{
-                  padding: "14px 20px",
-                  borderBottom: "1px solid var(--cream2)",
-                  display: "flex",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                  gap: "8px",
-                }}
-              >
-                <span>{SPECIES[a.species]?.emoji}</span>
-                <span style={{ fontWeight: 600 }}>{getAnimalName(a)}</span>
-                {a.tag && <span style={{ color: "var(--muted)", fontSize: "13px" }}>#{a.tag}</span>}
-                <span style={{ color: "var(--muted)", fontSize: "13px" }}>{a.species} · DOB {a.dob ? fmt(a.dob) : "—"}</span>
-                {getMotherName(a) && <span style={{ color: "var(--muted)", fontSize: "13px" }}>· Dam {getMotherName(a)}</span>}
-                <span style={{ marginLeft: "auto", fontSize: "13px", color: "var(--green)" }}>Weaned {a.weaningDate ? fmt(a.weaningDate) : "—"}</span>
-                {setViewingAnimal && setTab && (
-                  <Btn size="sm" variant="ghost" onClick={() => { setViewingAnimal(a); setTab("animals"); }}>View</Btn>
-                )}
+          past.map((a, idx) => (
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 16px", borderBottom: idx < past.length - 1 ? "1px solid var(--cream2)" : "none" }}>
+              <span style={{ fontSize: "20px", flexShrink: 0 }}>{SPECIES[a.species]?.emoji}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "5px", flexWrap: "wrap" }}>
+                  <span style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(a)}</span>
+                  {a.tag && <span style={{ color: "var(--muted)", fontSize: "12px" }}>#{a.tag}</span>}
+                </div>
+                <div style={{ fontSize: "12px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {a.species || "—"} · DOB {a.dob ? fmt(a.dob) : "—"}{getMotherName(a) ? ` · Dam ${getMotherName(a)}` : ""}
+                </div>
               </div>
-            ))}
-          </div>
+              <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--green)", whiteSpace: "nowrap", flexShrink: 0 }}>
+                Weaned {a.weaningDate ? fmt(a.weaningDate) : "—"}
+              </span>
+            </div>
+          ))
         )}
       </Card>
     </div>

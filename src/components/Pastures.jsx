@@ -30,6 +30,7 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
   const [markEmptyPasture, setMarkEmptyPasture] = useState(null);
   const [markEmptyDate, setMarkEmptyDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [deletePastureConfirm, setDeletePastureConfirm] = useState(null); // pasture name to delete
+  const [expandedPastures, setExpandedPastures] = useState(new Set());
 
   function countIntactMalesBySpecies(animalList) {
     const bySpecies = {};
@@ -540,21 +541,6 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
         </Card>
       )}
 
-      {selectedIds.length > 0 && (
-        <Card className="hl-pasture-assign-form" style={{ padding: "14px 18px", marginBottom: "16px", borderLeft: "4px solid var(--green3)" }}>
-          <div className="hl-pasture-assign-form-inner">
-            <span style={{ fontWeight: 600 }}>{selectedIds.length} selected</span>
-            <div className="hl-pasture-assign-field">
-              <PastureCombo label="Move to" value={bulkMoveTo} onChange={v => setBulkMoveTo(v)} options={sortedNames} placeholder="Select or type new pasture" id="pasture-list-pastures-bulk" />
-            </div>
-            <div className="hl-pasture-assign-field">
-              <Input value={bulkMoveNotes} onChange={e => setBulkMoveNotes(e.target.value)} placeholder="Notes (optional)" />
-            </div>
-            <Btn size="sm" onClick={doBulkMove} disabled={!bulkMoveTo?.trim()}>Move</Btn>
-            <Btn size="sm" variant="secondary" onClick={() => { setSelectedIds([]); setBulkMoveTo(""); setBulkMoveNotes(""); }}>Clear</Btn>
-          </div>
-        </Card>
-      )}
 
       {deletePastureConfirm && (
         <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setDeletePastureConfirm(null)}>
@@ -620,116 +606,134 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
         </Card>
       )}
 
-      <div className="hl-pastures-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: "16px" }}>
-        {allPastureNames.map(pastureName => {
+      <Card style={{ padding: 0, overflow: "hidden" }}>
+        {allPastureNames.map((pastureName, idx) => {
           const list = animalsByPasture[pastureName] || [];
           const totalCount = list.length;
-          const bySpecies = list.reduce((acc, a) => {
-            const s = a.species || "Other";
-            acc[s] = (acc[s] || 0) + 1;
-            return acc;
-          }, {});
-          const speciesSummary = Object.entries(bySpecies)
-            .sort(([a], [b]) => a.localeCompare(b))
-            .map(([species, count]) => `${count} ${species}`)
-            .join(" · ");
           const multiMales = pastureName === "— Not assigned —" ? null : getMultipleMalesWarning(list);
           const isVirtualPasture = pastureName === "— Not assigned —";
           const feedSummary = !isVirtualPasture ? getFeedSummary(pastureName) : null;
           const statusColor = feedSummary ? feedStatusColor(feedSummary) : null;
           const showMayNeedFeed = feedSummary && mayNeedFeedBadge(feedSummary);
+          const isExpanded = expandedPastures.has(pastureName);
+          const isLast = idx === allPastureNames.length - 1;
+
+          function toggleExpand() {
+            setExpandedPastures(prev => {
+              const next = new Set(prev);
+              next.has(pastureName) ? next.delete(pastureName) : next.add(pastureName);
+              return next;
+            });
+          }
+
           return (
-            <Card key={pastureName} style={{ padding: "18px 20px", borderLeft: "4px solid var(--green3)" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
-                  <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>{pastureName}</span>
-                  {multiMales && (
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.2)", padding: "2px 6px", borderRadius: "4px", letterSpacing: "0.3px" }}>{multiMales.label}</span>
-                  )}
-                  {showMayNeedFeed && (
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.15)", padding: "2px 6px", borderRadius: "4px" }}>May need feed</span>
-                  )}
-                </div>
-                <div style={{ fontSize: "13px", color: "var(--muted)", textAlign: "right" }}>
-                  {totalCount === 0 ? "0 animals" : (
-                    <>
-                      <span>{totalCount} animal{totalCount !== 1 ? "s" : ""}</span>
-                      {speciesSummary && <span style={{ display: "block", marginTop: "2px" }}>{speciesSummary}</span>}
-                    </>
-                  )}
-                </div>
-              </div>
-              {!isVirtualPasture && (
-                <div style={{ marginBottom: "12px" }}>
-                  {feedSummary?.lastDate && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "6px" }}>
-                      <span style={{ fontSize: "12px", color: "var(--muted)" }}>Last feed: {feedSummary.lastDate}</span>
-                      {feedSummary.estimatedDaysRemaining != null && (
-                        <span style={{
-                          fontSize: "12px",
-                          fontWeight: 600,
-                          color: statusColor === "green" ? "var(--green)" : statusColor === "yellow" ? "#b8860b" : "#c45c26",
-                        }}>
-                          ~{feedSummary.estimatedDaysRemaining} day{feedSummary.estimatedDaysRemaining !== 1 ? "s" : ""} left
-                        </span>
-                      )}
-                      {statusColor && (
-                        <span style={{
-                          width: "10px",
-                          height: "10px",
-                          borderRadius: "50%",
-                          background: statusColor === "green" ? "var(--green)" : statusColor === "yellow" ? "#b8860b" : "#c45c26",
-                          flexShrink: 0,
-                        }} title={statusColor === "green" ? ">3 days" : statusColor === "yellow" ? "1–3 days" : "Likely empty"} />
-                      )}
-                    </div>
-                  )}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                    <Btn size="sm" variant="secondary" onClick={() => openLogFeed(pastureName)}>Log Feed</Btn>
-                    <Btn size="sm" variant="secondary" onClick={() => { setMarkEmptyPasture(pastureName); setMarkEmptyDate(new Date().toISOString().split("T")[0]); }} disabled={!feedSummary?.lastEntry || feedSummary?.lastEntry?.emptyDate != null}>Mark Empty</Btn>
-                    <Btn size="sm" variant="secondary" onClick={() => setDetailPasture(pastureName)}>Feed history</Btn>
+            <div key={pastureName} style={{ borderBottom: isLast && !isExpanded ? "none" : "1px solid var(--cream2)" }}>
+              {/* Tappable header row */}
+              <button
+                type="button"
+                onClick={toggleExpand}
+                style={{
+                  width: "100%", display: "flex", alignItems: "center", gap: "10px",
+                  padding: "16px 18px", background: isExpanded ? "rgba(201,149,42,0.05)" : "transparent",
+                  border: "none", borderLeft: `4px solid ${isVirtualPasture ? "var(--cream3)" : "var(--green3)"}`,
+                  cursor: "pointer", textAlign: "left", transition: "background 0.15s",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {/* Name + badges */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <span style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, color: "var(--ink)" }}>{pastureName}</span>
+                    {multiMales && (
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.15)", padding: "2px 6px", borderRadius: "4px" }}>{multiMales.label}</span>
+                    )}
+                    {showMayNeedFeed && (
+                      <span style={{ fontSize: "11px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.15)", padding: "2px 6px", borderRadius: "4px" }}>May need feed</span>
+                    )}
+                    {statusColor && feedSummary?.estimatedDaysRemaining != null && (
+                      <span style={{
+                        width: "8px", height: "8px", borderRadius: "50%", flexShrink: 0,
+                        background: statusColor === "green" ? "var(--green)" : statusColor === "yellow" ? "#b8860b" : "#c45c26",
+                      }} />
+                    )}
                   </div>
                 </div>
-              )}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                {list.length === 0 ? (
-                  <p style={{ fontSize: "13px", color: "var(--muted)" }}>No animals in this pasture</p>
-                ) : (
-                  list.map(a => (
-                    <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                      <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleSelect(a.id)} onClick={e => e.stopPropagation()} style={{ width: "16px", height: "16px", accentColor: "var(--green)", flexShrink: 0 }} />
-                      <button type="button" onClick={() => { setTab("animals"); setViewingAnimal(a); }} style={{ flex: 1, textAlign: "left", background: "none", border: "none", padding: "6px 0", fontSize: "14px", color: "var(--green)", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}>
-                        {getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}
-                      </button>
-                      <span style={{ fontSize: "12px", color: "var(--muted)" }}>{a.species}</span>
-                      {pastureName !== "— Not assigned —" && setAnimals && (
+                {/* Count + chevron */}
+                <div style={{ display: "flex", alignItems: "center", gap: "10px", flexShrink: 0 }}>
+                  <span style={{ fontSize: "13px", color: "var(--muted)", fontWeight: 500 }}>
+                    {totalCount} animal{totalCount !== 1 ? "s" : ""}
+                  </span>
+                  <span style={{
+                    fontSize: "11px", color: "var(--muted)",
+                    transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s",
+                    display: "inline-block",
+                  }}>▶</span>
+                </div>
+              </button>
+
+              {/* Expanded body */}
+              {isExpanded && (
+                <div style={{ borderTop: "1px solid var(--cream2)", background: "rgba(201,149,42,0.03)", borderLeft: `4px solid ${isVirtualPasture ? "var(--cream3)" : "var(--green3)"}` }}>
+                  {/* Feed info + buttons for real pastures */}
+                  {!isVirtualPasture && (
+                    <div style={{ padding: "12px 18px", borderBottom: list.length > 0 ? "1px solid var(--cream2)" : "none" }}>
+                      {feedSummary?.lastDate && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+                          <span style={{ fontSize: "12px", color: "var(--muted)" }}>Last feed: {feedSummary.lastDate}</span>
+                          {feedSummary.estimatedDaysRemaining != null && (
+                            <span style={{ fontSize: "12px", fontWeight: 600, color: statusColor === "green" ? "var(--green)" : statusColor === "yellow" ? "#b8860b" : "#c45c26" }}>
+                              ~{feedSummary.estimatedDaysRemaining} day{feedSummary.estimatedDaysRemaining !== 1 ? "s" : ""} left
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                        <Btn size="sm" variant="secondary" onClick={() => openLogFeed(pastureName)}>Log Feed</Btn>
+                        <Btn size="sm" variant="secondary" onClick={() => { setMarkEmptyPasture(pastureName); setMarkEmptyDate(new Date().toISOString().split("T")[0]); }} disabled={!feedSummary?.lastEntry || feedSummary?.lastEntry?.emptyDate != null}>Mark Empty</Btn>
+                        <Btn size="sm" variant="secondary" onClick={() => setDetailPasture(pastureName)}>Feed history</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => setDeletePastureConfirm(pastureName)}>Delete pasture</Btn>
+                      </div>
+                    </div>
+                  )}
+                  {/* Animal list */}
+                  {list.length === 0 ? (
+                    <div style={{ padding: "14px 18px", fontSize: "13px", color: "var(--muted)" }}>No animals in this pasture</div>
+                  ) : (
+                    list.map((a, aIdx) => (
+                      <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "11px 18px", borderTop: aIdx > 0 ? "1px solid var(--cream2)" : "none" }}>
                         <button
                           type="button"
-                          onClick={e => {
-                            e.stopPropagation();
-                            const movements = a.movements || [];
-                            const removed = movements[0];
-                            const next = movements.slice(1);
-                            if (removed?.movementId && setNotes) setNotes(prev => prev.filter(n => n.movementId !== removed.movementId));
-                            setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, movements: next } : an)));
-                          }}
-                          style={{ fontSize: "12px", color: "var(--muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}
-                          title="Remove from pasture (no movement record)"
-                        >Remove</button>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-              {!isVirtualPasture && (
-                <div style={{ marginTop: "14px", paddingTop: "12px", borderTop: "1px solid var(--cream2)" }}>
-                  <Btn size="sm" variant="ghost" onClick={() => setDeletePastureConfirm(pastureName)}>Delete pasture</Btn>
+                          onClick={() => { setTab("animals"); setViewingAnimal(a); }}
+                          style={{ flex: 1, minWidth: 0, textAlign: "left", background: "none", border: "none", padding: 0, fontSize: "14px", color: "var(--green)", fontWeight: 600, cursor: "pointer" }}
+                        >
+                          {getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}
+                        </button>
+                        <span style={{ fontSize: "12px", color: "var(--muted)", flexShrink: 0 }}>{a.species}</span>
+                        {pastureName !== "— Not assigned —" && setAnimals && (
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              const movements = a.movements || [];
+                              const removed = movements[0];
+                              const next = movements.slice(1);
+                              if (removed?.movementId && setNotes) setNotes(prev => prev.filter(n => n.movementId !== removed.movementId));
+                              setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, movements: next } : an)));
+                            }}
+                            style={{ fontSize: "12px", color: "var(--muted)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", flexShrink: 0 }}
+                            title="Remove from pasture"
+                          >Remove</button>
+                        )}
+                      </div>
+                    ))
+                  )}
                 </div>
               )}
-            </Card>
+            </div>
           );
         })}
-      </div>
+      </Card>
 
       {detailPasture && (
         <Card style={{ marginTop: "20px", padding: "20px", borderLeft: "4px solid var(--brass)" }}>

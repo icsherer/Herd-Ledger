@@ -8,7 +8,7 @@ export default function Notes({ notes, setNotes, user, animals = [] }) {
   const [showAdd, setShowAdd] = useState(false);
   const [journalSearch, setJournalSearch] = useState("");
   const [journalFilter, setJournalFilter] = useState("all"); // "all" | "manual" | "movement"
-  const [collapsedDays, setCollapsedDays] = useState({});
+  const [expandedDays, setExpandedDays] = useState(new Set());
 
   function add() {
     if (!newBody.trim()) return;
@@ -17,7 +17,11 @@ export default function Notes({ notes, setNotes, user, animals = [] }) {
   }
 
   function toggleDay(dateKey) {
-    setCollapsedDays(prev => ({ ...prev, [dateKey]: !prev[dateKey] }));
+    setExpandedDays(prev => {
+      const next = new Set(prev);
+      next.has(dateKey) ? next.delete(dateKey) : next.add(dateKey);
+      return next;
+    });
   }
 
   const filteredNotes = (() => {
@@ -97,7 +101,8 @@ export default function Notes({ notes, setNotes, user, animals = [] }) {
 
       <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
         {groups.map(({ dateKey, entries }) => {
-          const collapsed = !!collapsedDays[dateKey];
+          const isSearching = !!journalSearch.trim();
+          const collapsed = isSearching ? false : !expandedDays.has(dateKey);
           const label = dateKey ? fmt(dateKey) : "Unknown date";
           return (
             <div key={dateKey}>

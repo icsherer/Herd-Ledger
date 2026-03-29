@@ -320,13 +320,14 @@ export const TAB_OPTIONS = [
   { id: "sales", label: "Sales", icon: "📋" },
   { id: "tasks", label: "Tasks", icon: "✓" },
   { id: "weaning", label: "Weaning", icon: "🥛" },
+  { id: "hay", label: "Hay & Forage", icon: "🌾" },
 ];
 
 export const USER_DATA_KEYS = ["animals", "gestations", "notes", "offspring", "settings", "feederPrograms", "pastures", "pastureFeedLogs", "expenses", "loadSales", "tasks", "contacts"];
 export const GUEST_STORAGE_KEY = "herd_ledger_guest_data";
 export const GUEST_USER = { id: "guest", isGuest: true };
 
-export const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: false, pastures: true, expenses: true, sales: true, tasks: true, weaning: true };
+export const DEFAULT_TAB_VISIBILITY = { dashboard: true, animals: true, gestation: true, notes: true, feeder: false, pastures: true, expenses: true, sales: true, tasks: true, weaning: true, hay: true };
 export const TASK_CATEGORIES = ["Feeding", "Vaccination", "Breeding", "Castration", "Pasture Move", "Weaning", "Vet Visit", "Treatment", "General", "Other"];
 export const TASK_PRIORITIES = ["High", "Medium", "Low"];
 export const RECURRING_OPTIONS = ["One time", "Daily", "Weekly", "Monthly"];

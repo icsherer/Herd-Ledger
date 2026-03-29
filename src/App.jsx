@@ -64,10 +64,11 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "💰" }] : []),
     ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✅" }] : []),
     ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🐄" }] : []),
+    ...(visibility.hay !== false ? [{ id: "hay", label: "Hay & Forage", icon: "🌾" }] : []),
     { id: "settings", label: "Settings", icon: "⚙️" },
   ];
 
-  // "More" drawer items: everything not in the primary 5 bottom tabs
+  // Mobile "More" drawer items
   const moreItems = [
     ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🌿", tile: "#3A7D44" }] : []),
     ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📓", tile: "#C17F3A" }] : []),
@@ -75,7 +76,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾", tile: "#B8972A" }] : []),
     ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🐄", tile: "#8B5E3C" }] : []),
     ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "💰", tile: "#6B8C52" }] : []),
-    { id: "hay", label: "Hay & Forage", icon: "🌾", tile: "#B8972A" },
+    ...(visibility.hay !== false ? [{ id: "hay", label: "Hay & Forage", icon: "🌾", tile: "#B8972A" }] : []),
     { id: "settings", label: "Settings", icon: "⚙️", tile: "#7A6A5A" },
   ];
 
@@ -487,7 +488,7 @@ export default function App() {
     ...(visibility.sales !== false ? ["sales"] : []),
     ...(visibility.tasks !== false ? ["tasks"] : []),
     ...(visibility.weaning !== false ? ["weaning"] : []),
-    "hay",
+    ...(visibility.hay !== false ? ["hay"] : []),
     "settings",
     "help",
   ]);

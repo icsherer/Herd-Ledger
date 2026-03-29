@@ -332,3 +332,85 @@ export async function persistOffspring(userId, offspring) {
   );
   if (error) console.error('[DB] offspring upsert error:', error);
 }
+
+// ── HAY INVENTORY ─────────────────────────────────────────────────────────────
+//
+// Run this SQL in Supabase to create the required tables:
+//
+// create table hay_inventory_lots (
+//   id uuid primary key default gen_random_uuid(),
+//   user_id uuid not null references auth.users(id) on delete cascade,
+//   type text not null default 'Hay',
+//   bale_type text not null default 'square',
+//   quantity numeric not null default 0,
+//   weight_per_bale_lbs numeric not null default 50,
+//   cost_per_bale numeric not null default 0,
+//   pasture_id text,
+//   notes text,
+//   created_at timestamptz not null default now()
+// );
+// alter table hay_inventory_lots enable row level security;
+// create policy "Users manage own hay lots" on hay_inventory_lots
+//   using (auth.uid() = user_id) with check (auth.uid() = user_id);
+//
+// create table hay_inventory_logs (
+//   id uuid primary key default gen_random_uuid(),
+//   user_id uuid not null references auth.users(id) on delete cascade,
+//   lot_id uuid references hay_inventory_lots(id) on delete set null,
+//   action text not null,
+//   quantity numeric not null,
+//   date date,
+//   pasture_id text,
+//   notes text,
+//   created_at timestamptz not null default now()
+// );
+// alter table hay_inventory_logs enable row level security;
+// create policy "Users manage own hay logs" on hay_inventory_logs
+//   using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+export async function loadHayInventory(userId) {
+  const [{ data: lots, error: e1 }, { data: logs, error: e2 }] = await Promise.all([
+    supabase.from('hay_inventory_lots').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+    supabase.from('hay_inventory_logs').select('*').eq('user_id', userId).order('date', { ascending: false }),
+  ]);
+  if (e1) console.error('[DB] hay_inventory_lots load error:', e1);
+  if (e2) console.error('[DB] hay_inventory_logs load error:', e2);
+  return {
+    hayLots: (lots || []).map(r => ({
+      id: r.id, type: r.type, baleType: r.bale_type,
+      quantity: Number(r.quantity), weightPerBale: Number(r.weight_per_bale_lbs),
+      costPerBale: Number(r.cost_per_bale), pastureId: r.pasture_id || null,
+      notes: r.notes || null, createdAt: r.created_at,
+    })),
+    hayLogs: (logs || []).map(r => ({
+      id: r.id, lotId: r.lot_id, action: r.action, quantity: Number(r.quantity),
+      date: r.date, pastureId: r.pasture_id || null, notes: r.notes || null,
+      createdAt: r.created_at,
+    })),
+  };
+}
+
+export async function saveHayLot(userId, lot) {
+  const { error } = await supabase.from('hay_inventory_lots').upsert({
+    id: lot.id, user_id: userId, type: lot.type, bale_type: lot.baleType,
+    quantity: lot.quantity, weight_per_bale_lbs: lot.weightPerBale,
+    cost_per_bale: lot.costPerBale, pasture_id: lot.pastureId || null,
+    notes: lot.notes || null,
+  }, { onConflict: 'id' });
+  if (error) console.error('[DB] saveHayLot error:', error);
+}
+
+export async function logHayTransaction(userId, log) {
+  const { error } = await supabase.from('hay_inventory_logs').insert({
+    id: log.id, user_id: userId, lot_id: log.lotId, action: log.action,
+    quantity: log.quantity, date: log.date || null,
+    pasture_id: log.pastureId || null, notes: log.notes || null,
+  });
+  if (error) console.error('[DB] logHayTransaction error:', error);
+}
+
+export async function deleteHayLot(userId, lotId) {
+  const { error } = await supabase.from('hay_inventory_lots').delete()
+    .eq('id', lotId).eq('user_id', userId);
+  if (error) console.error('[DB] deleteHayLot error:', error);
+}

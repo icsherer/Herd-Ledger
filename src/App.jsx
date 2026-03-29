@@ -9,6 +9,7 @@ import {
   persistAnimals, persistTasks, persistGestations, persistContacts,
   persistExpenses, persistFeederPrograms, persistLoadSales, persistNotes,
   persistPastures, persistPastureFeedLogs, persistSettings, persistOffspring,
+  loadHayInventory,
 } from './lib/db.js';
 import Dashboard from "./components/Dashboard.jsx";
 import Animals from "./components/Animals.jsx";
@@ -19,6 +20,7 @@ import Expenses from "./components/Expenses.jsx";
 import Tasks from "./components/Tasks.jsx";
 import Sales from "./components/Sales.jsx";
 import FeederCattle from "./components/FeederProgram.jsx";
+import HayInventory from "./components/HayInventory.jsx";
 import Help from "./components/Help.jsx";
 import Weaning from "./components/Weaning.jsx";
 import Settings from "./components/Settings.jsx";
@@ -73,10 +75,11 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾", tile: "#B8972A" }] : []),
     ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🐄", tile: "#8B5E3C" }] : []),
     ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "💰", tile: "#6B8C52" }] : []),
+    { id: "hay", label: "Hay & Forage", icon: "🌾", tile: "#B8972A" },
     { id: "settings", label: "Settings", icon: "⚙️", tile: "#7A6A5A" },
   ];
 
-  const moreTabs = new Set(["pastures", "notes", "tasks", "feeder", "weaning", "sales", "settings", "help"]);
+  const moreTabs = new Set(["pastures", "notes", "tasks", "feeder", "weaning", "sales", "hay", "settings", "help"]);
   const isMoreActive = moreTabs.has(tab);
   const isFinancesActive = tab === "expenses" || tab === "sales";
 
@@ -233,6 +236,8 @@ export default function App() {
   const [highlightGestationId, setHighlightGestationId] = useState(null);
   const [promptAddOffspring, setPromptAddOffspring] = useState(null);
   const [contacts, setContacts] = useState([]);
+  const [hayLots, setHayLots] = useState([]);
+  const [hayLogs, setHayLogs] = useState([]);
   const initialLoadDone = useRef(false);
   const [loadDone, setLoadDone] = useState(false);
 
@@ -462,6 +467,14 @@ export default function App() {
     return () => clearTimeout(t);
   }, [user, contacts]);
 
+  useEffect(() => {
+    if (!user || user.isGuest) return;
+    loadHayInventory(user.id).then(({ hayLots: lots, hayLogs: logs }) => {
+      setHayLots(lots);
+      setHayLogs(logs);
+    }).catch(err => console.error('[DB] loadHayInventory failed:', err));
+  }, [user?.id]);
+
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([
     "dashboard",
@@ -474,6 +487,7 @@ export default function App() {
     ...(visibility.sales !== false ? ["sales"] : []),
     ...(visibility.tasks !== false ? ["tasks"] : []),
     ...(visibility.weaning !== false ? ["weaning"] : []),
+    "hay",
     "settings",
     "help",
   ]);
@@ -508,6 +522,7 @@ export default function App() {
       {tab === "sales"     && <TabErrorBoundary key="sales" setTab={setTab}><Sales animals={animals} setAnimals={setAnimals} loadSales={loadSales} setLoadSales={setLoadSales} expenses={expenses} settings={settings} /></TabErrorBoundary>}
       {tab === "tasks"     && <TabErrorBoundary key="tasks" setTab={setTab}><Tasks tasks={tasks} setTasks={setTasks} animals={animals} gestations={gestations} offspring={offspring} pastures={pastures} setTab={setTab} /></TabErrorBoundary>}
       {tab === "weaning"   && <TabErrorBoundary key="weaning" setTab={setTab}><Weaning animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} setViewingAnimal={setViewingAnimal} setTab={setTab} /></TabErrorBoundary>}
+      {tab === "hay"       && <TabErrorBoundary key="hay" setTab={setTab}><HayInventory hayLots={hayLots} setHayLots={setHayLots} hayLogs={hayLogs} setHayLogs={setHayLogs} user={user} pastures={pastures} /></TabErrorBoundary>}
       {tab === "help"      && <TabErrorBoundary key="help" setTab={setTab}><Help onBack={() => setTab("settings")} /></TabErrorBoundary>}
       {tab === "settings"  && <TabErrorBoundary key="settings" setTab={setTab}><Settings settings={settings} setSettings={setSettings} contacts={contacts} setContacts={setContacts} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} setTab={setTab} /></TabErrorBoundary>}
     </div>

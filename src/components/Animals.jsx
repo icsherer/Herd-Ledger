@@ -425,43 +425,26 @@ export function RegisterAnimalForm({
 
       {registerMode === "single" ? (
         <>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "20px", borderBottom: "1px solid var(--cream2)", paddingBottom: "12px" }}>
-            {REGISTER_SPECIES_TABS.map(tab => {
-              const isOther = tab === "Other";
-              const isSelected = isOther ? REGISTER_OTHER_SPECIES.includes(form.species) : form.species === tab;
-              return (
-                <button
-                  key={tab}
-                  type="button"
-                  onClick={() => {
-                    const newSpecies = isOther ? REGISTER_OTHER_SPECIES[0] : tab;
-                    const opts = getSexOptions(newSpecies);
-                    setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]), excludeFromReports: newSpecies === "Horse" }));
-                  }}
-                  style={{
-                    padding: "8px 14px",
-                    borderRadius: "var(--radius)",
-                    border: "1px solid var(--cream3)",
-                    background: isSelected ? "var(--green3)" : "#fff",
-                    color: isSelected ? "var(--green)" : "var(--ink2)",
-                    fontWeight: 600,
-                    fontSize: "13px",
-                    cursor: "pointer",
-                  }}
-                >
-                  {tab === "Other" ? "Other" : (SPECIES[tab]?.emoji ? SPECIES[tab].emoji + " " : "") + tab}
-                </button>
-              );
-            })}
-          </div>
-          {REGISTER_SPECIES_TABS.includes(form.species) && form.species !== "Other" ? null : REGISTER_OTHER_SPECIES.includes(form.species) && (
-            <div style={{ marginBottom: "14px" }}>
-              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Species (Other)</label>
-              <Select value={form.species} onChange={e => { const v = e.target.value; const opts = getSexOptions(v); setForm(p => ({ ...p, species: v, sex: opts.includes(p.sex) ? p.sex : opts[0], excludeFromReports: false })); }} style={{ maxWidth: "200px" }}>
+          <div style={{ marginBottom: "14px" }}>
+            <Select label="Species" value={REGISTER_OTHER_SPECIES.includes(form.species) ? "Other" : form.species} onChange={e => {
+              const v = e.target.value;
+              if (!v) return;
+              const newSpecies = v === "Other" ? REGISTER_OTHER_SPECIES[0] : v;
+              const opts = getSexOptions(newSpecies);
+              setForm(p => ({ ...p, species: newSpecies, sex: opts.includes(p.sex) ? p.sex : (opts.find(o => SEX_TERM_GENDER[o] === "Female") || opts[0]), excludeFromReports: newSpecies === "Horse" }));
+            }}>
+              <option value="">— Select Species —</option>
+              {["Cattle", "Horse", "Sheep", "Goat", "Pig", "Rabbit", "Chicken"].map(s => (
+                <option key={s} value={s}>{SPECIES[s]?.emoji ? SPECIES[s].emoji + " " + s : s}</option>
+              ))}
+              <option value="Other">Other</option>
+            </Select>
+            {REGISTER_OTHER_SPECIES.includes(form.species) && (
+              <Select value={form.species} onChange={e => { const v = e.target.value; const opts = getSexOptions(v); setForm(p => ({ ...p, species: v, sex: opts.includes(p.sex) ? p.sex : opts[0], excludeFromReports: false })); }} style={{ marginTop: "8px" }}>
                 {REGISTER_OTHER_SPECIES.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
-            </div>
-          )}
+            )}
+          </div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
             <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
@@ -2068,15 +2051,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 onClick={() => animalPhotoInputRef.current?.click()}
                 disabled={photoUploading}
                 className="hl-animal-photo-btn"
-                style={{ position: "absolute", bottom: 0, right: 0, width: "32px", height: "32px", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.9)", background: "var(--green)", color: "#fff", cursor: photoUploading ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}
+                style={{ position: "absolute", inset: 0, borderRadius: "50%", border: "none", background: "transparent", cursor: photoUploading ? "wait" : "pointer", padding: 0, display: "flex", alignItems: "flex-end", justifyContent: "flex-end" }}
                 title="Add or change photo"
                 aria-label="Add or change photo"
               >
-                {photoUploading ? (
-                  <span style={{ fontSize: "14px" }}>…</span>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                )}
+                <span style={{ width: "30px", height: "30px", borderRadius: "50%", border: "2px solid rgba(255,255,255,0.9)", background: "var(--green)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.2)", margin: "1px", flexShrink: 0 }}>
+                  {photoUploading ? (
+                    <span style={{ fontSize: "13px" }}>…</span>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  )}
+                </span>
               </button>
             </div>
             <div style={{ minWidth: 0, flex: "1 1 auto" }}>
@@ -4071,10 +4056,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 </div>
               )}
               {!a.sale && !a.butchered && !a.deceased && !showSaleForm && !showButcheredForm && !showDeceasedForm && (
-                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                  <Btn size="sm" variant="secondary" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
-                  <Btn size="sm" variant="secondary" onClick={() => { setButcheredForm({ date: "", notes: "" }); setShowButcheredForm(true); }}>Mark as Butchered</Btn>
-                  <Btn size="sm" variant="secondary" onClick={() => { setDeceasedForm({ date: "", notes: "" }); setShowDeceasedForm(true); }}>Mark as Deceased</Btn>
+                <div className="hl-status-actions">
+                  <Btn variant="secondary" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
+                  <Btn variant="secondary" onClick={() => { setButcheredForm({ date: "", notes: "" }); setShowButcheredForm(true); }}>Mark as Butchered</Btn>
+                  <Btn variant="secondary" onClick={() => { setDeceasedForm({ date: "", notes: "" }); setShowDeceasedForm(true); }}>Mark as Deceased</Btn>
                 </div>
               )}
               {showSaleForm && (

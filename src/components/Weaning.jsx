@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { getExpectedWeaningDate, getAnimalName, fmt, getAgeInMonths } from "../lib/helpers.js";
 import { SPECIES } from "../lib/constants.js";
 import { Card, Btn, SectionTitle } from "./ui.jsx";
 
 export default function Weaning({ animals, setAnimals, offspring, setOffspring, setViewingAnimal, setTab }) {
   const todayStr = new Date().toISOString().split("T")[0];
+  const [weanConfirm, setWeanConfirm] = useState(null);
 
   const activeAnimals = (animals || []).filter(a => !a.deceased && !a.sale);
   const notWeanedWithDate = activeAnimals
@@ -75,7 +77,7 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0 }}>
                 <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--danger2)", whiteSpace: "nowrap" }}>Was {fmt(expectedDate)}</span>
-                <Btn size="sm" variant="secondary" onClick={() => markAsWeaned(a)}>Mark as Weaned</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => setWeanConfirm(a)}>Mark as Weaned</Btn>
               </div>
             </div>
           ))}
@@ -104,7 +106,7 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
               </div>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0 }}>
                 <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--green)", whiteSpace: "nowrap" }}>{fmt(expectedDate)}</span>
-                <Btn size="sm" variant="secondary" onClick={() => markAsWeaned(a)}>Mark as Weaned</Btn>
+                <Btn size="sm" variant="secondary" onClick={() => setWeanConfirm(a)}>Mark as Weaned</Btn>
               </div>
             </div>
           ))
@@ -138,6 +140,21 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
           ))
         )}
       </Card>
+
+      {weanConfirm && (
+        <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setWeanConfirm(null)}>
+          <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", padding: "24px", maxWidth: "400px", width: "calc(100% - 32px)", boxShadow: "0 8px 24px rgba(0,0,0,0.15)", border: "1px solid var(--cream2)" }} onClick={e => e.stopPropagation()}>
+            <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, color: "var(--ink)", marginBottom: "12px" }}>Mark as Weaned?</div>
+            <p style={{ fontSize: "14px", color: "var(--ink2)", lineHeight: 1.5, marginBottom: "20px" }}>
+              Are you sure you want to mark <strong>{getAnimalName(weanConfirm)}</strong> as weaned? This can be undone from the animal&apos;s profile.
+            </p>
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <Btn variant="ghost" onClick={() => setWeanConfirm(null)}>Cancel</Btn>
+              <Btn variant="primary" onClick={() => { markAsWeaned(weanConfirm); setWeanConfirm(null); }}>Yes, mark as weaned</Btn>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

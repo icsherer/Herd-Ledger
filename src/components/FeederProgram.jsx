@@ -39,6 +39,7 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
   const [bulkAddAnimals, setBulkAddAnimals] = useState([]);
   const [showBulkCalculator, setShowBulkCalculator] = useState(false);
   const [showCalculatorModal, setShowCalculatorModal] = useState(false);
+  const [expandedFeederId, setExpandedFeederId] = useState(null);
   const [individualCalcAnimalId, setIndividualCalcAnimalId] = useState("");
   const [individualCalcOverrides, setIndividualCalcOverrides] = useState({ feedType: "Corn", feedConversionRatio: "", costPerLbFeed: "", additionalExpenses: "", marketPricePerLb: "" });
   const [bulkCalcForm, setBulkCalcForm] = useState({
@@ -202,73 +203,55 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
 
   return (
     <div className="hl-page hl-fade-in">
-      <SectionTitle action={
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <Btn variant="secondary" onClick={() => setShowCalculatorModal(true)}>Open Calculator</Btn>
-          <Btn variant="secondary" onClick={() => setShowBulkCalculator(true)}>Bulk Calculator</Btn>
-          <Btn onClick={() => setShowAdd(true)}>+ Add to Feeder Program</Btn>
-        </div>
-      }>
-        Feeder Program
-      </SectionTitle>
+      <SectionTitle>Feeder Program</SectionTitle>
 
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginBottom: "24px" }}>
-        <Card style={{ padding: "18px 24px", minWidth: "160px", borderLeft: "4px solid var(--brass)" }}>
-          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Head on feed</div>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "var(--green)" }}>{totalHead}</div>
-        </Card>
-        <Card style={{ padding: "18px 24px", minWidth: "160px", borderLeft: "4px solid var(--brass)" }}>
-          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Est. feed cost (gain × FCR × $/lb)</div>
-          <div className="hl-summary-dollar" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: "var(--green)" }}>{formatCompactDollar(totalEstimatedCost)}</div>
-        </Card>
-        <Card style={{ padding: "18px 24px", minWidth: "160px", borderLeft: "4px solid var(--brass)" }}>
-          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "4px" }}>Total projected P/L</div>
-          <div className="hl-summary-dollar" style={{ fontFamily: "'Playfair Display'", fontSize: "28px", fontWeight: 700, color: profitColor(totalProjectedNet, totalEstimatedCost || 1) }}>{formatCompactDollar(totalProjectedNet)}</div>
-        </Card>
-      </div>
+      {/* Add button */}
+      {!showAdd && !showBulkAdd && (
+        <Btn style={{ width: "100%", marginBottom: "16px" }} onClick={() => setShowAdd(true)}>+ Add to Feeder Program</Btn>
+      )}
 
-      {showBulkCalculator && (
-        <Card style={{ padding: "20px 16px", marginBottom: "24px", borderLeft: "4px solid var(--brass)", maxWidth: "900px", boxSizing: "border-box" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px", flexWrap: "wrap", gap: "8px" }}>
-            <div style={{ fontFamily: "'Playfair Display'", fontSize: "clamp(18px, 4vw, 20px)", fontWeight: 600 }}>Bulk Profitability Calculator</div>
-            <Btn size="sm" variant="ghost" onClick={() => setShowBulkCalculator(false)}>Close</Btn>
-          </div>
-          <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "20px" }}>Standalone what-if calculator. No animals need to be registered.</p>
-
-          <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-            <section className="hl-bulk-calc-inputs" style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-              <h3 style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", margin: 0 }}>Inputs</h3>
-              <div className="hl-bulk-calc-grid">
-                <Input label="Number of head" type="number" min="1" value={bulkCalcForm.headCount} onChange={e => setBulkCalcForm(p => ({ ...p, headCount: e.target.value }))} placeholder="e.g. 50" />
-                <Input label="Avg starting weight (lbs)" type="number" min="0" step="0.1" value={bulkCalcForm.avgStartWeight} onChange={e => setBulkCalcForm(p => ({ ...p, avgStartWeight: e.target.value }))} placeholder="e.g. 650" />
-                <Input label="Avg target weight (lbs)" type="number" min="0" step="0.1" value={bulkCalcForm.avgTargetWeight} onChange={e => setBulkCalcForm(p => ({ ...p, avgTargetWeight: e.target.value }))} placeholder="e.g. 1400" />
-                <Input label="Avg purchase price per head ($)" type="number" min="0" step="0.01" value={bulkCalcForm.avgPurchasePricePerHead} onChange={e => setBulkCalcForm(p => ({ ...p, avgPurchasePricePerHead: e.target.value }))} placeholder="e.g. 950" />
-                <Select label="Species" value={bulkCalcForm.species} onChange={e => {
-                  const sp = e.target.value;
-                  setBulkCalcForm(p => ({ ...p, species: sp, feedConversionRatio: String(getFCRDefault(sp, p.feedType)), adg: String(getADGDefault(sp)) }));
-                }}>
-                  {Object.keys(SPECIES).map(s => <option key={s} value={s}>{s}</option>)}
-                </Select>
-                <Select label="Feed type" value={bulkCalcForm.feedType} onChange={e => {
-                  const ft = e.target.value;
-                  setBulkCalcForm(p => ({ ...p, feedType: ft, feedConversionRatio: String(getFCRDefault(p.species, ft)) }));
-                }}>
-                  {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                </Select>
-                <Input label="Feed conversion ratio" type="number" min="0.1" step="0.1" value={bulkCalcForm.feedConversionRatio} onChange={e => setBulkCalcForm(p => ({ ...p, feedConversionRatio: e.target.value }))} placeholder="By species/feed" />
-                <Input label="ADG (lbs/day)" type="number" min="0.01" step="0.1" value={bulkCalcForm.adg} onChange={e => setBulkCalcForm(p => ({ ...p, adg: e.target.value }))} placeholder="By species" />
-                <Input label="Cost per lb of feed ($)" type="number" min="0" step="0.01" value={bulkCalcForm.costPerLbFeed} onChange={e => setBulkCalcForm(p => ({ ...p, costPerLbFeed: e.target.value }))} placeholder="e.g. 0.08" />
-                <Input label="Vet ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.vetPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, vetPerHead: e.target.value }))} placeholder="0" />
-                <Input label="Medicine ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.medicinePerHead} onChange={e => setBulkCalcForm(p => ({ ...p, medicinePerHead: e.target.value }))} placeholder="0" />
-                <Input label="Bedding ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.beddingPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, beddingPerHead: e.target.value }))} placeholder="0" />
-                <Input label="Labor ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.laborPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, laborPerHead: e.target.value }))} placeholder="0" />
-                <Input label="Other ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.otherPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, otherPerHead: e.target.value }))} placeholder="0" />
-                <Input label="Market price per lb ($)" type="number" min="0" step="0.01" value={bulkCalcForm.marketPricePerLb} onChange={e => setBulkCalcForm(p => ({ ...p, marketPricePerLb: e.target.value }))} placeholder="e.g. 1.85" />
-              </div>
-            </section>
-
+      {/* Bulk Profitability Calculator — collapsible */}
+      <div style={{ marginBottom: "20px", border: "1px solid var(--cream2)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+        <button
+          onClick={() => setShowBulkCalculator(v => !v)}
+          style={{ display: "flex", alignItems: "center", width: "100%", padding: "14px 16px", background: "var(--cream)", border: "none", cursor: "pointer", textAlign: "left", gap: "10px", WebkitTapHighlightColor: "transparent" }}
+        >
+          <span style={{ flex: 1, fontWeight: 600, fontSize: "15px", color: "var(--ink)" }}>Bulk Profitability Calculator</span>
+          <span style={{ fontSize: "18px", color: "var(--muted)", transform: showBulkCalculator ? "rotate(90deg)" : "none", transition: "transform 0.2s ease", display: "inline-block" }}>›</span>
+        </button>
+        {showBulkCalculator && (
+          <div style={{ padding: "16px", borderTop: "1px solid var(--cream2)" }}>
+            <p style={{ fontSize: "13px", color: "var(--muted)", marginTop: 0, marginBottom: "16px" }}>Standalone what-if calculator. No animals need to be registered.</p>
+            <div className="hl-form-grid-3" style={{ marginBottom: "20px" }}>
+              <Input label="Number of head" type="number" min="1" value={bulkCalcForm.headCount} onChange={e => setBulkCalcForm(p => ({ ...p, headCount: e.target.value }))} placeholder="e.g. 50" />
+              <Input label="Avg start weight (lbs)" type="number" min="0" step="0.1" value={bulkCalcForm.avgStartWeight} onChange={e => setBulkCalcForm(p => ({ ...p, avgStartWeight: e.target.value }))} placeholder="e.g. 650" />
+              <Input label="Avg target weight (lbs)" type="number" min="0" step="0.1" value={bulkCalcForm.avgTargetWeight} onChange={e => setBulkCalcForm(p => ({ ...p, avgTargetWeight: e.target.value }))} placeholder="e.g. 1400" />
+              <Input label="Avg purchase price/head ($)" type="number" min="0" step="0.01" value={bulkCalcForm.avgPurchasePricePerHead} onChange={e => setBulkCalcForm(p => ({ ...p, avgPurchasePricePerHead: e.target.value }))} placeholder="e.g. 950" />
+              <Select label="Species" value={bulkCalcForm.species} onChange={e => {
+                const sp = e.target.value;
+                setBulkCalcForm(p => ({ ...p, species: sp, feedConversionRatio: String(getFCRDefault(sp, p.feedType)), adg: String(getADGDefault(sp)) }));
+              }}>
+                {Object.keys(SPECIES).map(s => <option key={s} value={s}>{s}</option>)}
+              </Select>
+              <Select label="Feed type" value={bulkCalcForm.feedType} onChange={e => {
+                const ft = e.target.value;
+                setBulkCalcForm(p => ({ ...p, feedType: ft, feedConversionRatio: String(getFCRDefault(p.species, ft)) }));
+              }}>
+                {FEED_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </Select>
+              <Input label="Feed conversion ratio" type="number" min="0.1" step="0.1" value={bulkCalcForm.feedConversionRatio} onChange={e => setBulkCalcForm(p => ({ ...p, feedConversionRatio: e.target.value }))} placeholder="By species/feed" />
+              <Input label="ADG (lbs/day)" type="number" min="0.01" step="0.1" value={bulkCalcForm.adg} onChange={e => setBulkCalcForm(p => ({ ...p, adg: e.target.value }))} placeholder="By species" />
+              <Input label="Cost per lb feed ($)" type="number" min="0" step="0.01" value={bulkCalcForm.costPerLbFeed} onChange={e => setBulkCalcForm(p => ({ ...p, costPerLbFeed: e.target.value }))} placeholder="e.g. 0.08" />
+              <Input label="Vet ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.vetPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, vetPerHead: e.target.value }))} placeholder="0" />
+              <Input label="Medicine ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.medicinePerHead} onChange={e => setBulkCalcForm(p => ({ ...p, medicinePerHead: e.target.value }))} placeholder="0" />
+              <Input label="Bedding ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.beddingPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, beddingPerHead: e.target.value }))} placeholder="0" />
+              <Input label="Labor ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.laborPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, laborPerHead: e.target.value }))} placeholder="0" />
+              <Input label="Other ($/head)" type="number" min="0" step="0.01" value={bulkCalcForm.otherPerHead} onChange={e => setBulkCalcForm(p => ({ ...p, otherPerHead: e.target.value }))} placeholder="0" />
+              <Input label="Market price per lb ($)" type="number" min="0" step="0.01" value={bulkCalcForm.marketPricePerLb} onChange={e => setBulkCalcForm(p => ({ ...p, marketPricePerLb: e.target.value }))} placeholder="e.g. 1.85" />
+            </div>
             {(() => {
               const head = parseInt(bulkCalcForm.headCount, 10) || 0;
+              if (head === 0) return null;
               const startWt = parseFloat(bulkCalcForm.avgStartWeight) || 0;
               const targetWt = parseFloat(bulkCalcForm.avgTargetWeight) || 0;
               const purchasePerHead = parseFloat(bulkCalcForm.avgPurchasePricePerHead) || 0;
@@ -296,36 +279,59 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
               const profitPerDay = (estimatedDaysToFinish != null && estimatedDaysToFinish > 0) ? projectedNet / estimatedDaysToFinish : 0;
               const netColor = profitColor(projectedNet, totalAllIn);
               return (
-                <section style={{ padding: "20px 16px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", display: "flex", flexDirection: "column", gap: "16px" }}>
-                  <h3 style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", margin: 0 }}>Results</h3>
+                <div style={{ background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", padding: "16px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "14px" }}>Results</div>
                   {estimatedDaysToFinish != null && (
-                    <div style={{ padding: "14px 16px", background: "#fff", borderRadius: "var(--radius)", borderLeft: "4px solid var(--brass)" }}>
-                      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Estimated days to finish</div>
-                      <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--green)" }}>{estimatedDaysToFinish} days</div>
-                      <div style={{ fontSize: "13px", color: "var(--ink2)" }}>{estimatedFinishDate ? fmt(estimatedFinishDate) : "—"}</div>
+                    <div style={{ padding: "10px 14px", background: "#fff", borderRadius: "var(--radius)", borderLeft: "3px solid var(--brass)", marginBottom: "14px" }}>
+                      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", marginBottom: "2px" }}>Estimated days to finish</div>
+                      <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--green)" }}>{estimatedDaysToFinish} days{estimatedFinishDate ? <span style={{ fontSize: "13px", fontWeight: 400, color: "var(--ink2)", marginLeft: "8px" }}>{fmt(estimatedFinishDate)}</span> : null}</div>
                     </div>
                   )}
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "14px 20px", fontSize: "14px" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total feed consumed</span><strong>{totalFeedConsumed.toLocaleString("en-US", { maximumFractionDigits: 0 })} lb</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total feed cost</span><strong className="hl-summary-dollar">{formatCompactDollar(totalFeedCost)}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Total all-in cost</span><strong className="hl-summary-dollar">{formatCompactDollar(totalAllIn)}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>All-in per head</span><strong className="hl-summary-dollar">{formatCompactDollar(totalAllInPerHead)}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Cost of gain/lb</span><strong className="hl-summary-dollar">{formatCompactDollar(costOfGainPerLb)}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Breakeven $/lb</span><strong className="hl-summary-dollar">{formatCompactDollar(breakevenPricePerLb)}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Projected revenue</span><strong className="hl-summary-dollar">{formatCompactDollar(projectedRevenue)}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Net profit (group)</span><strong className="hl-summary-dollar" style={{ color: netColor }}>{formatCompactDollar(projectedNet)}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Profit/loss per head</span><strong className="hl-summary-dollar" style={{ color: netColor }}>{formatCompactDollar(profitPerHead)}</strong></div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}><span style={{ color: "var(--muted)", fontSize: "12px" }}>Profit per day</span><strong className="hl-summary-dollar" style={{ color: netColor }}>{formatCompactDollar(profitPerDay)}</strong></div>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
+                    {[
+                      { label: "Total feed consumed", value: totalFeedConsumed.toLocaleString("en-US", { maximumFractionDigits: 0 }) + " lb", color: undefined },
+                      { label: "Total feed cost", value: formatCompactDollar(totalFeedCost), color: undefined },
+                      { label: "Total all-in cost", value: formatCompactDollar(totalAllIn), color: undefined },
+                      { label: "All-in per head", value: formatCompactDollar(totalAllInPerHead), color: undefined },
+                      { label: "Cost of gain/lb", value: formatCompactDollar(costOfGainPerLb), color: "var(--brass2)" },
+                      { label: "Breakeven $/lb", value: formatCompactDollar(breakevenPricePerLb), color: "var(--brass2)" },
+                      { label: "Projected revenue", value: formatCompactDollar(projectedRevenue), color: undefined },
+                      { label: "Net P/L (group)", value: formatCompactDollar(projectedNet), color: netColor },
+                      { label: "P/L per head", value: formatCompactDollar(profitPerHead), color: netColor },
+                      { label: "Profit per day", value: formatCompactDollar(profitPerDay), color: netColor },
+                    ].map(item => (
+                      <div key={item.label} style={{ background: "#fff", borderRadius: "8px", padding: "10px 12px", border: "1px solid var(--cream2)" }}>
+                        <div style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600, marginBottom: "4px" }}>{item.label}</div>
+                        <div className="hl-summary-dollar" style={{ fontSize: "15px", fontWeight: 700, color: item.color || "var(--ink)" }}>{item.value}</div>
+                      </div>
+                    ))}
                   </div>
-                </section>
+                </div>
               );
             })()}
           </div>
-        </Card>
-      )}
+        )}
+      </div>
 
+      {/* Stat cards — 3-column grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px", marginBottom: "20px" }}>
+        <div style={{ background: "#fff", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", borderTop: "3px solid var(--brass)", padding: "12px 10px", textAlign: "center" }}>
+          <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Head on feed</div>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "clamp(20px, 5vw, 28px)", fontWeight: 700, color: "var(--green)" }}>{totalHead}</div>
+        </div>
+        <div style={{ background: "#fff", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", borderTop: "3px solid var(--brass)", padding: "12px 10px", textAlign: "center" }}>
+          <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Est. feed cost</div>
+          <div className="hl-summary-dollar" style={{ fontFamily: "'Playfair Display'", fontSize: "clamp(15px, 4vw, 22px)", fontWeight: 700, color: "var(--green)" }}>{formatCompactDollar(totalEstimatedCost)}</div>
+        </div>
+        <div style={{ background: "#fff", borderRadius: "var(--radius)", border: "1px solid var(--cream2)", borderTop: "3px solid var(--brass)", padding: "12px 10px", textAlign: "center" }}>
+          <div style={{ fontSize: "10px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px", marginBottom: "6px" }}>Proj. P/L</div>
+          <div className="hl-summary-dollar" style={{ fontFamily: "'Playfair Display'", fontSize: "clamp(15px, 4vw, 22px)", fontWeight: 700, color: profitColor(totalProjectedNet, totalEstimatedCost || 1) }}>{formatCompactDollar(totalProjectedNet)}</div>
+        </div>
+      </div>
+
+      {/* Bulk add form */}
       {showBulkAdd && bulkAddAnimals.length > 0 && (
-        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)", overflow: "hidden", boxSizing: "border-box", maxWidth: "100%" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add to Feeder Program ({bulkAddAnimals.length} animals)</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Input label="Start date *" type="date" value={bulkFormShared.startDate} onChange={e => setBulkFormShared(p => ({ ...p, startDate: e.target.value }))} />
@@ -358,8 +364,9 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
         </Card>
       )}
 
+      {/* Add single animal form */}
       {showAdd && (
-        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)", overflow: "hidden", boxSizing: "border-box", maxWidth: "100%" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Add to Feeder Program</div>
           {availableCattle.length === 0 ? (
             <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "16px" }}>No eligible animals. All cattle are already enrolled, or add animals from the Animals tab first.</p>
@@ -404,6 +411,7 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
         </Card>
       )}
 
+      {/* Empty state */}
       {feederPrograms.length === 0 && !showAdd && (
         <Card style={{ padding: "60px", textAlign: "center" }}>
           <div style={{ fontSize: "40px", marginBottom: "10px" }}>🌾</div>
@@ -412,72 +420,127 @@ export default function FeederCattle({ animals, setAnimals, feederPrograms, setF
         </Card>
       )}
 
-      <div className="hl-feeder-table-wrap" style={{ overflowX: "auto", marginBottom: "24px", border: "1px solid var(--cream2)", borderRadius: "var(--radius)", background: "#fff" }}>
-        <table className="hl-feeder-table" style={{ width: "100%", minWidth: "720px", borderCollapse: "collapse", fontSize: "14px" }}>
-          <thead>
-            <tr style={{ borderBottom: "2px solid var(--cream2)", background: "var(--cream)" }}>
-              <th style={{ textAlign: "left", padding: "12px 14px", fontWeight: 600, color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Name / Tag</th>
-              <th style={{ textAlign: "right", padding: "12px 14px", fontWeight: 600, color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Days on feed</th>
-              <th style={{ textAlign: "right", padding: "12px 14px", fontWeight: 600, color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Start (lb)</th>
-              <th style={{ textAlign: "right", padding: "12px 14px", fontWeight: 600, color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Current (lb)</th>
-              <th style={{ textAlign: "right", padding: "12px 14px", fontWeight: 600, color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Lbs gained</th>
-              <th style={{ padding: "12px 14px", fontWeight: 600, color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", minWidth: "100px" }}>Progress</th>
-              <th style={{ textAlign: "left", padding: "12px 14px", fontWeight: 600, color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Est. finish</th>
-              <th style={{ padding: "12px 14px", fontWeight: 600, color: "var(--muted)", fontSize: "11px", textTransform: "uppercase", letterSpacing: "0.5px", width: "1%" }}></th>
-              <th style={{ padding: "12px 14px", width: "1%" }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {(feederPrograms || []).map(fp => {
-              const animal = (animals || []).find(a => a.id === fp.animalId);
-              if (!animal) return null;
-              const daysOnFeed = feederDaysOnFeed(fp.startDate);
-              const estWeight = estimatedWeightFromADG(animal, fp.startDate);
-              const latestRecorded = (() => { const w = getLatestWeightForAnimal(animals, fp.animalId); return w ? parseFloat(w) : null; })();
-              const currentWeight = latestRecorded ?? estWeight ?? fp.startingWeight;
-              const startWeight = fp.startingWeight ?? 0;
-              const targetWeight = fp.targetWeight != null ? fp.targetWeight : (currentWeight != null ? currentWeight + 200 : 0);
-              const adg = (fp.adg != null && fp.adg > 0) ? fp.adg : getADGDefault(animal.species);
-              const lbsToGo = (targetWeight != null && currentWeight != null && targetWeight > currentWeight) ? targetWeight - currentWeight : 0;
-              const estimatedDaysToFinish = (lbsToGo > 0 && adg > 0) ? Math.max(0, Math.ceil(lbsToGo / adg)) : null;
-              const estimatedFinishDate = estimatedDaysToFinish != null ? (() => { const d = new Date(); d.setDate(d.getDate() + estimatedDaysToFinish); return d.toISOString().split("T")[0]; })() : null;
-              const lbsGainSoFar = currentWeight != null && startWeight > 0 ? Math.max(0, currentWeight - startWeight) : 0;
-              const progressBarPct = (targetWeight != null && startWeight != null && targetWeight > startWeight && currentWeight != null)
-                ? Math.min(100, Math.max(0, ((currentWeight - startWeight) / (targetWeight - startWeight)) * 100))
-                : 0;
-              const expectedGainByNow = adg * daysOnFeed;
-              const gainVsExpected = expectedGainByNow > 0 ? lbsGainSoFar / expectedGainByNow : 1;
-              const progressBarColor = gainVsExpected >= 0.98 ? "var(--green)" : gainVsExpected >= 0.85 ? "var(--brass2)" : "var(--danger2)";
-              return (
-                <tr key={fp.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
-                  <td style={{ padding: "10px 14px", fontWeight: 600 }}>{getAnimalName(animal)}{animal.name && animal.tag ? ` (#${animal.tag})` : ""}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "right" }}>{daysOnFeed}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "right" }}>{startWeight != null ? Math.round(startWeight) : "—"}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "right" }}>{currentWeight != null ? Math.round(currentWeight) : "—"}</td>
-                  <td style={{ padding: "10px 14px", textAlign: "right", fontWeight: 600, color: "var(--green)" }}>{lbsGainSoFar.toLocaleString("en-US", { maximumFractionDigits: 0 })}</td>
-                  <td style={{ padding: "10px 14px", verticalAlign: "middle" }}>
-                    {targetWeight != null && startWeight != null && targetWeight > startWeight ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                        <div style={{ flex: 1, height: "8px", background: "var(--cream2)", borderRadius: "4px", overflow: "hidden", minWidth: "60px" }}>
+      {/* Animal cards */}
+      {feederPrograms.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
+          {(feederPrograms || []).map(fp => {
+            const animal = (animals || []).find(a => a.id === fp.animalId);
+            if (!animal) return null;
+            const isExpanded = expandedFeederId === fp.id;
+            const daysOnFeed = feederDaysOnFeed(fp.startDate);
+            const estWeight = estimatedWeightFromADG(animal, fp.startDate);
+            const latestRecorded = (() => { const w = getLatestWeightForAnimal(animals, fp.animalId); return w ? parseFloat(w) : null; })();
+            const currentWeight = latestRecorded ?? estWeight ?? fp.startingWeight;
+            const startWeight = fp.startingWeight ?? 0;
+            const targetWeight = fp.targetWeight != null ? fp.targetWeight : (currentWeight != null ? currentWeight + 200 : 0);
+            const adg = (fp.adg != null && fp.adg > 0) ? fp.adg : getADGDefault(animal.species);
+            const lbsToGo = (targetWeight != null && currentWeight != null && targetWeight > currentWeight) ? targetWeight - currentWeight : 0;
+            const estimatedDaysToFinish = (lbsToGo > 0 && adg > 0) ? Math.max(0, Math.ceil(lbsToGo / adg)) : null;
+            const estimatedFinishDate = estimatedDaysToFinish != null ? (() => { const d = new Date(); d.setDate(d.getDate() + estimatedDaysToFinish); return d.toISOString().split("T")[0]; })() : null;
+            const lbsGainSoFar = currentWeight != null && startWeight > 0 ? Math.max(0, currentWeight - startWeight) : 0;
+            const progressBarPct = (targetWeight != null && startWeight != null && targetWeight > startWeight && currentWeight != null)
+              ? Math.min(100, Math.max(0, ((currentWeight - startWeight) / (targetWeight - startWeight)) * 100))
+              : 0;
+            const expectedGainByNow = adg * daysOnFeed;
+            const gainVsExpected = expectedGainByNow > 0 ? lbsGainSoFar / expectedGainByNow : 1;
+            const progressBarColor = gainVsExpected >= 0.98 ? "var(--green)" : gainVsExpected >= 0.85 ? "var(--brass2)" : "var(--danger2)";
+            const fcr = fp.feedConversionRatio != null ? fp.feedConversionRatio : getFCRDefault(animal.species, fp.feedType || "Corn");
+            const totalFeedCostCard = lbsGainSoFar * fcr * (fp.costPerLb ?? 0);
+            const additionalExp = fp.additionalExpenses ?? 0;
+            const purchasePriceCard = animal.acquisitionType === "Purchased" && animal.purchasePrice != null ? Number(animal.purchasePrice) : 0;
+            const totalAllInCard = totalFeedCostCard + additionalExp + purchasePriceCard;
+            const projectedRevenueCard = (fp.marketPricePerLb && targetWeight > 0) ? fp.marketPricePerLb * targetWeight : 0;
+            const projectedNetCard = projectedRevenueCard - totalAllInCard;
+            const hasPL = fp.marketPricePerLb && fp.marketPricePerLb > 0;
+            const netColor = profitColor(projectedNetCard, totalAllInCard);
+            const summaryLine = [
+              daysOnFeed + "d on feed",
+              startWeight ? Math.round(startWeight) + " → " + (currentWeight != null ? Math.round(currentWeight) : "?") + " lb" : null,
+              fp.penName || null,
+            ].filter(Boolean).join(" · ");
+            return (
+              <div key={fp.id} style={{ borderRadius: "var(--radius)", border: isExpanded ? "1px solid var(--brass)" : "1px solid var(--cream2)", overflow: "hidden", background: isExpanded ? "rgba(201,149,42,0.04)" : "#fff", borderLeft: isExpanded ? "3px solid var(--brass)" : undefined }}>
+                <button
+                  onClick={() => setExpandedFeederId(isExpanded ? null : fp.id)}
+                  style={{ display: "flex", alignItems: "center", width: "100%", padding: "14px 16px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", gap: "12px", WebkitTapHighlightColor: "transparent" }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontWeight: 700, fontSize: "15px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {SPECIES[animal.species]?.emoji && <span style={{ marginRight: "6px" }}>{SPECIES[animal.species].emoji}</span>}
+                      {getAnimalName(animal)}{animal.name && animal.tag ? ` #${animal.tag}` : ""}
+                    </div>
+                    <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{summaryLine}</div>
+                  </div>
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: "14px", fontWeight: 700, color: "var(--green)" }}>+{lbsGainSoFar.toLocaleString("en-US", { maximumFractionDigits: 0 })} lb</div>
+                    {hasPL && <div className="hl-summary-dollar" style={{ fontSize: "12px", fontWeight: 600, color: netColor }}>{formatCompactDollar(projectedNetCard)}</div>}
+                  </div>
+                  <span style={{ fontSize: "18px", color: "var(--muted)", flexShrink: 0, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.2s ease", display: "inline-block" }}>›</span>
+                </button>
+                {isExpanded && (
+                  <div style={{ padding: "0 16px 16px", borderTop: "1px solid var(--cream2)" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "8px", paddingTop: "14px", marginBottom: "14px" }}>
+                      {[
+                        { label: "Days on feed", value: String(daysOnFeed) },
+                        { label: "Start weight", value: startWeight ? Math.round(startWeight) + " lb" : "—" },
+                        { label: "Current weight", value: currentWeight != null ? Math.round(currentWeight) + " lb" : "—" },
+                        { label: "Target weight", value: targetWeight ? Math.round(targetWeight) + " lb" : "—" },
+                        { label: "Lbs gained", value: lbsGainSoFar.toLocaleString("en-US", { maximumFractionDigits: 0 }) + " lb", color: "var(--green)" },
+                        { label: "Est. finish", value: estimatedFinishDate ? fmt(estimatedFinishDate) : "—" },
+                      ].map(item => (
+                        <div key={item.label} style={{ background: "var(--cream)", borderRadius: "8px", padding: "8px 10px" }}>
+                          <div style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "3px" }}>{item.label}</div>
+                          <div style={{ fontSize: "13px", fontWeight: 700, color: item.color || "var(--ink)" }}>{item.value}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {targetWeight != null && startWeight != null && targetWeight > startWeight && (
+                      <div style={{ marginBottom: "14px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "var(--muted)", marginBottom: "4px" }}>
+                          <span>Progress to target</span>
+                          <span>{Math.round(progressBarPct)}%</span>
+                        </div>
+                        <div style={{ height: "8px", background: "var(--cream2)", borderRadius: "4px", overflow: "hidden" }}>
                           <div style={{ height: "100%", width: `${progressBarPct}%`, background: progressBarColor, borderRadius: "4px", transition: "width 0.3s ease" }} />
                         </div>
-                        <span style={{ fontSize: "12px", color: "var(--muted)", whiteSpace: "nowrap" }}>{Math.round(progressBarPct)}%</span>
                       </div>
-                    ) : "—"}
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>{estimatedFinishDate ? fmt(estimatedFinishDate) : "—"}</td>
-                  <td style={{ padding: "8px 14px", whiteSpace: "nowrap" }}>
-                    <Btn size="sm" variant="secondary" onClick={() => { setTab("animals"); setViewingAnimal(animal); }}>Record Weight</Btn>
-                  </td>
-                  <td style={{ padding: "8px 14px" }}>
-                    <Btn size="sm" variant="ghost" onClick={() => removeFromProgram(fp.id)} style={{ padding: "4px 8px", minWidth: 0 }} title="Remove from program">×</Btn>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    )}
+                    {(fp.feedType || fp.costPerLb != null || fp.penName) && (
+                      <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "14px", display: "flex", flexWrap: "wrap", gap: "4px 16px" }}>
+                        {fp.feedType && <span><span style={{ color: "var(--muted)", fontWeight: 600 }}>Feed: </span>{fp.feedType}</span>}
+                        {fp.costPerLb != null && <span><span style={{ color: "var(--muted)", fontWeight: 600 }}>$/lb: </span>${fp.costPerLb}</span>}
+                        {fp.penName && <span><span style={{ color: "var(--muted)", fontWeight: 600 }}>Pen: </span>{fp.penName}</span>}
+                        {hasPL && <span><span style={{ color: "var(--muted)", fontWeight: 600 }}>Market: </span>${fp.marketPricePerLb}/lb</span>}
+                      </div>
+                    )}
+                    {hasPL && (
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "14px" }}>
+                        <div style={{ background: "var(--cream)", borderRadius: "8px", padding: "8px 10px" }}>
+                          <div style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "3px" }}>Feed cost so far</div>
+                          <div className="hl-summary-dollar" style={{ fontSize: "13px", fontWeight: 700 }}>{formatCompactDollar(totalFeedCostCard)}</div>
+                        </div>
+                        <div style={{ background: "var(--cream)", borderRadius: "8px", padding: "8px 10px" }}>
+                          <div style={{ fontSize: "10px", color: "var(--muted)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.4px", marginBottom: "3px" }}>Proj. P/L</div>
+                          <div className="hl-summary-dollar" style={{ fontSize: "13px", fontWeight: 700, color: netColor }}>{formatCompactDollar(projectedNetCard)}</div>
+                        </div>
+                      </div>
+                    )}
+                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                      <Btn size="sm" variant="secondary" onClick={() => { setTab("animals"); setViewingAnimal(animal); }}>Record Weight</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => {
+                        setIndividualCalcAnimalId(fp.animalId);
+                        setIndividualCalcOverrides({ feedType: fp.feedType || "Corn", feedConversionRatio: fp.feedConversionRatio != null ? String(fp.feedConversionRatio) : "", costPerLbFeed: fp.costPerLb != null ? String(fp.costPerLb) : "", additionalExpenses: fp.additionalExpenses != null ? String(fp.additionalExpenses) : "", marketPricePerLb: fp.marketPricePerLb != null ? String(fp.marketPricePerLb) : "" });
+                        setShowCalculatorModal(true);
+                      }}>Calculator</Btn>
+                      <Btn size="sm" variant="ghost" onClick={() => removeFromProgram(fp.id)} style={{ color: "var(--danger2)", marginLeft: "auto" }}>Remove</Btn>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {showCalculatorModal && (() => {
         const fp = (feederPrograms || []).find(f => f.animalId === individualCalcAnimalId);

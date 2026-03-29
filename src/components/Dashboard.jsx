@@ -2,7 +2,7 @@ import { TIPS, SPECIES, DEFAULT_TAB_VISIBILITY, PASTURE_SPECIES } from "../lib/c
 import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, formatGestationDaysRemaining, progress, breedingDateForProgress, formatCompactDollar, getNextExpectedHeatDate, isFemale } from "../lib/helpers.js";
 import { Card, Badge, ProgressBar } from "./ui.jsx";
 
-export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, setAnimalsFilterHeatDue, expenses, tasks, settings, loadDone }) {
+export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, setAnimalsFilterHeatDue, expenses, tasks, settings, loadDone, setHighlightGestationId }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
   const currentYear = today.getFullYear();
@@ -162,7 +162,13 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
               {overdue.map(g => (
                 <div key={g.id} style={{ padding: "12px 20px", display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid var(--cream2)" }}>
                   <div>
-                    <span style={{ fontWeight: 600 }}>{getAnimalName(g.animal)}</span>
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => { setHighlightGestationId?.(g.id); setTab?.("gestation"); }}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHighlightGestationId?.(g.id); setTab?.("gestation"); } }}
+                      style={{ fontWeight: 600, cursor: "pointer", color: "var(--green)", textDecoration: "underline", textDecorationColor: "var(--green3)" }}
+                    >{getAnimalName(g.animal)}</span>
                     <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{g.animal?.species}</span>
                   </div>
                   <Badge color="var(--danger2)">{g.dueD?.isRange ? "Overdue" : `${Math.abs(g.due)}d overdue`}</Badge>
@@ -184,7 +190,13 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
                     <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                       <span style={{ fontSize: "20px" }}>{SPECIES[g.animal?.species]?.emoji}</span>
                       <div>
-                        <div style={{ fontWeight: 600 }}>{getAnimalName(g.animal)}</div>
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => { setHighlightGestationId?.(g.id); setTab?.("gestation"); }}
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHighlightGestationId?.(g.id); setTab?.("gestation"); } }}
+                          style={{ fontWeight: 600, cursor: "pointer", color: "var(--green)", textDecoration: "underline", textDecorationColor: "var(--green3)" }}
+                        >{getAnimalName(g.animal)}</div>
                         <div style={{ fontSize: "12px", color: "var(--muted)" }}>{g.animal?.species} · Due {fmtDueRange(g)}</div>
                       </div>
                     </div>
@@ -295,7 +307,23 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
                   {Object.entries(byLower)
                     .sort(([a], [b]) => (a === "—" ? 1 : b === "—" ? -1 : (canonicalName[a] || "").localeCompare(canonicalName[b] || "")))
                     .map(([lower, n]) => (
-                      <div key={lower} style={{ display: "flex", justifyContent: "space-between", marginBottom: "4px" }}>
+                      <div
+                        key={lower}
+                        role={lower !== "—" ? "button" : undefined}
+                        tabIndex={lower !== "—" ? 0 : undefined}
+                        onClick={lower !== "—" ? () => setTab?.("pastures") : undefined}
+                        onKeyDown={lower !== "—" ? e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTab?.("pastures"); } } : undefined}
+                        style={{
+                          display: "flex", justifyContent: "space-between", marginBottom: "4px",
+                          cursor: lower !== "—" ? "pointer" : undefined,
+                          padding: lower !== "—" ? "3px 6px" : undefined,
+                          margin: lower !== "—" ? "-3px -6px 4px" : undefined,
+                          borderRadius: lower !== "—" ? "var(--radius1)" : undefined,
+                          transition: lower !== "—" ? "background 0.15s" : undefined,
+                        }}
+                        onMouseEnter={lower !== "—" ? e => { e.currentTarget.style.background = "var(--cream2)"; } : undefined}
+                        onMouseLeave={lower !== "—" ? e => { e.currentTarget.style.background = ""; } : undefined}
+                      >
                         <span style={{ fontSize: "14px", color: lower === "—" ? "var(--muted)" : "var(--ink2)" }}>{lower === "—" ? "Not in pasture" : canonicalName[lower]}</span>
                         <span style={{ fontWeight: 600, color: "var(--green)" }}>{n}</span>
                       </div>

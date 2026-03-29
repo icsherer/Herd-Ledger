@@ -134,7 +134,7 @@ export default function Expenses({ expenses, setExpenses, animals, pastures, set
       </Card>
 
       {showAdd && (
-        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)" }}>
+        <Card className="hl-add-form-card" style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--green3)", overflow: "hidden", boxSizing: "border-box", maxWidth: "100%" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>{editingId ? "Edit Expense" : "Add Expense"}</div>
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <DateInputWithValidation label="Date *" value={form.date} onValueChange={v => setForm(p => ({ ...p, date: v }))} />

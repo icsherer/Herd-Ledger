@@ -61,7 +61,7 @@ function sortActiveGestations(items, mode, animalsList) {
 }
 
 // ── Gestation ─────────────────────────────────────────────────────────────────
-export default function Gestation({ animals, setAnimals, gestations, setGestations, user, offspring, setOffspring, setTab, setViewingAnimal, deliveryGestureId, setDeliveryGestureId, setPromptAddOffspring }) {
+export default function Gestation({ animals, setAnimals, gestations, setGestations, user, offspring, setOffspring, setTab, setViewingAnimal, deliveryGestureId, setDeliveryGestureId, setPromptAddOffspring, highlightGestationId, setHighlightGestationId }) {
   const animalsList = animals ?? [];
   const gestationsList = gestations ?? [];
   const [showAdd, setShowAdd] = useState(false);
@@ -78,6 +78,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   });
   const [activeSort, setActiveSort] = useState("dueSoonest");
   const [editingGestationId, setEditingGestationId] = useState(null);
+  const [highlightedId, setHighlightedId] = useState(null);
   const [editForm, setEditForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false });
 
   const females = animalsList.filter(a => isFemale(a));
@@ -112,6 +113,18 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
       setDeliveryGestureId(null);
     }
   }, [deliveryGestureId, setDeliveryGestureId]);
+
+  useEffect(() => {
+    if (!highlightGestationId) return;
+    setHighlightedId(highlightGestationId);
+    setHighlightGestationId?.(null);
+    const scrollTimer = setTimeout(() => {
+      const el = document.getElementById(`gestation-card-${highlightGestationId}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 80);
+    const clearTimer = setTimeout(() => setHighlightedId(null), 2400);
+    return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
+  }, [highlightGestationId]);
 
   function add() {
     const start = sanitizeDate(form.breedingDate);
@@ -312,7 +325,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
       </SectionTitle>
 
       {showAdd && (
-        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+        <Card className="hl-add-form-card" style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)", overflow: "hidden", boxSizing: "border-box", maxWidth: "100%" }}>
           <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Log Breeding Date</div>
           {!females.length && <p style={{ color: "var(--muted)", fontSize: "14px", marginBottom: "12px" }}>No female animals registered. Add animals first.</p>}
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
@@ -461,15 +474,21 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
           const urgent = dueD.isRange ? (dueD.start <= 7 && dueD.end >= 0) : (dueD.start >= 0 && dueD.start <= 7);
           const badgeText = formatGestationDaysRemaining(dueD);
           return (
-            <Card key={g.id} className="hl-gestation-card" style={{ padding: "20px 24px", borderLeft: `4px solid ${overdue ? "var(--danger2)" : urgent ? "var(--brass)" : "var(--green3)"}` }}>
+            <Card key={g.id} id={`gestation-card-${g.id}`} className="hl-gestation-card" style={{ padding: "20px 24px", borderLeft: `4px solid ${overdue ? "var(--danger2)" : urgent ? "var(--brass)" : "var(--green3)"}`, boxShadow: g.id === highlightedId ? "0 0 0 3px var(--brass), var(--shadow)" : undefined, transition: "box-shadow 0.6s ease-out" }}>
               <div className="hl-gestation-card-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { if (animal) { setViewingAnimal(animal); setTab("animals"); } }}
+                  onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && animal) { e.preventDefault(); setViewingAnimal(animal); setTab("animals"); } }}
+                  style={{ display: "flex", alignItems: "center", gap: "12px", cursor: animal ? "pointer" : undefined }}
+                >
                   <span style={{ fontSize: "28px" }}>{SPECIES[animal?.species]?.emoji}</span>
                   <div>
-                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", textDecoration: "underline", textDecorationColor: "var(--green3)", textUnderlineOffset: "3px" }}>
                       {getAnimalName(animal)}
                       {g.inbreedingWarning && (
-                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.2)", padding: "2px 6px", borderRadius: "4px", letterSpacing: "0.5px" }}>INBRED WARNING</span>
+                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.2)", padding: "2px 6px", borderRadius: "4px", letterSpacing: "0.5px", textDecoration: "none" }}>INBRED WARNING</span>
                       )}
                     </div>
                     <div style={{ fontSize: "13px", color: "var(--muted)" }}>

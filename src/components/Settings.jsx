@@ -13,6 +13,7 @@ export default function Settings({ settings, setSettings, contacts = [], setCont
   const protocols = settings?.vaccinationProtocols ?? [];
   const [protocolForm, setProtocolForm] = useState(null); // null | { id, name, vaccines } for add/edit
   const [contactForm, setContactForm] = useState(null); // null | contact for add/edit
+  const [expandedContactId, setExpandedContactId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteError, setDeleteError] = useState(null);
@@ -179,18 +180,36 @@ export default function Settings({ settings, setSettings, contacts = [], setCont
           <p style={{ fontSize: "13px", color: "var(--muted)", marginBottom: "14px" }}>Save seller and buyer contacts (name, ranch/company, phone, email). Use them when entering &quot;Purchased from&quot; or recording a sale.</p>
           {(contacts || []).length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "16px" }}>
-              {(contacts || []).map(c => (
-                <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 14px", background: "var(--cream)", borderRadius: "var(--radius)", border: "1px solid var(--cream2)" }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: "14px" }}>{c.name || "Unnamed"}</div>
-                    <div style={{ fontSize: "12px", color: "var(--muted)" }}>{[c.ranchCompany, c.phone, c.email].filter(Boolean).join(" · ") || "No details"}</div>
+              {(contacts || []).map(c => {
+                const isExpanded = expandedContactId === c.id;
+                return (
+                  <div key={c.id} style={{ borderRadius: "var(--radius)", border: "1px solid var(--cream2)", overflow: "hidden", background: isExpanded ? "rgba(201,149,42,0.05)" : "var(--cream)", borderLeft: isExpanded ? "3px solid var(--brass)" : "1px solid var(--cream2)" }}>
+                    <button
+                      onClick={() => setExpandedContactId(isExpanded ? null : c.id)}
+                      style={{ display: "flex", alignItems: "center", width: "100%", padding: "12px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", gap: "10px", WebkitTapHighlightColor: "transparent" }}
+                    >
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "Unnamed"}</div>
+                        {c.ranchCompany && <div style={{ fontSize: "12px", color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.ranchCompany}</div>}
+                      </div>
+                      <span style={{ fontSize: "16px", color: "var(--muted)", flexShrink: 0, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.2s ease", display: "inline-block" }}>›</span>
+                    </button>
+                    {isExpanded && (
+                      <div style={{ padding: "0 14px 14px", borderTop: "1px solid var(--cream2)" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px", fontSize: "13px", color: "var(--ink2)", paddingTop: "10px", marginBottom: "12px" }}>
+                          {c.phone && <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Phone: </span>{c.phone}</div>}
+                          {c.email && <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Email: </span>{c.email}</div>}
+                          {c.notes && <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Notes: </span>{c.notes}</div>}
+                        </div>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <Btn size="sm" variant="ghost" onClick={() => { setContactForm({ id: c.id, name: c.name || "", ranchCompany: c.ranchCompany || "", phone: c.phone || "", email: c.email || "", notes: c.notes || "" }); setExpandedContactId(null); }}>Edit</Btn>
+                          <Btn size="sm" variant="ghost" onClick={() => { if (confirm("Delete this contact?")) { setContacts((contacts || []).filter(x => x.id !== c.id)); setExpandedContactId(null); } }}>Delete</Btn>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <Btn size="sm" variant="ghost" onClick={() => setContactForm({ id: c.id, name: c.name || "", ranchCompany: c.ranchCompany || "", phone: c.phone || "", email: c.email || "", notes: c.notes || "" })}>Edit</Btn>
-                    <Btn size="sm" variant="ghost" onClick={() => { if (confirm("Delete this contact?")) setContacts((contacts || []).filter(x => x.id !== c.id)); }}>Delete</Btn>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
           {!contactForm ? (

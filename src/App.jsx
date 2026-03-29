@@ -56,24 +56,24 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     { id: "animals", label: "Animals", icon: "🐄" },
     ...(visibility.gestation !== false && !hideGestationTab ? [{ id: "gestation", label: "Gestation", icon: "📅" }] : []),
     ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾" }] : []),
-    ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🟩" }] : []),
-    ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
+    ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🌿" }] : []),
+    ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📓" }] : []),
     ...(visibility.expenses !== false ? [{ id: "expenses", label: "Expenses", icon: "💰" }] : []),
-    ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "📋" }] : []),
-    ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✓" }] : []),
-    ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🥛" }] : []),
-    { id: "settings", label: "Settings", icon: "⚙" },
+    ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "💰" }] : []),
+    ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✅" }] : []),
+    ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🐄" }] : []),
+    { id: "settings", label: "Settings", icon: "⚙️" },
   ];
 
   // "More" drawer items: everything not in the primary 5 bottom tabs
   const moreItems = [
-    ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🟩" }] : []),
-    ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📖" }] : []),
-    ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✓" }] : []),
-    ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾" }] : []),
-    ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🥛" }] : []),
-    ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "📋" }] : []),
-    { id: "settings", label: "Settings", icon: "⚙" },
+    ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🌿", tile: "#3A7D44" }] : []),
+    ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📓", tile: "#C17F3A" }] : []),
+    ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✅", tile: "#4A7B9D" }] : []),
+    ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾", tile: "#B8972A" }] : []),
+    ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🐄", tile: "#8B5E3C" }] : []),
+    ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "💰", tile: "#6B8C52" }] : []),
+    { id: "settings", label: "Settings", icon: "⚙️", tile: "#7A6A5A" },
   ];
 
   const moreTabs = new Set(["pastures", "notes", "tasks", "feeder", "weaning", "sales", "settings", "help"]);
@@ -155,30 +155,50 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
       {/* ── More slide-up drawer ── */}
       {showMoreDrawer && (
         <div className="hl-more-overlay no-print" onClick={() => setShowMoreDrawer(false)}>
-          <div className="hl-more-drawer" onClick={e => e.stopPropagation()}>
+          <div className="hl-more-drawer" onClick={e => e.stopPropagation()} style={{ background: "var(--cream)" }}>
             {/* Drag handle */}
-            <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "var(--cream3)", margin: "0 auto 20px" }} />
+            <div style={{ width: "36px", height: "4px", borderRadius: "2px", background: "var(--cream3)", margin: "0 auto 16px" }} />
             {/* Header */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", padding: "0 4px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px", padding: "0 4px" }}>
               <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 700, color: "var(--ink)" }}>More</span>
               <button onClick={() => setShowMoreDrawer(false)} style={{ background: "none", border: "none", color: "var(--muted)", fontSize: "22px", lineHeight: 1, cursor: "pointer", padding: "4px 8px" }}>✕</button>
             </div>
-            {/* Items */}
-            {moreItems.map(item => (
-              <button key={item.id} onClick={() => handleMoreItem(item.id)} style={{
-                display: "flex", alignItems: "center", gap: "16px",
-                width: "100%", padding: "14px 12px",
-                background: tab === item.id ? "rgba(201,149,42,0.1)" : "transparent",
-                border: "none", borderRadius: "var(--radius)", cursor: "pointer",
-                color: tab === item.id ? "var(--brass)" : "var(--ink)",
-                fontSize: "16px", fontWeight: tab === item.id ? 600 : 400,
-                transition: "background 0.15s",
-                textAlign: "left",
-              }}>
-                <span style={{ fontSize: "22px", width: "30px", textAlign: "center", flexShrink: 0 }}>{item.icon}</span>
-                <span>{item.label}</span>
-              </button>
-            ))}
+            {/* Items — iOS Settings-style list */}
+            <div style={{ background: "#fff", borderRadius: "12px", overflow: "hidden", border: "1px solid var(--cream3)" }}>
+              {moreItems.map((item, idx) => (
+                <button
+                  key={item.id}
+                  onClick={() => handleMoreItem(item.id)}
+                  style={{
+                    display: "flex", alignItems: "center", gap: "14px",
+                    width: "100%", minHeight: "56px", padding: "8px 14px",
+                    background: tab === item.id ? "rgba(201,149,42,0.07)" : "transparent",
+                    border: "none",
+                    borderTop: idx > 0 ? "1px solid var(--cream2)" : "none",
+                    cursor: "pointer",
+                    textAlign: "left",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                  onMouseDown={e => { e.currentTarget.style.background = "var(--cream2)"; }}
+                  onMouseUp={e => { e.currentTarget.style.background = tab === item.id ? "rgba(201,149,42,0.07)" : "transparent"; }}
+                  onMouseLeave={e => { e.currentTarget.style.background = tab === item.id ? "rgba(201,149,42,0.07)" : "transparent"; }}
+                  onTouchStart={e => { e.currentTarget.style.background = "var(--cream2)"; }}
+                  onTouchEnd={e => { e.currentTarget.style.background = tab === item.id ? "rgba(201,149,42,0.07)" : "transparent"; }}
+                >
+                  {/* Colored tile */}
+                  <span style={{
+                    width: "40px", height: "40px", borderRadius: "10px",
+                    background: item.tile, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    fontSize: "22px", lineHeight: 1,
+                  }}>{item.icon}</span>
+                  {/* Label */}
+                  <span style={{ flex: 1, fontSize: "16px", fontWeight: 600, color: "var(--ink)", lineHeight: 1.2 }}>{item.label}</span>
+                  {/* Chevron */}
+                  <span style={{ fontSize: "18px", color: "var(--cream3)", fontWeight: 300, lineHeight: 1 }}>›</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -210,6 +230,7 @@ export default function App() {
   const [feederPreselectAnimalId, setFeederPreselectAnimalId] = useState(null);
   const [feederBulkAnimalIds, setFeederBulkAnimalIds] = useState([]);
   const [deliveryGestureId, setDeliveryGestureId] = useState(null);
+  const [highlightGestationId, setHighlightGestationId] = useState(null);
   const [promptAddOffspring, setPromptAddOffspring] = useState(null);
   const [contacts, setContacts] = useState([]);
   const initialLoadDone = useRef(false);
@@ -477,9 +498,9 @@ export default function App() {
         </div>
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
-      {tab === "dashboard" && <TabErrorBoundary key="dashboard" setTab={setTab}><Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} setAnimalsFilterHeatDue={setAnimalsFilterHeatDue} expenses={expenses} tasks={tasks} settings={settings} loadDone={loadDone} /></TabErrorBoundary>}
+      {tab === "dashboard" && <TabErrorBoundary key="dashboard" setTab={setTab}><Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} setAnimalsFilterHeatDue={setAnimalsFilterHeatDue} expenses={expenses} tasks={tasks} settings={settings} loadDone={loadDone} setHighlightGestationId={setHighlightGestationId} /></TabErrorBoundary>}
       {tab === "animals"   && <TabErrorBoundary key="animals" setTab={setTab}><Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} filterHeatDue={animalsFilterHeatDue} setFilterHeatDue={setAnimalsFilterHeatDue} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} notes={notes} setNotes={setNotes} setDeliveryGestureId={setDeliveryGestureId} promptAddOffspring={promptAddOffspring} setPromptAddOffspring={setPromptAddOffspring} contacts={contacts} setContacts={setContacts} /></TabErrorBoundary>}
-      {tab === "gestation" && <TabErrorBoundary key="gestation" setTab={setTab}><Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} offspring={offspring} setOffspring={setOffspring} setTab={setTab} setViewingAnimal={setViewingAnimal} deliveryGestureId={deliveryGestureId} setDeliveryGestureId={setDeliveryGestureId} setPromptAddOffspring={setPromptAddOffspring} /></TabErrorBoundary>}
+      {tab === "gestation" && <TabErrorBoundary key="gestation" setTab={setTab}><Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} offspring={offspring} setOffspring={setOffspring} setTab={setTab} setViewingAnimal={setViewingAnimal} deliveryGestureId={deliveryGestureId} setDeliveryGestureId={setDeliveryGestureId} setPromptAddOffspring={setPromptAddOffspring} highlightGestationId={highlightGestationId} setHighlightGestationId={setHighlightGestationId} /></TabErrorBoundary>}
       {tab === "feeder"    && <TabErrorBoundary key="feeder" setTab={setTab}><FeederCattle animals={animals} setAnimals={setAnimals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} /></TabErrorBoundary>}
       {tab === "pastures"  && <TabErrorBoundary key="pastures" setTab={setTab}><Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} pastureFeedLogs={pastureFeedLogs} setPastureFeedLogs={setPastureFeedLogs} setExpenses={setExpenses} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} gestations={gestations} setGestations={setGestations} notes={notes} setNotes={setNotes} /></TabErrorBoundary>}
       {tab === "notes"     && <TabErrorBoundary key="notes" setTab={setTab}><Notes notes={notes} setNotes={setNotes} user={user} animals={animals} /></TabErrorBoundary>}

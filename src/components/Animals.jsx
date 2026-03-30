@@ -4673,6 +4673,18 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, purchasedFrom: v } : an));
     exitBulkMode();
   }
+  function saveBulkSale() {
+    if (!bulkForm.dateSold) return;
+    const record = {
+      dateSold: bulkForm.dateSold,
+      pricePerHead: bulkForm.pricePerHead?.trim() ? parseFloat(bulkForm.pricePerHead) : undefined,
+      buyerName: bulkForm.buyerName?.trim() || undefined,
+      saleLocation: bulkForm.saleLocation?.trim() || undefined,
+      notes: bulkForm.notes?.trim() || undefined,
+    };
+    setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, sale: record } : an));
+    exitBulkMode();
+  }
 
   return (
     <div className={`hl-page hl-fade-in${bulkMode && !bulkFormType ? " hl-page-with-bulk-toolbar" : ""}`}>
@@ -5000,6 +5012,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <span className="hl-bulk-sheet-chevron">›</span>
                 </button>
               )}
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("sale"); setBulkForm({ dateSold: "", pricePerHead: "", buyerName: "", saleLocation: "", notes: "" }); }}>
+                <span className="hl-bulk-sheet-icon">💰</span>
+                <span className="hl-bulk-sheet-label">Mark as Sold</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
               <button type="button" className="hl-bulk-sheet-row hl-bulk-sheet-row-danger" onClick={bulkDeleteSelected}>
                 <span className="hl-bulk-sheet-icon">🗑️</span>
                 <span className="hl-bulk-sheet-label">Delete Selected</span>
@@ -5287,6 +5304,23 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           )}
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkPurchasedFrom}>Apply to {selectedIds.length} animals</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
+          </div>
+        </Card>
+      )}
+
+      {bulkFormType === "sale" && (
+        <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, marginBottom: "18px" }}>Bulk Mark as Sold ({selectedIds.length} animals)</div>
+          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+            <DateInputWithValidation label="Date Sold *" value={bulkForm.dateSold} onValueChange={v => setBulkForm(p => ({ ...p, dateSold: v }))} />
+            <Input label="Price Per Head ($)" type="number" min="0" step="0.01" value={bulkForm.pricePerHead} onChange={e => setBulkForm(p => ({ ...p, pricePerHead: e.target.value }))} placeholder="e.g. 1250.00" />
+            <Input label="Buyer Name" value={bulkForm.buyerName} onChange={e => setBulkForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Cattle Co." />
+            <Input label="Sale Location" value={bulkForm.saleLocation} onChange={e => setBulkForm(p => ({ ...p, saleLocation: e.target.value }))} placeholder="e.g. Dodge City Sale Barn" />
+          </div>
+          <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
+          <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+            <Btn onClick={saveBulkSale} disabled={!bulkForm.dateSold}>Mark {selectedIds.length} animals as sold</Btn>
             <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>

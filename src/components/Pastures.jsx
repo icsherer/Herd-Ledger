@@ -688,11 +688,19 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
                           )}
                         </div>
                       )}
-                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                        <Btn size="sm" variant="secondary" onClick={() => openLogFeed(pastureName)}>Log Feed</Btn>
-                        <Btn size="sm" variant="secondary" onClick={() => { setMarkEmptyPasture(pastureName); setMarkEmptyDate(new Date().toISOString().split("T")[0]); }} disabled={!feedSummary?.lastEntry || feedSummary?.lastEntry?.emptyDate != null}>Mark Empty</Btn>
-                        <Btn size="sm" variant="secondary" onClick={() => setDetailPasture(pastureName)}>Feed history</Btn>
-                        <Btn size="sm" variant="ghost" onClick={() => setDeletePastureConfirm(pastureName)}>Delete pasture</Btn>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
+                        {[
+                          { label: "🌾 Log Feed", onClick: () => openLogFeed(pastureName), disabled: false, style: {} },
+                          { label: "✓ Mark Empty", onClick: () => { setMarkEmptyPasture(pastureName); setMarkEmptyDate(new Date().toISOString().split("T")[0]); }, disabled: !feedSummary?.lastEntry || feedSummary?.lastEntry?.emptyDate != null, style: {} },
+                          { label: "📋 Feed History", onClick: () => setDetailPasture(pastureName), disabled: false, style: {} },
+                        ].map(({ label, onClick, disabled, style }) => (
+                          <button key={label} type="button" onClick={onClick} disabled={disabled} style={{ fontSize: "13px", padding: "6px 12px", borderRadius: "99px", border: "1px solid var(--cream3)", background: "#fff", color: disabled ? "var(--muted)" : "var(--ink)", cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.5 : 1, fontFamily: "inherit", ...style }}>
+                            {label}
+                          </button>
+                        ))}
+                        <button type="button" onClick={() => setDeletePastureConfirm(pastureName)} style={{ fontSize: "13px", padding: "6px 12px", borderRadius: "99px", border: "none", background: "none", color: "#b94040", cursor: "pointer", fontFamily: "inherit" }}>
+                          🗑 Delete
+                        </button>
                       </div>
                     </div>
                   )}

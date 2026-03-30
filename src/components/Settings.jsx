@@ -120,7 +120,7 @@ export default function Settings({ settings, setSettings, contacts = [], setCont
                   </div>
                   <div style={{ display: "flex", gap: "8px" }}>
                     <Btn size="sm" variant="ghost" onClick={() => setProtocolForm({ id: p.id, name: p.name || "", vaccines: (p.vaccines || []).length ? p.vaccines.map(v => ({ vaccineName: v.vaccineName || "", dosage: v.dosage || "", route: v.route || "IM (Intramuscular)", boosterIntervalDays: v.boosterIntervalDays != null ? String(v.boosterIntervalDays) : "", trackBooster: !!v.trackBooster })) : [emptyVaccine()] })}>Edit</Btn>
-                    <Btn size="sm" variant="ghost" onClick={() => { if (confirm("Delete this protocol?")) setProtocols(protocols.filter(x => x.id !== p.id)); }}>Delete</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { if (confirm("Delete this protocol? This cannot be undone.")) setProtocols(protocols.filter(x => x.id !== p.id)); }}>Delete</Btn>
                   </div>
                 </div>
               ))}

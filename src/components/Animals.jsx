@@ -697,6 +697,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [editingUpcomingKey, setEditingUpcomingKey] = useState(null); // string e.g. 'farrier-0' or 'vaccination-abc123'
   const [bulkMode, setBulkMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [showBulkGrid, setShowBulkGrid] = useState(false);
   const [bulkFormType, setBulkFormType] = useState(null);
   const [bulkForm, setBulkForm] = useState({});
   const [showSaleForm, setShowSaleForm] = useState(false);
@@ -4402,6 +4403,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   function exitBulkMode() {
     setBulkMode(false);
     setSelectedIds([]);
+    setShowBulkGrid(false);
     setBulkFormType(null);
     setBulkForm({});
   }
@@ -4499,8 +4501,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           return { ...an, vaccinations: [...(an.vaccinations || []), ...newEntries] };
         })
       );
-      setBulkFormType(null);
-      setBulkForm({});
+      exitBulkMode();
       return;
     }
 
@@ -4523,8 +4524,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         return { ...an, vaccinations: [...(an.vaccinations || []), entry] };
       })
     );
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
 
   function saveBulkBreeding() {
@@ -4580,8 +4580,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         return { ...x, heatCycles: (x.heatCycles || []).map(h => h.id === upd.heatId ? { ...h, linkedGestationId: upd.gestationId } : h) };
       }));
     }
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
 
   function saveBulkMove() {
@@ -4600,9 +4599,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     });
     setAnimals(nextAnimals);
     if (setNotes && journalEntries.length > 0) setNotes(prev => [...journalEntries, ...prev]);
-    setBulkFormType(null);
-    setBulkForm({});
     if (pastureName) setRunningWithBullCheckPending({ pastureName });
+    exitBulkMode();
   }
 
   function saveBulkTreatment() {
@@ -4625,8 +4623,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         return { ...an, treatments: nextTreatments };
       })
     );
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
 
   function saveBulkCastration() {
@@ -4648,43 +4645,37 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         };
       })
     );
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
 
   function saveBulkBreed() {
     const v = (bulkForm.breed || "").trim() || undefined;
     setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, breed: v } : an));
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
   function saveBulkSex() {
     const v = (bulkForm.sex || "").trim() || undefined;
     setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, sex: v } : an));
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
   function saveBulkColor() {
     const v = (bulkForm.color || "").trim() || undefined;
     setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, color: v } : an));
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
   function saveBulkPurchaseDate() {
     const v = (bulkForm.purchaseDate || "").trim() || undefined;
     setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, purchaseDate: v } : an));
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
   function saveBulkPurchasedFrom() {
     const v = (bulkForm.purchasedFrom || "").trim() || undefined;
     setAnimals(prev => prev.map(an => selectedIds.includes(an.id) ? { ...an, purchasedFrom: v } : an));
-    setBulkFormType(null);
-    setBulkForm({});
+    exitBulkMode();
   }
 
   return (
-    <div className={`hl-page hl-fade-in${bulkMode && selectedIds.length > 0 ? " hl-page-with-bulk-toolbar" : ""}`}>
+    <div className={`hl-page hl-fade-in${bulkMode && !bulkFormType ? " hl-page-with-bulk-toolbar" : ""}`}>
       <SectionTitle action={
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ display: "flex", gap: "2px" }} role="group" aria-label="View mode">
@@ -4735,7 +4726,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             <button
               type="button"
               className="hl-animals-header-btn hl-animals-header-btn-secondary"
-              onClick={() => { setBulkMode(true); setSelectedIds([]); setBulkFormType(null); setViewing(null); }}
+              onClick={() => { setBulkMode(true); setSelectedIds([]); setShowBulkGrid(false); setBulkFormType(null); setViewing(null); }}
               title="Bulk Actions"
             >
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18"/><path d="M7 13h4"/></svg>
@@ -4825,6 +4816,18 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
         return (
           <>
+            {bulkMode && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px", padding: "8px 12px", background: "rgba(72,120,72,0.06)", borderRadius: "var(--radius)", border: "1px solid rgba(72,120,72,0.15)" }}>
+                <span style={{ fontSize: "13px", color: "var(--green)", fontWeight: 600 }}>Select animals below, then tap Actions →</span>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(sorted.map(a => a.id))}
+                  style={{ background: "none", border: "none", color: "var(--green)", fontWeight: 600, fontSize: "13px", cursor: "pointer", padding: "4px 8px", borderRadius: "var(--radius)", textDecoration: "underline" }}
+                >
+                  Select All ({sorted.length})
+                </button>
+              </div>
+            )}
             <div className="hl-animals-filter-bar" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "12px", marginBottom: "20px" }}>
               {filterHeatDue && (
                 <span style={{ display: "inline-flex", alignItems: "center", gap: "6px", padding: "6px 10px", borderRadius: "var(--radius)", background: "rgba(201,149,42,0.18)", border: "1px solid var(--brass2)", fontSize: "13px", fontWeight: 600, color: "var(--ink)" }}>
@@ -4914,62 +4917,97 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         );
       })()}
 
-      {bulkMode && selectedIds.length > 0 && (
-        <Card className="hl-bulk-toolbar">
-          <div className="hl-bulk-toolbar-header">
-            <span className="hl-bulk-toolbar-count">{selectedIds.length} selected</span>
-            <Btn size="sm" variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
-          </div>
-          <div className="hl-bulk-toolbar-actions">
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" }); }}>
-              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M10 2v4M14 2v4"/><path d="M5 8h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2z"/><path d="M12 14v4"/><path d="M9 18h6"/></svg></span>
-              <span className="hl-bulk-action-label">Vaccination</span>
-            </button>
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("breeding"); setBulkForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>
-              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg></span>
-              <span className="hl-bulk-action-label">Log Breeding</span>
-            </button>
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("move"); setBulkForm({ pastureName: "", dateMovedIn: "", notes: "" }); }}>
-              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
-              <span className="hl-bulk-action-label">Move to Pasture</span>
-            </button>
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("treatment"); setBulkForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>
-              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
-              <span className="hl-bulk-action-label">Treatment</span>
-            </button>
-            {selectedMales.length > 0 && (
-              <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("castration"); setBulkForm({ date: "", method: "Banding", performer: "Owner", notes: "" }); }}>
-                <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/></svg></span>
-                <span className="hl-bulk-action-label">Castrate</span>
+      {bulkMode && !bulkFormType && (
+        <div className="hl-bulk-bar">
+          <button type="button" className="hl-bulk-bar-cancel" onClick={exitBulkMode} aria-label="Exit bulk mode">✕</button>
+          <span className="hl-bulk-bar-count">{selectedIds.length} selected</span>
+          <button
+            type="button"
+            className="hl-bulk-bar-actions"
+            onClick={() => setShowBulkGrid(true)}
+            disabled={selectedIds.length === 0}
+          >
+            Actions{selectedIds.length > 0 ? ` (${selectedIds.length})` : ""} →
+          </button>
+        </div>
+      )}
+
+      {bulkMode && !bulkFormType && showBulkGrid && (
+        <>
+          <div className="hl-bulk-sheet-backdrop" onClick={() => setShowBulkGrid(false)} />
+          <div className="hl-bulk-sheet">
+            <div className="hl-bulk-sheet-header">
+              <span className="hl-bulk-sheet-count">{selectedIds.length} animal{selectedIds.length !== 1 ? "s" : ""} selected</span>
+              <button type="button" className="hl-bulk-sheet-cancel" onClick={() => setShowBulkGrid(false)}>Cancel</button>
+            </div>
+            <div className="hl-bulk-sheet-list" onClick={() => setShowBulkGrid(false)}>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" }); }}>
+                <span className="hl-bulk-sheet-icon">💉</span>
+                <span className="hl-bulk-sheet-label">Vaccination</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
               </button>
-            )}
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("breed"); setBulkForm({ breed: "" }); }}>
-              <span className="hl-bulk-action-label">Breed</span>
-            </button>
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { const first = selectedAnimals[0]; const sp = first?.species || "Cattle"; setBulkFormType("sex"); setBulkForm({ sex: first?.sex || getSexOptions(sp)[0], species: sp }); }}>
-              <span className="hl-bulk-action-label">Sex</span>
-            </button>
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("color"); setBulkForm({ color: "" }); }}>
-              <span className="hl-bulk-action-label">Color</span>
-            </button>
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("purchaseDate"); setBulkForm({ purchaseDate: "" }); }}>
-              <span className="hl-bulk-action-label">Purchase Date</span>
-            </button>
-            <button type="button" className="hl-bulk-action-btn" onClick={() => { setBulkFormType("purchasedFrom"); setBulkForm({ purchasedFrom: "" }); }}>
-              <span className="hl-bulk-action-label">Purchased From</span>
-            </button>
-            {selectedCattleForFeedlot.length > 0 && setTab && setFeederBulkAnimalIds && (
-              <button type="button" className="hl-bulk-action-btn" onClick={() => { setTab("feeder"); setFeederBulkAnimalIds(selectedCattleForFeedlot.map(a => a.id)); }}>
-                <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></span>
-                <span className="hl-bulk-action-label">Add to Feeder Program</span>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("breeding"); setBulkForm({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", notes: "" }); }}>
+                <span className="hl-bulk-sheet-icon">📅</span>
+                <span className="hl-bulk-sheet-label">Log Breeding</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
               </button>
-            )}
-            <button type="button" className="hl-bulk-action-btn hl-bulk-action-btn-danger" onClick={bulkDeleteSelected}>
-              <span className="hl-bulk-action-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg></span>
-              <span className="hl-bulk-action-label">Delete Selected</span>
-            </button>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("move"); setBulkForm({ pastureName: "", dateMovedIn: "", notes: "" }); }}>
+                <span className="hl-bulk-sheet-icon">🌿</span>
+                <span className="hl-bulk-sheet-label">Move to Pasture</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("treatment"); setBulkForm({ date: "", type: "", description: "", treatmentGiven: "", dosage: "", administeredBy: "Owner", cost: "", notes: "" }); }}>
+                <span className="hl-bulk-sheet-icon">🩺</span>
+                <span className="hl-bulk-sheet-label">Treatment</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
+              {selectedMales.length > 0 && (
+                <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("castration"); setBulkForm({ date: "", method: "Banding", performer: "Owner", notes: "" }); }}>
+                  <span className="hl-bulk-sheet-icon">✂️</span>
+                  <span className="hl-bulk-sheet-label">Castrate</span>
+                  <span className="hl-bulk-sheet-chevron">›</span>
+                </button>
+              )}
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("breed"); setBulkForm({ breed: "" }); }}>
+                <span className="hl-bulk-sheet-icon">🏷️</span>
+                <span className="hl-bulk-sheet-label">Set Breed</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { const first = selectedAnimals[0]; const sp = first?.species || "Cattle"; setBulkFormType("sex"); setBulkForm({ sex: first?.sex || getSexOptions(sp)[0], species: sp }); }}>
+                <span className="hl-bulk-sheet-icon">⚥</span>
+                <span className="hl-bulk-sheet-label">Set Sex</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("color"); setBulkForm({ color: "" }); }}>
+                <span className="hl-bulk-sheet-icon">🎨</span>
+                <span className="hl-bulk-sheet-label">Set Color</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("purchaseDate"); setBulkForm({ purchaseDate: "" }); }}>
+                <span className="hl-bulk-sheet-icon">🗓️</span>
+                <span className="hl-bulk-sheet-label">Set Purchase Date</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("purchasedFrom"); setBulkForm({ purchasedFrom: "" }); }}>
+                <span className="hl-bulk-sheet-icon">🤝</span>
+                <span className="hl-bulk-sheet-label">Set Purchased From</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
+              {selectedCattleForFeedlot.length > 0 && setTab && setFeederBulkAnimalIds && (
+                <button type="button" className="hl-bulk-sheet-row" onClick={() => { setTab("feeder"); setFeederBulkAnimalIds(selectedCattleForFeedlot.map(a => a.id)); }}>
+                  <span className="hl-bulk-sheet-icon">🏠</span>
+                  <span className="hl-bulk-sheet-label">Add to Feeder Program</span>
+                  <span className="hl-bulk-sheet-chevron">›</span>
+                </button>
+              )}
+              <button type="button" className="hl-bulk-sheet-row hl-bulk-sheet-row-danger" onClick={bulkDeleteSelected}>
+                <span className="hl-bulk-sheet-icon">🗑️</span>
+                <span className="hl-bulk-sheet-label">Delete Selected</span>
+                <span className="hl-bulk-sheet-chevron">›</span>
+              </button>
+            </div>
           </div>
-        </Card>
+        </>
       )}
 
       {runningWithBullPrompt && (
@@ -5097,7 +5135,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkVaccination}>Apply to {selectedIds.length} animals</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
         );
@@ -5124,7 +5162,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkBreeding} disabled={selectedFemales.length === 0}>Apply to {selectedFemales.length} females</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -5139,7 +5177,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkMove} disabled={selectedPastureEligible.length === 0}>Move {selectedPastureEligible.length} animals</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -5165,7 +5203,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkTreatment}>Apply to {selectedIds.length} animals</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -5188,7 +5226,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={3} style={{ marginBottom: "14px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkCastration}>Apply to {selectedMales.length} males</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -5199,7 +5237,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <Input label="Breed" value={bulkForm.breed} onChange={e => setBulkForm(p => ({ ...p, breed: e.target.value }))} placeholder="e.g. Angus" style={{ marginBottom: "14px", maxWidth: "320px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkBreed}>Apply to {selectedIds.length} animals</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -5212,7 +5250,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           </Select>
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkSex}>Apply to {selectedIds.length} animals</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -5223,7 +5261,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <Input label="Color" value={bulkForm.color} onChange={e => setBulkForm(p => ({ ...p, color: e.target.value }))} placeholder="e.g. Black, Red Baldy" style={{ marginBottom: "14px", maxWidth: "320px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkColor}>Apply to {selectedIds.length} animals</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -5234,7 +5272,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <DateInputWithValidation label="Purchase date" value={bulkForm.purchaseDate} onValueChange={v => setBulkForm(p => ({ ...p, purchaseDate: v }))} style={{ marginBottom: "14px", maxWidth: "220px" }} />
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkPurchaseDate}>Apply to {selectedIds.length} animals</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}
@@ -5249,7 +5287,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           )}
           <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
             <Btn onClick={saveBulkPurchasedFrom}>Apply to {selectedIds.length} animals</Btn>
-            <Btn variant="secondary" onClick={() => { setBulkFormType(null); setBulkForm({}); }}>Cancel</Btn>
+            <Btn variant="secondary" onClick={exitBulkMode}>Cancel</Btn>
           </div>
         </Card>
       )}

@@ -335,7 +335,17 @@ export const EXPENSE_CATEGORIES = ["Feed", "Veterinary", "Medicine", "Equipment"
 /** Horse health section → expense category for auto-created expenses. */
 export const HORSE_HEALTH_EXPENSE_CATEGORY = { vet: "Veterinary", farrier: "Supplies", worming: "Medicine", dental: "Veterinary", supplement: "Supplies" };
 /** Vaccine route options for protocols and vaccination records. */
-export const VACCINE_ROUTES = ["SQ", "IM", "IN", "Oral"];
+export const VACCINE_ROUTES = [
+  "IM (Intramuscular)",
+  "SQ (Subcutaneous)",
+  "IV (Intravenous)",
+  "Pour On",
+  "Oral",
+  "Topical",
+  "Intranasal",
+  "Ear Tag",
+  "Other",
+];
 
 export const DEFAULT_SETTINGS = {
   farmName: "",

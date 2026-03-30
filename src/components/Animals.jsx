@@ -658,7 +658,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     administeredBy: "Owner",
     notes: "",
     dosage: "",
-    route: "IM",
+    route: "IM (Intramuscular)",
     boosterIntervalDays: "",
   });
   const [vaccinationProtocolId, setVaccinationProtocolId] = useState("");
@@ -1566,7 +1566,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         setViewing(prev => (prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev));
         setShowVaccinationForm(false);
         setEditingVaccinationId(null);
-        setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" });
+        setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "" });
         setVaccinationProtocolId("");
         return;
       }
@@ -1617,7 +1617,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         setShowVaccinationForm(false);
         setEditingVaccinationId(null);
         setVaccinationProtocolId("");
-        setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" });
+        setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "" });
         return;
       }
 
@@ -1653,7 +1653,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       setViewing(prev => (prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev));
       setShowVaccinationForm(false);
       setEditingVaccinationId(null);
-      setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" });
+      setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "" });
       setVaccinationProtocolId("");
     }
 
@@ -3882,7 +3882,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>
-                  Vaccination Records
+                  Health Records
                 </div>
                 <Btn
                   size="sm"
@@ -3898,17 +3898,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       administeredBy: "Owner",
                       notes: "",
                       dosage: "",
-                      route: "IM",
+                      route: "IM (Intramuscular)",
                       boosterIntervalDays: "",
                     });
                   }}
                 >
-                  Add Vaccination
+                  Add Treatment
                 </Btn>
               </div>
 
               {vaccinationsSorted.length === 0 && !showVaccinationForm && (
-                <p style={{ fontSize: "13px", color: "var(--muted)" }}>No vaccinations recorded for this animal.</p>
+                <p style={{ fontSize: "13px", color: "var(--muted)" }}>No health records for this animal.</p>
               )}
 
               {vaccinationsSorted.length > 0 && (
@@ -3923,16 +3923,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             {v.dateGiven && <span> — {fmt(v.dateGiven)}</span>}
                           </div>
                           <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                            <Btn size="sm" variant="ghost" onClick={() => { setEditingVaccinationId(v.id); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: "", dateGiven: v.dateGiven || "", nextDueDate: "", administeredBy: v.administeredBy || "Owner", notes: v.notes || "", dosage: "", route: "IM", boosterIntervalDays: "" }); setShowVaccinationForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { setEditingVaccinationId(v.id); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: "", dateGiven: v.dateGiven || "", nextDueDate: "", administeredBy: v.administeredBy || "Owner", notes: v.notes || "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "" }); setShowVaccinationForm(true); }}>Edit</Btn>
                             <Btn size="sm" variant="ghost" onClick={() => deleteVaccination(v.id)}>Delete</Btn>
                           </div>
                         </div>
                       ) : (
                         <>
                           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px", marginBottom: "4px" }}>
-                            <div style={{ fontWeight: 600, fontSize: "14px" }}>{v.vaccineName || "Unnamed vaccine"}</div>
+                            <div style={{ fontWeight: 600, fontSize: "14px" }}>{v.vaccineName || "Unnamed treatment"}</div>
                             <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                              <Btn size="sm" variant="ghost" onClick={() => { setEditingVaccinationId(v.id); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: v.vaccineName || "", dateGiven: v.dateGiven || "", nextDueDate: v.nextDueDate || "", administeredBy: v.administeredBy || "Owner", notes: v.notes || "", dosage: v.dosage || "", route: v.route || "IM", boosterIntervalDays: v.boosterIntervalDays != null ? String(v.boosterIntervalDays) : "" }); setShowVaccinationForm(true); }}>Edit</Btn>
+                              <Btn size="sm" variant="ghost" onClick={() => { setEditingVaccinationId(v.id); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: v.vaccineName || "", dateGiven: v.dateGiven || "", nextDueDate: v.nextDueDate || "", administeredBy: v.administeredBy || "Owner", notes: v.notes || "", dosage: v.dosage || "", route: v.route || "IM (Intramuscular)", boosterIntervalDays: v.boosterIntervalDays != null ? String(v.boosterIntervalDays) : "" }); setShowVaccinationForm(true); }}>Edit</Btn>
                               <Btn size="sm" variant="ghost" onClick={() => deleteVaccination(v.id)}>Delete</Btn>
                             </div>
                           </div>
@@ -3959,7 +3959,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 return (
                 <Card style={{ padding: "18px 20px", marginTop: "14px", borderLeft: "3px solid var(--green3)" }}>
                   <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>
-                    {editingVaccinationId ? "Edit Vaccination" : "Add Vaccination"}
+                    {editingVaccinationId ? "Edit Treatment" : "Log Treatment"}
                   </div>
                   {(settings?.vaccinationProtocols ?? []).length > 0 && !editingVaccinationId && (
                     <div style={{ marginBottom: "12px" }}>
@@ -3967,7 +3967,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       <Select value={vaccinationProtocolId} onChange={e => {
                         const id = e.target.value || "";
                         setVaccinationProtocolId(id);
-                        if (id) setVaccinationForm(p => ({ ...p, vaccineName: "", dosage: "", route: "IM", boosterIntervalDays: "", nextDueDate: "" }));
+                        if (id) setVaccinationForm(p => ({ ...p, vaccineName: "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "", nextDueDate: "" }));
                       }} style={{ width: "100%" }}>
                         <option value="">— None —</option>
                         {(settings?.vaccinationProtocols ?? []).map(p => (
@@ -4013,7 +4013,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         </div>
                       )}
                       <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                        <Input label="Vaccine name" value={vaccinationForm.vaccineName} onChange={e => setVaccinationForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder={a.species === "Horse" ? "e.g. West Nile, Rabies" : "e.g. Clostridial 7-way"} list={a.species === "Horse" ? "equine-vaccine-list" : undefined} />
+                        <Input label="Product name" value={vaccinationForm.vaccineName} onChange={e => setVaccinationForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder={a.species === "Horse" ? "e.g. West Nile, Rabies" : "e.g. Ivomec, Cylence, Vision 7, Bovi-Shield"} list={a.species === "Horse" ? "equine-vaccine-list" : undefined} />
                         <DateInputWithValidation label="Date given" value={vaccinationForm.dateGiven} onValueChange={v => setVaccinationForm(p => ({ ...p, dateGiven: v }))} />
                         <DateInputWithValidation label="Next due / Booster date" breedingDueTwoDigitYear value={vaccinationForm.nextDueDate} onValueChange={v => setVaccinationForm(p => ({ ...p, nextDueDate: v }))} />
                         <Input label="Dosage" value={vaccinationForm.dosage} onChange={e => setVaccinationForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 2 mL" />
@@ -4032,7 +4032,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   )}
                   <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
                     <Btn size="sm" onClick={saveVaccination}>{editingVaccinationId ? "Save Changes" : "Save Vaccination"}</Btn>
-                    <Btn size="sm" variant="ghost" onClick={() => { setShowVaccinationForm(false); setEditingVaccinationId(null); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" }); }}>Cancel</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowVaccinationForm(false); setEditingVaccinationId(null); setVaccinationProtocolId(""); setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "" }); }}>Cancel</Btn>
                   </div>
                 </Card>
                 );
@@ -4259,7 +4259,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
         {(a.vaccinations?.length ?? 0) > 0 && (
           <section style={{ marginBottom: "20px" }}>
-            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Vaccinations</h2>
+            <h2 style={{ fontSize: "11px", fontWeight: 600, color: "#7A8C7A", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "8px" }}>Health Records</h2>
             <div style={{ fontSize: "14px" }}>
               {[...(a.vaccinations || [])].sort((x, y) => (y.dateGiven || "").localeCompare(x.dateGiven || "")).map((v, i) => (
                 <div key={i} style={{ padding: "8px 0", borderBottom: i < a.vaccinations.length - 1 ? "1px solid #EDE6D6" : "none" }}>
@@ -4953,7 +4953,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <button type="button" className="hl-bulk-sheet-cancel" onClick={() => setShowBulkGrid(false)}>Cancel</button>
             </div>
             <div className="hl-bulk-sheet-list" onClick={() => setShowBulkGrid(false)}>
-              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM", boosterIntervalDays: "" }); }}>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("vaccination"); setBulkForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "" }); }}>
                 <span className="hl-bulk-sheet-icon">💉</span>
                 <span className="hl-bulk-sheet-label">Vaccination</span>
                 <span className="hl-bulk-sheet-chevron">›</span>
@@ -5110,7 +5110,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "4px" }}>Use Protocol</label>
               <Select value={bulkForm.protocolId || ""} onChange={e => {
                 const id = e.target.value || "";
-                setBulkForm(p => ({ ...p, protocolId: id, vaccineName: "", dosage: "", route: "IM", boosterIntervalDays: "", nextDueDate: "" }));
+                setBulkForm(p => ({ ...p, protocolId: id, vaccineName: "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "", nextDueDate: "" }));
               }} style={{ width: "100%" }}>
                 <option value="">— None —</option>
                 {(settings?.vaccinationProtocols ?? []).map(p => (
@@ -5135,7 +5135,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             </div>
           ) : (
             <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
-              <Input label="Vaccine name" value={bulkForm.vaccineName} onChange={e => setBulkForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder="e.g. Clostridial 7-way" />
+              <Input label="Product name" value={bulkForm.vaccineName} onChange={e => setBulkForm(p => ({ ...p, vaccineName: e.target.value }))} placeholder="e.g. Ivomec, Cylence, Vision 7, Bovi-Shield" />
               <DateInputWithValidation label="Date given" value={bulkForm.dateGiven} onValueChange={v => setBulkForm(p => ({ ...p, dateGiven: v }))} />
               <DateInputWithValidation label="Next due / Booster date" breedingDueTwoDigitYear value={bulkForm.nextDueDate} onValueChange={v => setBulkForm(p => ({ ...p, nextDueDate: v }))} />
               <Input label="Dosage" value={bulkForm.dosage} onChange={e => setBulkForm(p => ({ ...p, dosage: e.target.value }))} placeholder="e.g. 2 mL" />

@@ -11,6 +11,7 @@ function emptyDelivery() {
   return {
     type: "Hay", baleType: "square", quantity: "",
     weightPerBale: "50", costPerBale: "", pastureId: "", date: todayLocalISODate(), notes: "",
+    homeGrown: false, cuttingNumber: "",
   };
 }
 
@@ -61,9 +62,11 @@ export default function HayInventory({ hayLots, setHayLots, hayLogs, setHayLogs,
       baleType: deliveryForm.baleType,
       quantity: qty,
       weightPerBale: Number(deliveryForm.weightPerBale) || BALE_DEFAULTS[deliveryForm.baleType] || 50,
-      costPerBale: Number(deliveryForm.costPerBale) || 0,
+      costPerBale: deliveryForm.homeGrown ? 0 : (Number(deliveryForm.costPerBale) || 0),
       pastureId: deliveryForm.pastureId || null,
       notes: deliveryForm.notes || null,
+      homeGrown: deliveryForm.homeGrown || false,
+      cuttingNumber: (deliveryForm.homeGrown && deliveryForm.cuttingNumber.trim()) ? deliveryForm.cuttingNumber.trim() : null,
     };
     const log = {
       id: crypto.randomUUID(),
@@ -309,15 +312,46 @@ export default function HayInventory({ hayLots, setHayLots, hayLogs, setHayLogs,
                 />
               </div>
             </div>
-            <Input
-              label="Cost per bale ($)"
-              type="number"
-              min="0"
-              step="0.01"
-              value={deliveryForm.costPerBale}
-              onChange={e => setDeliveryForm(f => ({ ...f, costPerBale: e.target.value }))}
-              placeholder="0.00"
-            />
+            <label style={{
+              display: "flex", alignItems: "center", gap: 10,
+              padding: "10px 12px",
+              background: deliveryForm.homeGrown ? "#f0f7f1" : "var(--cream)",
+              borderRadius: "var(--radius)",
+              border: `1.5px solid ${deliveryForm.homeGrown ? "var(--green3)" : "var(--cream3)"}`,
+              cursor: "pointer", userSelect: "none",
+            }}>
+              <input
+                type="checkbox"
+                checked={deliveryForm.homeGrown}
+                onChange={e => setDeliveryForm(f => ({
+                  ...f,
+                  homeGrown: e.target.checked,
+                  cuttingNumber: e.target.checked ? f.cuttingNumber : "",
+                  costPerBale: e.target.checked ? "" : f.costPerBale,
+                }))}
+                style={{ width: 18, height: 18, accentColor: "var(--green)", cursor: "pointer", flexShrink: 0 }}
+              />
+              <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink)" }}>🌾 Home grown / own cut hay</span>
+            </label>
+            {deliveryForm.homeGrown ? (
+              <Input
+                label="Cutting #"
+                type="text"
+                value={deliveryForm.cuttingNumber}
+                onChange={e => setDeliveryForm(f => ({ ...f, cuttingNumber: e.target.value }))}
+                placeholder="e.g. 1st cutting, 2nd cutting"
+              />
+            ) : (
+              <Input
+                label="Cost per bale ($)"
+                type="number"
+                min="0"
+                step="0.01"
+                value={deliveryForm.costPerBale}
+                onChange={e => setDeliveryForm(f => ({ ...f, costPerBale: e.target.value }))}
+                placeholder="0.00"
+              />
+            )}
             <DateInputWithValidation
               label="Delivery Date"
               value={deliveryForm.date}
@@ -425,6 +459,18 @@ export default function HayInventory({ hayLots, setHayLots, hayLogs, setHayLogs,
                           {((lot.quantity * lot.weightPerBale) / 2000).toFixed(2)} T
                         </div>
                       </div>
+                      {lot.homeGrown && (
+                        <div>
+                          <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Source</div>
+                          <div style={{ fontWeight: 600, color: "var(--green)", fontSize: "0.92rem" }}>🌾 Home Grown</div>
+                        </div>
+                      )}
+                      {lot.homeGrown && lot.cuttingNumber && (
+                        <div>
+                          <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Cutting</div>
+                          <div style={{ fontWeight: 600, color: "var(--ink)", fontSize: "0.92rem" }}>{lot.cuttingNumber}</div>
+                        </div>
+                      )}
                       {lot.pastureId && (
                         <div style={{ gridColumn: "1 / -1" }}>
                           <div style={{ fontSize: "0.7rem", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Pasture</div>

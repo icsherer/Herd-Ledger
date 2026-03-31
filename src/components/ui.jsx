@@ -76,7 +76,7 @@ export function Btn({ children, onClick, variant = "primary", disabled, size = "
 export function Input({ label, type, style = {}, onFocus: onFocusProp, onBlur: onBlurProp, ...props }) {
   const isDateOrTime = type === "date" || type === "datetime-local" || type === "time";
   return (
-    <div>
+    <div style={{ width: "100%", maxWidth: "100%" }}>
       {label && <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "5px" }}>{label}</label>}
       <input
         type={type ?? "text"}
@@ -84,6 +84,8 @@ export function Input({ label, type, style = {}, onFocus: onFocusProp, onBlur: o
         className="hl-input"
         style={{
           width: "100%",
+          maxWidth: "100%",
+          boxSizing: "border-box",
           padding: "9px 12px",
           border: "1.5px solid var(--cream3)",
           borderRadius: "var(--radius)",

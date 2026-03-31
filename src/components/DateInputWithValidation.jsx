@@ -21,7 +21,7 @@ export default function DateInputWithValidation({
   const invalid = t && !isValidDate(raw);
   const futureBirth = Boolean(birthDate && t && isValidDate(raw) && t > todayLocalISODate());
   return (
-    <div style={style}>
+    <div style={{ width: "100%", maxWidth: "100%", boxSizing: "border-box", ...style }}>
       <Input
         label={label}
         type="date"

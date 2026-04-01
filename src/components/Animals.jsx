@@ -1089,7 +1089,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   }
 
   function runImport() {
-    const { byRow, duplicateRows, blankCount } = getImportPreview();
+    const { byRow, validCount: newCount, duplicateRows, blankCount } = getImportPreview();
+
+    if (!isProUser && (activeCount + newCount) > 10) {
+      setShowUpgradeModal?.(true);
+      return;
+    }
+
     let imported = 0;
     let skippedDuplicates = 0;
     const errors = [];

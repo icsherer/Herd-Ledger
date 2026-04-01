@@ -4415,11 +4415,29 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     setBulkForm({});
   }
 
-  function bulkDeleteSelected() {
+  async function bulkDeleteSelected() {
     const count = selectedIds.length;
     if (count === 0) return;
     if (!confirm(`Are you sure you want to delete ${count} animal${count !== 1 ? "s" : ""}? This cannot be undone.`)) return;
     const idSet = new Set(selectedIds);
+
+    // Delete directly from Supabase. Cannot rely solely on the debounced
+    // persistAnimals path because syncRows() skips deletes when rows.length === 0
+    // (i.e. deleting all animals would be a no-op there).
+    if (user && !user.isGuest) {
+      const gestationIdsToDelete = gestations
+        .filter(g => idSet.has(g.animalId))
+        .map(g => g.id);
+      const ops = [
+        supabase.from('animals').delete().in('id', selectedIds).eq('user_id', user.id),
+      ];
+      if (gestationIdsToDelete.length > 0) {
+        ops.push(supabase.from('gestations').delete().in('id', gestationIdsToDelete).eq('user_id', user.id));
+      }
+      const results = await Promise.all(ops);
+      results.forEach(({ error }) => { if (error) console.error('[DB] bulkDelete error:', error); });
+    }
+
     setAnimals(prev => prev.filter(a => !idSet.has(a.id)));
     if (viewingAnimal && idSet.has(viewingAnimal.id)) setViewing(null);
     setGestations(prev =>

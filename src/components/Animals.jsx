@@ -605,7 +605,7 @@ const ANIMAL_DOCUMENTS_BUCKET = "animal-documents";
 const ANIMAL_PHOTOS_BUCKET = "animal-photos";
 
 // ── Animals ───────────────────────────────────────────────────────────────────
-export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, filterHeatDue = false, setFilterHeatDue, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring, contacts = [], setContacts }) {
+export default function Animals({ animals, setAnimals, offspring, setOffspring, gestations, setGestations, user, viewingAnimal, setViewingAnimal, search: searchProp, setSearch: setSearchProp, filterHeatDue = false, setFilterHeatDue, defaultSpecies = "Cattle", feederPrograms, setFeederPrograms, setTab, setFeederPreselectAnimalId, setFeederBulkAnimalIds, setExpenses, settings, setSettings, pastures, notes, setNotes, setDeliveryGestureId, promptAddOffspring, setPromptAddOffspring, contacts = [], setContacts, isProUser = false, setShowUpgradeModal }) {
   const [showAdd, setShowAdd] = useState(false);
   const forceList = (animals || []).length > 50;
   const viewMode = forceList ? "list" : (settings?.animalsViewMode || "tile");
@@ -4396,6 +4396,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const deceasedCount = animals.filter(a => a.deceased).length;
   const butcheredCount = animals.filter(a => a.butchered).length;
   const archivedCount = animals.filter(a => a.sale || a.butchered || a.deceased).length;
+  const activeCount = animals.filter(a => !a.sale && !a.butchered && !a.deceased).length;
 
   function toggleBulkSelect(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -4753,7 +4754,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               <span className="hl-animals-header-btn-text">Import Animals</span>
             </button>
-            <Btn onClick={() => { setEditingId(null); setRegisterInitialSingle(null); setRegisterFormKey(k => k + 1); setShowAdd(true); }}>+ Register Animals</Btn>
+            <Btn onClick={() => {
+              if (!isProUser && activeCount >= 10) { setShowUpgradeModal?.(true); return; }
+              setEditingId(null); setRegisterInitialSingle(null); setRegisterFormKey(k => k + 1); setShowAdd(true);
+            }}>+ Register Animals</Btn>
           </div>
         </div>
       }>

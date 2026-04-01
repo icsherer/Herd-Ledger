@@ -9,7 +9,7 @@ import {
   persistAnimals, persistTasks, persistGestations, persistContacts,
   persistExpenses, persistFeederPrograms, persistLoadSales, persistNotes,
   persistPastures, persistPastureFeedLogs, persistSettings, persistOffspring,
-  loadHayInventory,
+  loadHayInventory, loadSubscription,
 } from './lib/db.js';
 import Dashboard from "./components/Dashboard.jsx";
 import Animals from "./components/Animals.jsx";
@@ -24,6 +24,7 @@ import HayInventory from "./components/HayInventory.jsx";
 import Help from "./components/Help.jsx";
 import Weaning from "./components/Weaning.jsx";
 import Settings from "./components/Settings.jsx";
+import UpgradeModal from "./components/UpgradeModal.jsx";
 
 // ── Error boundary so a broken tab doesn't crash the whole app ─────────────────
 class TabErrorBoundary extends React.Component {
@@ -239,10 +240,13 @@ export default function App() {
   const [contacts, setContacts] = useState([]);
   const [hayLots, setHayLots] = useState([]);
   const [hayLogs, setHayLogs] = useState([]);
+  const [subscription, setSubscription] = useState({ status: 'free', grandfathered: false, plan: null });
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const initialLoadDone = useRef(false);
   const [loadDone, setLoadDone] = useState(false);
 
   const isGuest = user?.isGuest === true;
+  const isProUser = subscription.status === 'active' || subscription.status === 'trialing' || subscription.grandfathered;
   const moon = getMoonPhase();
   const season = getSeason();
 
@@ -265,7 +269,7 @@ export default function App() {
           .then(({ error }) => { if (error) console.error("[Supabase] last_seen write failed:", error); });
       }
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription: authListener } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(prev => {
         if (session?.user) {
           const ts = new Date().toISOString();
@@ -277,7 +281,7 @@ export default function App() {
         return null;
       });
     });
-    return () => subscription.unsubscribe();
+    return () => authListener.unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -476,6 +480,14 @@ export default function App() {
     }).catch(err => console.error('[DB] loadHayInventory failed:', err));
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user || user.isGuest) {
+      setSubscription({ status: 'free', grandfathered: false, plan: null });
+      return;
+    }
+    loadSubscription(user.id).then(setSubscription).catch(() => {});
+  }, [user?.id, user?.isGuest]);
+
   const visibility = settings?.tabVisibility ?? DEFAULT_TAB_VISIBILITY;
   const visibleTabIds = new Set([
     "dashboard",
@@ -514,7 +526,7 @@ export default function App() {
       )}
       <Nav tab={tab} setTab={setTab} hideGestationTab={viewingAnimal != null && !isFemale(viewingAnimal)} settings={settings} />
       {tab === "dashboard" && <TabErrorBoundary key="dashboard" setTab={setTab}><Dashboard animals={animals} gestations={gestations} offspring={offspring} moon={moon} season={season} user={user} setTab={setTab} setAnimalsSearch={setAnimalsSearch} setAnimalsFilterHeatDue={setAnimalsFilterHeatDue} expenses={expenses} tasks={tasks} settings={settings} loadDone={loadDone} setHighlightGestationId={setHighlightGestationId} /></TabErrorBoundary>}
-      {tab === "animals"   && <TabErrorBoundary key="animals" setTab={setTab}><Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} filterHeatDue={animalsFilterHeatDue} setFilterHeatDue={setAnimalsFilterHeatDue} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} notes={notes} setNotes={setNotes} setDeliveryGestureId={setDeliveryGestureId} promptAddOffspring={promptAddOffspring} setPromptAddOffspring={setPromptAddOffspring} contacts={contacts} setContacts={setContacts} /></TabErrorBoundary>}
+      {tab === "animals"   && <TabErrorBoundary key="animals" setTab={setTab}><Animals animals={animals} setAnimals={setAnimals} offspring={offspring} setOffspring={setOffspring} gestations={gestations} setGestations={setGestations} user={user} viewingAnimal={viewingAnimal} setViewingAnimal={setViewingAnimal} search={animalsSearch} setSearch={setAnimalsSearch} filterHeatDue={animalsFilterHeatDue} setFilterHeatDue={setAnimalsFilterHeatDue} defaultSpecies={settings?.defaultSpecies ?? "Cattle"} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setFeederPreselectAnimalId={setFeederPreselectAnimalId} setFeederBulkAnimalIds={setFeederBulkAnimalIds} setExpenses={setExpenses} settings={settings} setSettings={setSettings} pastures={pastures} notes={notes} setNotes={setNotes} setDeliveryGestureId={setDeliveryGestureId} promptAddOffspring={promptAddOffspring} setPromptAddOffspring={setPromptAddOffspring} contacts={contacts} setContacts={setContacts} isProUser={isProUser} setShowUpgradeModal={setShowUpgradeModal} /></TabErrorBoundary>}
       {tab === "gestation" && <TabErrorBoundary key="gestation" setTab={setTab}><Gestation animals={animals} setAnimals={setAnimals} gestations={gestations} setGestations={setGestations} user={user} offspring={offspring} setOffspring={setOffspring} setTab={setTab} setViewingAnimal={setViewingAnimal} deliveryGestureId={deliveryGestureId} setDeliveryGestureId={setDeliveryGestureId} setPromptAddOffspring={setPromptAddOffspring} highlightGestationId={highlightGestationId} setHighlightGestationId={setHighlightGestationId} /></TabErrorBoundary>}
       {tab === "feeder"    && <TabErrorBoundary key="feeder" setTab={setTab}><FeederCattle animals={animals} setAnimals={setAnimals} feederPrograms={feederPrograms} setFeederPrograms={setFeederPrograms} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPreselectAnimalId={feederPreselectAnimalId} setFeederPreselectAnimalId={setFeederPreselectAnimalId} feederBulkAnimalIds={feederBulkAnimalIds} setFeederBulkAnimalIds={setFeederBulkAnimalIds} /></TabErrorBoundary>}
       {tab === "pastures"  && <TabErrorBoundary key="pastures" setTab={setTab}><Pastures animals={animals} setAnimals={setAnimals} pastures={pastures} setPastures={setPastures} pastureFeedLogs={pastureFeedLogs} setPastureFeedLogs={setPastureFeedLogs} setExpenses={setExpenses} setTab={setTab} setViewingAnimal={setViewingAnimal} feederPrograms={feederPrograms} gestations={gestations} setGestations={setGestations} notes={notes} setNotes={setNotes} /></TabErrorBoundary>}
@@ -526,6 +538,7 @@ export default function App() {
       {tab === "hay"       && <TabErrorBoundary key="hay" setTab={setTab}><HayInventory hayLots={hayLots} setHayLots={setHayLots} hayLogs={hayLogs} setHayLogs={setHayLogs} user={user} pastures={pastures} /></TabErrorBoundary>}
       {tab === "help"      && <TabErrorBoundary key="help" setTab={setTab}><Help onBack={() => setTab("settings")} /></TabErrorBoundary>}
       {tab === "settings"  && <TabErrorBoundary key="settings" setTab={setTab}><Settings settings={settings} setSettings={setSettings} contacts={contacts} setContacts={setContacts} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} setTab={setTab} /></TabErrorBoundary>}
+      {showUpgradeModal && <UpgradeModal user={user} onClose={() => setShowUpgradeModal(false)} />}
     </div>
   );
 }

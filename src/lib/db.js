@@ -414,3 +414,20 @@ export async function deleteHayLot(userId, lotId) {
     .eq('id', lotId).eq('user_id', userId);
   if (error) console.error('[DB] deleteHayLot error:', error);
 }
+
+export async function loadSubscription(userId) {
+  const { data, error } = await supabase
+    .from('subscriptions')
+    .select('status, grandfathered, plan')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) {
+    console.error('[DB] loadSubscription error:', error);
+    return { status: 'free', grandfathered: false, plan: null };
+  }
+  return {
+    status: data?.status ?? 'free',
+    grandfathered: data?.grandfathered ?? false,
+    plan: data?.plan ?? null,
+  };
+}

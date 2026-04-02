@@ -4,6 +4,7 @@ import { SPECIES } from "../lib/constants.js";
 import { sanitizeDate, todayLocalISODate } from "../lib/dateUtils.js";
 import { Card, Btn, Input, Select, SectionTitle, Textarea } from "./ui.jsx";
 import DateInputWithValidation from "./DateInputWithValidation.jsx";
+import BillOfSaleModal from "./BillOfSaleModal.jsx";
 
 const emptySaleEditForm = () => ({
   dateSold: "",
@@ -16,7 +17,7 @@ const emptySaleEditForm = () => ({
   notes: "",
 });
 
-export default function Sales({ animals, setAnimals, loadSales, setLoadSales, expenses, settings }) {
+export default function Sales({ animals, setAnimals, loadSales, setLoadSales, expenses, settings, contacts, supabase, userId }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [plYear, setPlYear] = useState(currentYear);
@@ -48,6 +49,8 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     buyerName: "",
     notes: "",
   });
+
+  const [bosModal, setBosModal] = useState(null); // { sale, saleType }
 
   const soldAnimals = (animals || []).filter(a => a.sale).sort((x, y) => (y.sale?.dateSold || "").localeCompare(x.sale?.dateSold || ""));
   const loadSalesSorted = [...(loadSales || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
@@ -735,6 +738,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                             {setAnimals && (
                               <div style={{ display: "flex", gap: "8px" }}>
                                 <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); openSaleEdit(a); setExpandedSaleId(null); }}>Edit</Btn>
+                                <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); setBosModal({ sale: a, saleType: "individual" }); }}>Bill of Sale</Btn>
                                 <Btn size="sm" variant="danger" onClick={e => { e.stopPropagation(); deleteSaleRecord(a.id); }}>Delete</Btn>
                               </div>
                             )}
@@ -807,8 +811,9 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                     <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{l.species || "—"}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                     <td style={{ padding: "10px 12px" }}>{l.buyerName || "—"}</td>
-                    <td style={{ padding: "8px" }}>
-                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }} aria-label="Remove">×</button>
+                    <td style={{ padding: "8px", whiteSpace: "nowrap" }}>
+                      <Btn size="sm" variant="secondary" onClick={() => setBosModal({ sale: l, saleType: "load" })} style={{ marginRight: "4px" }}>BOS</Btn>
+                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", lineHeight: 1, verticalAlign: "middle" }} aria-label="Remove">×</button>
                     </td>
                   </tr>
                 ))}
@@ -854,6 +859,21 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           </div>
         )}
       </Card>
+
+      {/* Bill of Sale Modal */}
+      {bosModal && (
+        <BillOfSaleModal
+          isOpen={!!bosModal}
+          onClose={() => setBosModal(null)}
+          sale={bosModal.sale}
+          saleType={bosModal.saleType}
+          animals={animals || []}
+          contacts={contacts || []}
+          settings={settings}
+          supabase={supabase}
+          userId={userId}
+        />
+      )}
 
       {/* Annual Summary — bottom */}
       <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>

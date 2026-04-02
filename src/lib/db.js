@@ -150,6 +150,7 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
     ownerName: settingsRow.owner_name ?? '',
     defaultSpecies: settingsRow.default_species ?? 'Cattle',
     tabVisibility: settingsRow.tab_visibility ?? { ...DEFAULT_TAB_VISIBILITY },
+    farmLogo: settingsRow.farm_logo ?? null,
   } : { ...DEFAULT_SETTINGS };
 
   const offspring = offspringRawData && typeof offspringRawData === 'object'
@@ -320,9 +321,29 @@ export async function persistSettings(userId, settings) {
     owner_name: settings.ownerName ?? '',
     default_species: settings.defaultSpecies ?? 'Cattle',
     tab_visibility: settings.tabVisibility ?? {},
+    farm_logo: settings.farmLogo ?? null,
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
   if (error) console.error('[DB] user_settings upsert error:', error);
+}
+
+export async function saveBillOfSale(supabase, userId, data) {
+  const { data: bos, error } = await supabase.from('bill_of_sales').insert({
+    user_id: userId,
+    ...data,
+  }).select().single();
+  if (error) throw error;
+  return bos;
+}
+
+export async function loadBillsOfSale(supabase, userId) {
+  const { data, error } = await supabase
+    .from('bill_of_sales')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data || [];
 }
 
 export async function persistOffspring(userId, offspring) {

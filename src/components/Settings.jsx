@@ -93,6 +93,47 @@ export default function Settings({ settings, setSettings, contacts = [], setCont
               onChange={e => setSettings(prev => ({ ...prev, ownerName: e.target.value }))}
               placeholder="e.g. Jane Smith"
             />
+            <div>
+              <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>Farm Logo</label>
+              {settings?.farmLogo && (
+                <div style={{ marginBottom: "8px" }}>
+                  <img src={settings.farmLogo} alt="Farm logo" style={{ maxHeight: "80px", maxWidth: "180px", borderRadius: "4px", border: "1px solid var(--cream3)", padding: "4px", background: "#fff" }} />
+                </div>
+              )}
+              <div style={{ display: "flex", gap: "10px", alignItems: "center", flexWrap: "wrap" }}>
+                <label style={{ cursor: "pointer", padding: "7px 14px", background: "var(--cream)", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", fontSize: "13px", fontWeight: 600, color: "var(--ink2)" }}>
+                  {settings?.farmLogo ? "Change logo" : "Upload logo"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 500 * 1024) {
+                        alert("Logo must be under 500 KB.");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = ev => {
+                        setSettings(prev => ({ ...prev, farmLogo: ev.target.result }));
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                {settings?.farmLogo && (
+                  <button
+                    type="button"
+                    onClick={() => setSettings(prev => ({ ...prev, farmLogo: null }))}
+                    style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "13px", textDecoration: "underline", padding: 0 }}
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              <div style={{ fontSize: "11px", color: "var(--muted)", marginTop: "5px" }}>Max 500 KB. Appears on bill of sale PDFs.</div>
+            </div>
           </div>
         </Card>
 

@@ -191,14 +191,14 @@ export function generateBillOfSale({
     },
     alternateRowStyles: { fillColor: ALT_ROW },
     columnStyles: {
-      0: { cellWidth: 18 },
-      1: { cellWidth: 90 },
-      2: { cellWidth: 90 },
-      3: { cellWidth: 52 },
-      4: { cellWidth: 32 },
-      5: { cellWidth: 52 },
-      6: { cellWidth: 72 },
-      7: { cellWidth: 52, halign: 'right' },
+      0: { cellWidth: 20 },
+      1: { cellWidth: 100 },
+      2: { cellWidth: 95 },
+      3: { cellWidth: 55 },
+      4: { cellWidth: 30 },
+      5: { cellWidth: 50 },
+      6: { cellWidth: 90 },
+      7: { cellWidth: 64, halign: 'right' },
     },
     didParseCell(data) {
       if (data.row.index === tableRows.length) {

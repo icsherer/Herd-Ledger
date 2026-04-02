@@ -697,7 +697,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
               <thead>
                 <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Name / Tag</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Species</th>
+                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }} className="hl-hide-mobile">Species</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Sale date</th>
                   <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Sale price</th>
                   <th style={{ padding: "10px 4px" }} />
@@ -720,8 +720,8 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                         }}
                       >
                         <td style={{ padding: "11px 12px", wordBreak: "break-word" }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
-                        <td style={{ padding: "11px 12px", color: "var(--muted)" }}>{a.species || "—"}</td>
-                        <td style={{ padding: "11px 12px" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
+                        <td style={{ padding: "11px 12px", color: "var(--muted)" }} className="hl-hide-mobile">{a.species || "—"}</td>
+                        <td style={{ padding: "11px 12px", whiteSpace: "nowrap" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
                         <td style={{ padding: "11px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>${salePrice.toLocaleString("en-US", { minimumFractionDigits: salePrice % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}</td>
                         <td style={{ padding: "11px 8px 11px 0", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
                           {isExpanded ? "▲" : "▼"}
@@ -812,7 +812,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                     <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                     <td style={{ padding: "10px 12px" }}>{l.buyerName || "—"}</td>
                     <td style={{ padding: "8px", whiteSpace: "nowrap" }}>
-                      <Btn size="sm" variant="secondary" onClick={() => setBosModal({ sale: l, saleType: "load" })} style={{ marginRight: "4px" }}>BOS</Btn>
+                      <button type="button" onClick={() => setBosModal({ sale: l, saleType: "load" })} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "12px", fontWeight: 600, lineHeight: 1, verticalAlign: "middle", marginRight: "6px", padding: "2px 0" }}>BOS</button>
                       <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", lineHeight: 1, verticalAlign: "middle" }} aria-label="Remove">×</button>
                     </td>
                   </tr>

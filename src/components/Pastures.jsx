@@ -744,73 +744,77 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
       </Card>
 
       {detailPasture && (
-        <Card style={{ marginTop: "20px", padding: "20px", borderLeft: "4px solid var(--brass)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
-            <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>Feed history – {detailPasture}</span>
-            <Btn size="sm" variant="secondary" onClick={() => setDetailPasture(null)}>Close</Btn>
-          </div>
-          {(() => {
-            const summary = getFeedSummary(detailPasture);
-            const avgDays = summary.withDaysLasted?.length > 0
-              ? summary.withDaysLasted.reduce((s, e) => s + (Number(e.daysLasted) || 0), 0) / summary.withDaysLasted.length
-              : null;
-            return (
-              <>
-                {avgDays != null && (
-                  <p style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "12px" }}>
-                    This pasture averages 1 bale every {Math.round(avgDays * 10) / 10} days.
-                  </p>
-                )}
-                {summary.log.length === 0 ? (
-                  <p style={{ fontSize: "13px", color: "var(--muted)" }}>No feed logged yet.</p>
-                ) : (
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
-                      <thead>
-                        <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left" }}>
-                          <th style={{ padding: "8px 10px" }}>Date</th>
-                          <th style={{ padding: "8px 10px" }}>Feed type</th>
-                          <th style={{ padding: "8px 10px" }}>Quantity</th>
-                          <th style={{ padding: "8px 10px" }}>Cost</th>
-                          <th style={{ padding: "8px 10px" }}>Days lasted</th>
-                          <th style={{ padding: "8px 10px" }}></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {summary.log.map(e => {
-                          const isDeleting = deleteConfirm?.pastureName === detailPasture && deleteConfirm?.entryId === e.id;
-                          return (
-                            <tr key={e.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                              <td style={{ padding: "8px 10px" }}>{e.date || "—"}</td>
-                              <td style={{ padding: "8px 10px" }}>{e.feedType || "—"}</td>
-                              <td style={{ padding: "8px 10px" }}>{e.quantity ?? "—"}</td>
-                              <td style={{ padding: "8px 10px" }}>{e.cost != null ? "$" + Number(e.cost).toFixed(2) : "—"}</td>
-                              <td style={{ padding: "8px 10px" }}>{e.daysLasted != null ? e.daysLasted : "—"}</td>
-                              <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
-                                {isDeleting ? (
-                                  <>
-                                    <span style={{ fontSize: "12px", color: "var(--muted)", marginRight: "8px" }}>Delete this feed entry?</span>
-                                    <button type="button" onClick={() => deleteFeedEntry(detailPasture, e)} style={{ fontSize: "12px", fontWeight: 600, color: "var(--red, #c45c26)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginRight: "6px" }}>Yes</button>
-                                    <button type="button" onClick={() => setDeleteConfirm(null)} style={{ fontSize: "12px", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>No</button>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Btn size="sm" variant="secondary" onClick={() => openEditFeed(detailPasture, e)} style={{ marginRight: "6px" }}>Edit</Btn>
-                                    <Btn size="sm" variant="secondary" onClick={() => setDeleteConfirm({ pastureName: detailPasture, entryId: e.id })}>Delete</Btn>
-                                  </>
-                                )}
-                              </td>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "16px" }} onClick={() => setDetailPasture(null)}>
+          <div style={{ background: "#fff", borderRadius: "var(--radius2)", boxShadow: "var(--shadow)", border: "1px solid var(--cream2)", borderLeft: "4px solid var(--brass)", width: "100%", maxWidth: "720px", maxHeight: "85vh", display: "flex", flexDirection: "column" }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 20px", borderBottom: "1px solid var(--cream2)", flexShrink: 0 }}>
+              <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>Feed history – {detailPasture}</span>
+              <button type="button" onClick={() => setDetailPasture(null)} style={{ background: "none", border: "none", cursor: "pointer", fontSize: "24px", color: "var(--muted)", lineHeight: 1, padding: "0 4px" }} aria-label="Close">×</button>
+            </div>
+            <div style={{ overflowY: "auto", padding: "16px 20px 20px" }}>
+              {(() => {
+                const summary = getFeedSummary(detailPasture);
+                const avgDays = summary.withDaysLasted?.length > 0
+                  ? summary.withDaysLasted.reduce((s, e) => s + (Number(e.daysLasted) || 0), 0) / summary.withDaysLasted.length
+                  : null;
+                return (
+                  <>
+                    {avgDays != null && (
+                      <p style={{ fontSize: "14px", color: "var(--muted)", marginBottom: "12px" }}>
+                        This pasture averages 1 bale every {Math.round(avgDays * 10) / 10} days.
+                      </p>
+                    )}
+                    {summary.log.length === 0 ? (
+                      <p style={{ fontSize: "13px", color: "var(--muted)" }}>No feed logged yet.</p>
+                    ) : (
+                      <div style={{ overflowX: "auto" }}>
+                        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                          <thead>
+                            <tr style={{ borderBottom: "1px solid var(--border)", textAlign: "left" }}>
+                              <th style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Date</th>
+                              <th style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Feed type</th>
+                              <th style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Qty</th>
+                              <th style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Cost</th>
+                              <th style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>Days lasted</th>
+                              <th style={{ padding: "8px 10px" }}></th>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
-            );
-          })()}
-        </Card>
+                          </thead>
+                          <tbody>
+                            {summary.log.map(e => {
+                              const isDeleting = deleteConfirm?.pastureName === detailPasture && deleteConfirm?.entryId === e.id;
+                              return (
+                                <tr key={e.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{e.date ? fmt(e.date) : "—"}</td>
+                                  <td style={{ padding: "8px 10px" }}>{e.feedType || "—"}</td>
+                                  <td style={{ padding: "8px 10px" }}>{e.quantity ?? "—"}</td>
+                                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>{e.cost != null ? "$" + Number(e.cost).toFixed(2) : "—"}</td>
+                                  <td style={{ padding: "8px 10px" }}>{e.daysLasted != null ? e.daysLasted : "—"}</td>
+                                  <td style={{ padding: "8px 10px", whiteSpace: "nowrap" }}>
+                                    {isDeleting ? (
+                                      <>
+                                        <span style={{ fontSize: "12px", color: "var(--muted)", marginRight: "8px" }}>Delete this feed entry?</span>
+                                        <button type="button" onClick={() => deleteFeedEntry(detailPasture, e)} style={{ fontSize: "12px", fontWeight: 600, color: "var(--red, #c45c26)", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", marginRight: "6px" }}>Yes</button>
+                                        <button type="button" onClick={() => setDeleteConfirm(null)} style={{ fontSize: "12px", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>No</button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Btn size="sm" variant="secondary" onClick={() => openEditFeed(detailPasture, e)} style={{ marginRight: "6px" }}>Edit</Btn>
+                                        <Btn size="sm" variant="secondary" onClick={() => setDeleteConfirm({ pastureName: detailPasture, entryId: e.id })}>Delete</Btn>
+                                      </>
+                                    )}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
       )}
 
       {(() => {

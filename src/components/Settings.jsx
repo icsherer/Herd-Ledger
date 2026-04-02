@@ -232,7 +232,7 @@ export default function Settings({ settings, setSettings, contacts = [], setCont
                       style={{ display: "flex", alignItems: "center", width: "100%", padding: "12px 14px", background: "transparent", border: "none", cursor: "pointer", textAlign: "left", gap: "10px", WebkitTapHighlightColor: "transparent" }}
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name || "Unnamed"}</div>
+                        <div style={{ fontWeight: 700, fontSize: "14px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "var(--ink)" }}>{c.name || "Unnamed"}</div>
                         {c.ranchCompany && <div style={{ fontSize: "12px", color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.ranchCompany}</div>}
                       </div>
                       <span style={{ fontSize: "16px", color: "var(--muted)", flexShrink: 0, transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.2s ease", display: "inline-block" }}>›</span>

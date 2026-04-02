@@ -955,6 +955,12 @@
   }
 }
 
+@media (max-width: 600px) {
+  .hl-hide-mobile {
+    display: none !important;
+  }
+}
+
 /* Animals filter bar: on mobile show single button that opens bottom sheet */
 @media (max-width: 600px) {
   .hl-animals-filter-bar {

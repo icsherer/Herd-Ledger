@@ -25,6 +25,7 @@ import Help from "./components/Help.jsx";
 import Weaning from "./components/Weaning.jsx";
 import Settings from "./components/Settings.jsx";
 import UpgradeModal from "./components/UpgradeModal.jsx";
+import Privacy from "./components/Privacy.jsx";
 
 // ── Error boundary so a broken tab doesn't crash the whole app ─────────────────
 class TabErrorBoundary extends React.Component {
@@ -507,6 +508,10 @@ export default function App() {
   useEffect(() => {
     if (!visibleTabIds.has(tab)) setTab("dashboard");
   }, [tab, visibility.gestation, visibility.feeder, visibility.pastures, visibility.notes, visibility.expenses, visibility.sales, visibility.tasks, visibility.weaning]);
+
+  if (typeof window !== "undefined" && window.location.pathname === "/privacy") {
+    return <Privacy />;
+  }
 
   if (user === null) {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {

@@ -81,7 +81,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   const [highlightedId, setHighlightedId] = useState(null);
   const [editForm, setEditForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false });
 
-  const females = animalsList.filter(a => isFemale(a));
+  const females = animalsList.filter(a => isFemale(a) && !a.cull);
 
   const selectedDam = form.animalId ? animalsList.find(x => x.id === form.animalId) : null;
   const sireOptions = selectedDam ? getBreedingMalesForSpecies(animalsList, selectedDam.species) : [];
@@ -219,10 +219,30 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     setEditingCalfGestationId(null);
     setDeliveryForm({ deliveryDate: todayLocalISODate(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" });
 
-    if (!stillborn && count > 0 && mother && setTab && setViewingAnimal && setPromptAddOffspring) {
-      setTab("animals");
-      setViewingAnimal(mother);
-      setPromptAddOffspring({ animalId: mother.id, deliveryDate });
+    if (!stillborn && count > 0 && mother) {
+      if (count > 1 && setAnimals) {
+        const termLower = getOffspringTerm(mother.species).toLowerCase();
+        const plural = termLower === "calf" ? "calves" : termLower === "puppy" ? "puppies" : termLower + "s";
+        const stubs = Array.from({ length: count }, (_, i) => ({
+          id: (Date.now() + i).toString(),
+          species: mother.species,
+          acquisitionType: "Home Raised",
+          dob: deliveryDate,
+          motherId: mother.id,
+          damId: mother.id,
+          motherName: getAnimalName(mother),
+          damName: getAnimalName(mother),
+          name: `${getOffspringTerm(mother.species)} ${i + 1}`,
+          excludeFromReports: false,
+        }));
+        setAnimals(prev => [...(prev ?? []), ...stubs]);
+        if (setTab) setTab("animals");
+        window.alert(`${count} ${plural} added to your herd — tap each to add details.`);
+      } else if (setTab && setViewingAnimal && setPromptAddOffspring) {
+        setTab("animals");
+        setViewingAnimal(mother);
+        setPromptAddOffspring({ animalId: mother.id, deliveryDate });
+      }
     }
   }
 

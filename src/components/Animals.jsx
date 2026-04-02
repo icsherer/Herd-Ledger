@@ -3613,7 +3613,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
                 {promptAddOffspring?.animalId === a.id && setPromptAddOffspring && (
                   <div style={{ marginBottom: "16px", padding: "14px 16px", background: "rgba(34, 139, 34, 0.12)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--green)" }}>
-                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink2)", marginBottom: "8px" }}>You recorded a live birth. Add the calf to your herd?</div>
+                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink2)", marginBottom: "8px" }}>You recorded a live birth. Add the {getOffspringTerm(a.species).toLowerCase()} to your herd?</div>
                     <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                       <Btn size="sm" onClick={() => {
                         setPromptAddOffspring(null);
@@ -3763,7 +3763,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     )}
                     {!editingOffspringId && addCalfMode === "link" && (
                       <div style={{ marginBottom: "14px" }}>
-                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>{a.species === "Horse" ? "Choose a foal with no dam (under 12 months or sex term Colt/Filly)" : "Choose a calf with no dam (under 12 months or sex term contains \"Calf\")"}</label>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px" }}>{`Choose a ${getOffspringTerm(a.species).toLowerCase()} with no dam (under 12 months or sex term contains "${getOffspringTerm(a.species)}")`}</label>
                         <Input
                           placeholder="Search by name, tag, or species..."
                           value={linkExistingSearch}
@@ -3784,7 +3784,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>No matches. Try a different search.</p>
                         )}
                         {linkableAnimals.length === 0 && (
-                          <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>No eligible {a.species === "Horse" ? "foals" : "calves"} (same species, no dam, under 12 months or sex term contains {a.species === "Horse" ? "\"Colt\"/\"Filly\"" : "\"Calf\""}).</p>
+                          <p style={{ fontSize: "12px", color: "var(--muted)", marginTop: "6px" }}>No eligible {getOffspringTerm(a.species).toLowerCase() === "calf" ? "calves" : getOffspringTerm(a.species).toLowerCase() + "s"} (same species, no dam, under 12 months or sex term contains "{getOffspringTerm(a.species)}").</p>
                         )}
                         {linkExistingAnimalId && (
                           <Btn size="sm" onClick={() => linkExistingAsOffspring(linkExistingAnimalId)} style={{ marginTop: "10px" }}>

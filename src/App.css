@@ -961,6 +961,18 @@
   }
 }
 
+/* Sales: individual sales table — desktop column widths (set on th, not colgroup) */
+.hl-sales-col-name  { width: 32%; }
+.hl-sales-col-date  { width: 18%; }
+.hl-sales-col-price { width: 22%; }
+
+/* Sales: individual sales table — mobile column widths (species col hidden) */
+@media (max-width: 600px) {
+  .hl-sales-col-name  { width: 45%; }
+  .hl-sales-col-date  { width: 30%; }
+  .hl-sales-col-price { width: 22%; }
+}
+
 /* Animals filter bar: on mobile show single button that opens bottom sheet */
 @media (max-width: 600px) {
   .hl-animals-filter-bar {

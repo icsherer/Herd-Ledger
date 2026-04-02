@@ -7,7 +7,7 @@ export default function Weaning({ animals, setAnimals, offspring, setOffspring, 
   const todayStr = new Date().toISOString().split("T")[0];
   const [weanConfirm, setWeanConfirm] = useState(null);
 
-  const activeAnimals = (animals || []).filter(a => !a.deceased && !a.sale);
+  const activeAnimals = (animals || []).filter(a => !a.deceased && !a.sale && !a.cull);
   const notWeanedWithDate = activeAnimals
     .filter(a => !a.weaningDate)
     .map(a => ({ animal: a, expectedDate: getExpectedWeaningDate(a) }))

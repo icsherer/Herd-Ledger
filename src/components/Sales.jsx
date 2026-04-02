@@ -686,21 +686,14 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No sales match the current filters." : "No sold animals recorded yet."}</div>
         ) : (
           <div>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}>
-              <colgroup>
-                <col style={{ width: "32%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "18%" }} />
-                <col style={{ width: "22%" }} />
-                <col style={{ width: "10%" }} />
-              </colgroup>
+            <table className="hl-sales-individual-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}>
               <thead>
                 <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Name / Tag</th>
+                  <th className="hl-sales-col-name" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Name / Tag</th>
                   <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }} className="hl-hide-mobile">Species</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Sale date</th>
-                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Sale price</th>
-                  <th style={{ padding: "10px 4px" }} />
+                  <th className="hl-sales-col-date" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Sale date</th>
+                  <th className="hl-sales-col-price" style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Sale price</th>
+                  <th style={{ width: "10%", padding: "10px 4px" }} />
                 </tr>
               </thead>
               <tbody>
@@ -719,10 +712,10 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                           userSelect: "none",
                         }}
                       >
-                        <td style={{ padding: "11px 12px", wordBreak: "break-word" }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
+                        <td className="hl-sales-col-name" style={{ padding: "11px 12px", wordBreak: "break-word" }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
                         <td style={{ padding: "11px 12px", color: "var(--muted)" }} className="hl-hide-mobile">{a.species || "—"}</td>
-                        <td style={{ padding: "11px 12px", whiteSpace: "nowrap" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
-                        <td style={{ padding: "11px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>${salePrice.toLocaleString("en-US", { minimumFractionDigits: salePrice % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}</td>
+                        <td className="hl-sales-col-date" style={{ padding: "11px 12px", whiteSpace: "nowrap" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
+                        <td className="hl-sales-col-price" style={{ padding: "11px 8px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>${salePrice.toLocaleString("en-US", { minimumFractionDigits: salePrice % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}</td>
                         <td style={{ padding: "11px 8px 11px 0", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
                           {isExpanded ? "▲" : "▼"}
                         </td>
@@ -806,14 +799,14 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
               <tbody>
                 {[...displayGroupLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
-                    <td style={{ padding: "10px 12px" }}>{l.date ? fmt(l.date) : "—"}</td>
+                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{l.date ? fmt(l.date) : "—"}</td>
                     <td style={{ padding: "10px 12px" }}>{l.headCount ?? "—"}</td>
                     <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{l.species || "—"}</td>
                     <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
                     <td style={{ padding: "10px 12px" }}>{l.buyerName || "—"}</td>
-                    <td style={{ padding: "8px", whiteSpace: "nowrap" }}>
-                      <button type="button" onClick={() => setBosModal({ sale: l, saleType: "load" })} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "12px", fontWeight: 600, lineHeight: 1, verticalAlign: "middle", marginRight: "6px", padding: "2px 0" }}>BOS</button>
-                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", lineHeight: 1, verticalAlign: "middle" }} aria-label="Remove">×</button>
+                    <td style={{ padding: "4px 8px", whiteSpace: "nowrap" }}>
+                      <button type="button" onClick={() => setBosModal({ sale: l, saleType: "load" })} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "12px", fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "44px", minWidth: "44px", padding: "0 4px", marginRight: "2px", touchAction: "manipulation" }}>BOS</button>
+                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "44px", minWidth: "44px", padding: "0", touchAction: "manipulation" }} aria-label="Remove">×</button>
                     </td>
                   </tr>
                 ))}

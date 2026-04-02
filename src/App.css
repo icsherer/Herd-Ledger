@@ -118,12 +118,11 @@
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  padding-bottom: 4px;
+  scrollbar-width: none;
 }
 
 .hl-nav-tabs::-webkit-scrollbar {
-  height: 4px;
+  display: none;
 }
 
 @media (min-width: 601px) {

@@ -1620,6 +1620,18 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         const nextList = [...(a.vaccinations || []), ...newEntries];
         setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an)));
         setViewing(prev => (prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev));
+        if (setNotes) {
+          const vaccineName = protocol.name;
+          const bodyParts = [`${vaccineName} administered on ${dateGiven ? fmt(dateGiven) : "—"}.`];
+          if (vaccinationForm.notes?.trim()) bodyParts.push(`Notes: ${vaccinationForm.notes.trim()}`);
+          setNotes(prev => [{
+            id: Date.now().toString(),
+            title: `Vaccination — ${getAnimalName(a)}`,
+            body: bodyParts.join(" "),
+            date: new Date().toISOString(),
+            animalId: a.id,
+          }, ...prev]);
+        }
         setShowVaccinationForm(false);
         setEditingVaccinationId(null);
         setVaccinationProtocolId("");
@@ -1657,6 +1669,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         : [...(a.vaccinations || []), rec];
       setAnimals(prev => prev.map(an => (an.id === a.id ? { ...an, vaccinations: nextList } : an)));
       setViewing(prev => (prev && prev.id === a.id ? { ...prev, vaccinations: nextList } : prev));
+      if (setNotes && !editingVaccinationId) {
+        const vaccineName = vaccinationForm.vaccineName?.trim() || "Vaccine";
+        const dateGiven = vaccinationForm.dateGiven?.trim();
+        const bodyParts = [`${vaccineName} administered on ${dateGiven ? fmt(dateGiven) : "—"}.`];
+        if (vaccinationForm.notes?.trim()) bodyParts.push(`Notes: ${vaccinationForm.notes.trim()}`);
+        setNotes(prev => [{
+          id: Date.now().toString(),
+          title: `Vaccination — ${getAnimalName(a)}`,
+          body: bodyParts.join(" "),
+          date: new Date().toISOString(),
+          animalId: a.id,
+        }, ...prev]);
+      }
       setShowVaccinationForm(false);
       setEditingVaccinationId(null);
       setVaccinationForm({ vaccineName: "", dateGiven: "", nextDueDate: "", administeredBy: "Owner", notes: "", dosage: "", route: "IM (Intramuscular)", boosterIntervalDays: "" });
@@ -1772,6 +1797,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           animalId: a.id,
           notes: entry.notes || undefined,
         }]);
+      }
+      if (setNotes && !isEdit) {
+        const label = entry.description?.trim() || entry.type;
+        const bodyParts = [`${label} on ${entry.date ? fmt(entry.date) : "—"}.`];
+        if (entry.cost != null && entry.cost > 0) bodyParts.push(`Cost: $${Number(entry.cost).toFixed(2)}.`);
+        if (entry.notes?.trim()) bodyParts.push(`Notes: ${entry.notes.trim()}`);
+        setNotes(prev => [{
+          id: Date.now().toString(),
+          title: `Health record — ${getAnimalName(a)}`,
+          body: bodyParts.join(" "),
+          date: new Date().toISOString(),
+          animalId: a.id,
+        }, ...prev]);
       }
       setShowTreatmentForm(false);
       setEditingTreatmentId(null);

@@ -6,7 +6,7 @@ import { Card, Btn, Input, PastureCombo, SectionTitle, Select, Textarea } from "
 const FEED_TYPES = ["Hay Bale", "Round Bale", "Square Bale", "Grain", "Supplement", "Other"];
 
 // ── Pastures ───────────────────────────────────────────────────────────────────
-export default function Pastures({ animals, setAnimals, pastures, setPastures, pastureFeedLogs = {}, setPastureFeedLogs, setExpenses, setTab, setViewingAnimal, feederPrograms, gestations, setGestations, notes, setNotes }) {
+export default function Pastures({ animals, setAnimals, pastures, setPastures, pastureFeedLogs = {}, setPastureFeedLogs, setExpenses, setTab, setViewingAnimal, feederPrograms, gestations, setGestations, notes, setNotes, isProUser, setShowUpgradeModal }) {
   const [showAddPasture, setShowAddPasture] = useState(false);
   const [newPastureName, setNewPastureName] = useState("");
   const [selectedIds, setSelectedIds] = useState([]);

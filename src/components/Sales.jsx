@@ -17,7 +17,7 @@ const emptySaleEditForm = () => ({
   notes: "",
 });
 
-export default function Sales({ animals, setAnimals, loadSales, setLoadSales, expenses, settings, contacts, supabase, userId }) {
+export default function Sales({ animals, setAnimals, loadSales, setLoadSales, expenses, settings, contacts, supabase, userId, isProUser, setShowUpgradeModal }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(currentYear);
   const [plYear, setPlYear] = useState(currentYear);

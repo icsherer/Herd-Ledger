@@ -28,7 +28,7 @@ const STAT_STYLE = {
   textAlign: "center",
 };
 
-export default function HayInventory({ hayLots, setHayLots, hayLogs, setHayLogs, user, pastures }) {
+export default function HayInventory({ hayLots, setHayLots, hayLogs, setHayLogs, user, pastures, isProUser, setShowUpgradeModal }) {
   const [expandedLotId, setExpandedLotId] = useState(null);
   const [editingLotId, setEditingLotId] = useState(null);
   const [editForm, setEditForm] = useState(null);

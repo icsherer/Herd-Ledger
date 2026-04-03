@@ -100,60 +100,7 @@ export default function UpgradeModal({ user, onClose }) {
 
           {/* Plan cards */}
           <div style={{ display: "flex", gap: "14px", flexWrap: "wrap" }}>
-            {/* Monthly */}
-            <div style={{
-              flex: "1 1 180px",
-              border: "2px solid var(--cream3)",
-              borderRadius: "12px",
-              padding: "20px 16px",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "10px",
-              background: "#fff",
-            }}>
-              <div style={{
-                fontSize: "11px",
-                fontWeight: 700,
-                letterSpacing: "2px",
-                textTransform: "uppercase",
-                color: "var(--muted)",
-              }}>
-                Most Flexible
-              </div>
-              <div style={{
-                fontFamily: "'Playfair Display'",
-                fontSize: "32px",
-                fontWeight: 700,
-                color: "var(--ink)",
-                lineHeight: 1,
-              }}>
-                $9.99
-              </div>
-              <div style={{ fontSize: "13px", color: "var(--muted)" }}>per month</div>
-              <button
-                type="button"
-                onClick={() => handleUpgrade("monthly")}
-                disabled={loading !== null}
-                style={{
-                  width: "100%",
-                  padding: "11px",
-                  background: loading === "monthly" ? "var(--green2)" : "var(--green)",
-                  color: "#fff",
-                  border: "none",
-                  borderRadius: "8px",
-                  fontWeight: 600,
-                  fontSize: "14px",
-                  cursor: loading !== null ? "not-allowed" : "pointer",
-                  marginTop: "4px",
-                  transition: "background 0.15s",
-                }}
-              >
-                {loading === "monthly" ? "Redirecting…" : "Start Free Trial"}
-              </button>
-            </div>
-
-            {/* Annual */}
+            {/* Annual — shown first */}
             <div style={{
               flex: "1 1 180px",
               border: "2px solid var(--brass)",
@@ -199,6 +146,26 @@ export default function UpgradeModal({ user, onClose }) {
                 $79.99
               </div>
               <div style={{ fontSize: "13px", color: "var(--muted)" }}>per year</div>
+              <ul style={{
+                listStyle: "none",
+                padding: 0,
+                margin: "4px 0 0",
+                fontSize: "12px",
+                color: "var(--ink2)",
+                lineHeight: 1.9,
+                alignSelf: "stretch",
+              }}>
+                {[
+                  "Unlimited animals",
+                  "Health records & vaccinations",
+                  "Bill of Sale PDF generator",
+                  "Hay & forage inventory",
+                  "Pasture management",
+                  "P&L reports & Schedule F export",
+                  "Breeding & gestation tracking",
+                  "Priority support",
+                ].map(f => <li key={f} style={{ display: "flex", gap: "6px" }}><span style={{ color: "var(--brass)", fontWeight: 700 }}>✓</span>{f}</li>)}
+              </ul>
               <button
                 type="button"
                 onClick={() => handleUpgrade("annual")}
@@ -218,6 +185,79 @@ export default function UpgradeModal({ user, onClose }) {
                 }}
               >
                 {loading === "annual" ? "Redirecting…" : "Start Free Trial"}
+              </button>
+            </div>
+
+            {/* Monthly */}
+            <div style={{
+              flex: "1 1 180px",
+              border: "2px solid var(--cream3)",
+              borderRadius: "12px",
+              padding: "20px 16px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: "10px",
+              background: "#fff",
+            }}>
+              <div style={{
+                fontSize: "11px",
+                fontWeight: 700,
+                letterSpacing: "2px",
+                textTransform: "uppercase",
+                color: "var(--muted)",
+              }}>
+                Month to Month
+              </div>
+              <div style={{
+                fontFamily: "'Playfair Display'",
+                fontSize: "32px",
+                fontWeight: 700,
+                color: "var(--ink)",
+                lineHeight: 1,
+              }}>
+                $9.99
+              </div>
+              <div style={{ fontSize: "13px", color: "var(--muted)" }}>per month</div>
+              <ul style={{
+                listStyle: "none",
+                padding: 0,
+                margin: "4px 0 0",
+                fontSize: "12px",
+                color: "var(--ink2)",
+                lineHeight: 1.9,
+                alignSelf: "stretch",
+              }}>
+                {[
+                  "Unlimited animals",
+                  "Health records & vaccinations",
+                  "Bill of Sale PDF generator",
+                  "Hay & forage inventory",
+                  "Pasture management",
+                  "P&L reports & Schedule F export",
+                  "Breeding & gestation tracking",
+                  "Priority support",
+                ].map(f => <li key={f} style={{ display: "flex", gap: "6px" }}><span style={{ color: "var(--green)", fontWeight: 700 }}>✓</span>{f}</li>)}
+              </ul>
+              <button
+                type="button"
+                onClick={() => handleUpgrade("monthly")}
+                disabled={loading !== null}
+                style={{
+                  width: "100%",
+                  padding: "11px",
+                  background: loading === "monthly" ? "var(--green2)" : "var(--green)",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  cursor: loading !== null ? "not-allowed" : "pointer",
+                  marginTop: "4px",
+                  transition: "background 0.15s",
+                }}
+              >
+                {loading === "monthly" ? "Redirecting…" : "Start Free Trial"}
               </button>
             </div>
           </div>
@@ -249,7 +289,7 @@ export default function UpgradeModal({ user, onClose }) {
                 textDecoration: "underline",
               }}
             >
-              Maybe later
+              Stay on free plan (10 animal limit)
             </button>
           </div>
         </div>

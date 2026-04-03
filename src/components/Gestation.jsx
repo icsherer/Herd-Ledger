@@ -61,7 +61,7 @@ function sortActiveGestations(items, mode, animalsList) {
 }
 
 // ── Gestation ─────────────────────────────────────────────────────────────────
-export default function Gestation({ animals, setAnimals, gestations, setGestations, user, offspring, setOffspring, setTab, setViewingAnimal, deliveryGestureId, setDeliveryGestureId, setPromptAddOffspring, highlightGestationId, setHighlightGestationId }) {
+export default function Gestation({ animals, setAnimals, gestations, setGestations, user, offspring, setOffspring, setTab, setViewingAnimal, deliveryGestureId, setDeliveryGestureId, setPromptAddOffspring, highlightGestationId, setHighlightGestationId, isProUser, setShowUpgradeModal }) {
   const animalsList = animals ?? [];
   const gestationsList = gestations ?? [];
   const [showAdd, setShowAdd] = useState(false);

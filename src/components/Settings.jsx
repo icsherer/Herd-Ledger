@@ -78,6 +78,20 @@ export default function Settings({ settings, setSettings, contacts = [], setCont
           </Card>
         )}
 
+        <Card
+          role="button"
+          tabIndex={0}
+          onClick={() => { window.location.href = "/account"; }}
+          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); window.location.href = "/account"; } }}
+          style={{ padding: "16px 20px", marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", borderLeft: "4px solid var(--green)" }}
+        >
+          <div>
+            <div style={{ fontWeight: 600, color: "var(--ink)" }}>Manage Billing &amp; Subscription</div>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>View plan, billing date, and upgrade options</div>
+          </div>
+          <span style={{ color: "var(--green)", fontSize: "18px" }}>→</span>
+        </Card>
+
         <Card style={{ padding: "24px", marginBottom: "20px" }}>
           <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "16px" }}>Farm Profile</div>
           <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>

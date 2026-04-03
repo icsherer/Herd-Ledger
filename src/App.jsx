@@ -26,6 +26,7 @@ import Weaning from "./components/Weaning.jsx";
 import Settings from "./components/Settings.jsx";
 import UpgradeModal from "./components/UpgradeModal.jsx";
 import Privacy from "./components/Privacy.jsx";
+import Account from "./components/Account.jsx";
 
 // ── Error boundary so a broken tab doesn't crash the whole app ─────────────────
 class TabErrorBoundary extends React.Component {
@@ -521,6 +522,10 @@ export default function App() {
 
   if (typeof window !== "undefined" && window.location.pathname === "/privacy") {
     return <Privacy />;
+  }
+
+  if (typeof window !== "undefined" && window.location.pathname === "/account") {
+    return <Account user={user} subscription={subscription} />;
   }
 
   if (user === null) {

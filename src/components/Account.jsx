@@ -16,7 +16,6 @@ export default function Account({ user, subscription }) {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    if (!user || user.isGuest) return;
     supabase
       .from("subscriptions")
       .select("current_period_end")
@@ -25,13 +24,7 @@ export default function Account({ user, subscription }) {
       .then(({ data }) => {
         if (data?.current_period_end) setPeriodEnd(data.current_period_end);
       });
-  }, [user?.id]);
-
-  // Redirect guests/unauthenticated users
-  if (!user || user.isGuest) {
-    if (typeof window !== "undefined") window.location.href = "/";
-    return null;
-  }
+  }, [user.id]);
 
   const sub = subscription ?? { status: "free", grandfathered: false, plan: null };
   const isPro = sub.status === "active" || sub.status === "trialing" || sub.grandfathered;

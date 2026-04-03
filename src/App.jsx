@@ -524,15 +524,16 @@ export default function App() {
     return <Privacy />;
   }
 
-  if (typeof window !== "undefined" && window.location.pathname === "/account") {
-    return <Account user={user} subscription={subscription} />;
-  }
-
   if (user === null) {
     if (typeof window !== "undefined" && window.location.hash.includes("type=recovery")) {
       return <ResetPasswordPage />;
     }
     return <Auth onLogin={() => {}} onContinueAsGuest={() => setUser(GUEST_USER)} />;
+  }
+
+  if (typeof window !== "undefined" && window.location.pathname === "/account") {
+    if (user.isGuest) return <Auth onLogin={() => {}} onContinueAsGuest={() => setUser(GUEST_USER)} />;
+    return <Account user={user} subscription={subscription} />;
   }
 
   return (

@@ -1,0 +1,5 @@
+{
+  "appId": "app.herdledger.app",
+  "appName": "Herd Ledger",
+  "webDir": "dist"
+}

@@ -124,11 +124,20 @@ Deno.serve(async (req: Request) => {
           break;
         }
 
+        const subRes = await fetch(`https://api.stripe.com/v1/subscriptions/${subscriptionId}`, {
+          headers: { "Authorization": `Bearer ${STRIPE_SECRET_KEY}` },
+        });
+        const subscription = subRes.ok ? await subRes.json() : null;
+
         await upsertSubscription({
           user_id: userId,
-          status: "active",
+          plan: "pro",
+          status: subscription?.status ?? "active",
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
+          trial_ends_at: subscription?.trial_end
+            ? new Date(subscription.trial_end * 1000).toISOString()
+            : null,
         });
 
         console.log("checkout.session.completed — activated", userId);
@@ -148,13 +157,19 @@ Deno.serve(async (req: Request) => {
           break;
         }
 
+        const trialEnd = sub["trial_end"] as number | null;
+
         await upsertSubscription({
           user_id: userId,
+          plan: "pro",
           stripe_customer_id: customerId,
           stripe_subscription_id: subscriptionId,
           status: status === "active" || status === "trialing" ? status : "free",
           current_period_end: periodEnd
             ? new Date(periodEnd * 1000).toISOString()
+            : null,
+          trial_ends_at: trialEnd
+            ? new Date(trialEnd * 1000).toISOString()
             : null,
         });
 
@@ -174,10 +189,12 @@ Deno.serve(async (req: Request) => {
 
         await upsertSubscription({
           user_id: userId,
+          plan: "free",
           stripe_customer_id: customerId,
           status: "free",
           stripe_subscription_id: null,
           current_period_end: null,
+          trial_ends_at: null,
         });
 
         console.log("customer.subscription.deleted — reverted to free", userId);

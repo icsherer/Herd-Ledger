@@ -685,65 +685,110 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
         {displaySoldAnimals.length === 0 ? (
           <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No sales match the current filters." : "No sold animals recorded yet."}</div>
         ) : (
-          <div>
-            <table className="hl-sales-individual-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}>
-              <thead>
-                <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
-                  <th className="hl-sales-col-name" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Name / Tag</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }} className="hl-hide-mobile">Species</th>
-                  <th className="hl-sales-col-date" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Sale date</th>
-                  <th className="hl-sales-col-price" style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Sale price</th>
-                  <th style={{ width: "10%", padding: "10px 4px" }} />
-                </tr>
-              </thead>
-              <tbody>
-                {displaySoldAnimals.map(a => {
-                  const salePrice = Number(a.sale?.pricePerHead) || 0;
-                  const isExpanded = expandedSaleId === a.id;
-                  return (
-                    <>
-                      <tr
-                        key={a.id}
-                        onClick={() => setExpandedSaleId(isExpanded ? null : a.id)}
-                        style={{
-                          borderBottom: isExpanded ? "none" : "1px solid var(--cream2)",
-                          background: isExpanded ? "rgba(201,149,42,0.06)" : "transparent",
-                          cursor: "pointer",
-                          userSelect: "none",
-                        }}
-                      >
-                        <td className="hl-sales-col-name" style={{ padding: "11px 12px", wordBreak: "break-word" }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
-                        <td style={{ padding: "11px 12px", color: "var(--muted)" }} className="hl-hide-mobile">{a.species || "—"}</td>
-                        <td className="hl-sales-col-date" style={{ padding: "11px 12px", whiteSpace: "nowrap" }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
-                        <td className="hl-sales-col-price" style={{ padding: "11px 8px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>${salePrice.toLocaleString("en-US", { minimumFractionDigits: salePrice % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}</td>
-                        <td style={{ padding: "11px 8px 11px 0", textAlign: "center", color: "var(--muted)", fontSize: "12px" }}>
-                          {isExpanded ? "▲" : "▼"}
-                        </td>
-                      </tr>
-                      {isExpanded && (
-                        <tr key={`${a.id}-detail`} style={{ borderBottom: "1px solid var(--cream2)", background: "rgba(201,149,42,0.06)" }}>
-                          <td colSpan={5} style={{ padding: "0 12px 14px" }}>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", fontSize: "13px", color: "var(--ink2)", marginBottom: setAnimals ? "12px" : "0" }}>
-                              <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Buyer: </span>{a.sale?.buyerName || "—"}{a.sale?.buyerContact ? ` · ${a.sale.buyerContact}` : ""}</div>
-                              <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Location: </span>{a.sale?.saleLocation || "—"}</div>
-                              {a.sale?.notes && <div style={{ width: "100%" }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>Notes: </span>{a.sale.notes}</div>}
-                            </div>
-                            {setAnimals && (
-                              <div style={{ display: "flex", gap: "8px" }}>
-                                <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); openSaleEdit(a); setExpandedSaleId(null); }}>Edit</Btn>
-                                <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); setBosModal({ sale: a, saleType: "individual" }); }}>Bill of Sale</Btn>
-                                <Btn size="sm" variant="danger" onClick={e => { e.stopPropagation(); deleteSaleRecord(a.id); }}>Delete</Btn>
-                              </div>
-                            )}
+          <>
+            {/* ── Desktop table (hidden on mobile via CSS) ── */}
+            <div className="hl-sales-desktop-table">
+              <table className="hl-sales-individual-table" style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}>
+                <thead>
+                  <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
+                    <th className="hl-sales-col-name" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Name / Tag</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Species</th>
+                    <th className="hl-sales-col-date" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Sale date</th>
+                    <th className="hl-sales-col-price" style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Sale price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displaySoldAnimals.map(a => {
+                    const salePrice = Number(a.sale?.pricePerHead) || 0;
+                    const isExpanded = expandedSaleId === a.id;
+                    const rowBg = isExpanded ? "rgba(201,149,42,0.06)" : "transparent";
+                    return (
+                      <>
+                        <tr
+                          key={a.id}
+                          onClick={() => setExpandedSaleId(isExpanded ? null : a.id)}
+                          style={{
+                            borderBottom: isExpanded ? "none" : "1px solid var(--cream2)",
+                            background: rowBg,
+                            cursor: "pointer",
+                            userSelect: "none",
+                          }}
+                        >
+                          <td className="hl-sales-col-name" style={{ padding: "11px 12px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", background: rowBg }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
+                          <td style={{ padding: "11px 12px", color: "var(--muted)", background: rowBg }}>{a.species || "—"}</td>
+                          <td className="hl-sales-col-date" style={{ padding: "11px 12px", whiteSpace: "nowrap", background: rowBg }}>{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</td>
+                          <td className="hl-sales-col-price" style={{ padding: "11px 12px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap", background: rowBg }}>
+                            ${salePrice.toLocaleString("en-US", { minimumFractionDigits: salePrice % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}{" "}
+                            <span style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 400 }}>{isExpanded ? "▲" : "▼"}</span>
                           </td>
                         </tr>
-                      )}
-                    </>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        {isExpanded && (
+                          <tr key={`${a.id}-detail`} style={{ borderBottom: "1px solid var(--cream2)", background: "rgba(201,149,42,0.06)" }}>
+                            <td colSpan={4} style={{ padding: "0 12px 14px" }}>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", fontSize: "13px", color: "var(--ink2)", marginBottom: setAnimals ? "12px" : "0" }}>
+                                <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Buyer: </span>{a.sale?.buyerName || "—"}{a.sale?.buyerContact ? ` · ${a.sale.buyerContact}` : ""}</div>
+                                <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Location: </span>{a.sale?.saleLocation || "—"}</div>
+                                {a.sale?.notes && <div style={{ width: "100%" }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>Notes: </span>{a.sale.notes}</div>}
+                              </div>
+                              {setAnimals && (
+                                <div style={{ display: "flex", gap: "8px" }}>
+                                  <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); openSaleEdit(a); setExpandedSaleId(null); }}>Edit</Btn>
+                                  <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); setBosModal({ sale: a, saleType: "individual" }); }}>Bill of Sale</Btn>
+                                  <Btn size="sm" variant="danger" onClick={e => { e.stopPropagation(); deleteSaleRecord(a.id); }}>Delete</Btn>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* ── Mobile card rows (hidden on desktop via CSS) ── */}
+            <div className="hl-sales-mobile-rows">
+              {displaySoldAnimals.map(a => {
+                const salePrice = Number(a.sale?.pricePerHead) || 0;
+                const isExpanded = expandedSaleId === a.id;
+                return (
+                  <div key={a.id}>
+                    <div
+                      className="hl-sales-mobile-row"
+                      onClick={() => setExpandedSaleId(isExpanded ? null : a.id)}
+                      style={{ background: isExpanded ? "rgba(201,149,42,0.06)" : "transparent", borderBottom: isExpanded ? "none" : "1px solid var(--cream2)" }}
+                    >
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div className="hl-sales-mobile-row-name">{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</div>
+                        <div className="hl-sales-mobile-row-date">{a.sale?.dateSold ? fmt(a.sale.dateSold) : "—"}</div>
+                      </div>
+                      <div className="hl-sales-mobile-row-price">
+                        ${salePrice.toLocaleString("en-US", { minimumFractionDigits: salePrice % 1 === 0 ? 0 : 2, maximumFractionDigits: 2 })}{" "}
+                        <span style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 400 }}>{isExpanded ? "▲" : "▼"}</span>
+                      </div>
+                    </div>
+                    {isExpanded && (
+                      <div className="hl-sales-mobile-row-detail">
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", fontSize: "13px", color: "var(--ink2)", marginBottom: setAnimals ? "12px" : "4px", paddingTop: "10px" }}>
+                          <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Buyer: </span>{a.sale?.buyerName || "—"}{a.sale?.buyerContact ? ` · ${a.sale.buyerContact}` : ""}</div>
+                          <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Location: </span>{a.sale?.saleLocation || "—"}</div>
+                          {a.sale?.notes && <div style={{ width: "100%" }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>Notes: </span>{a.sale.notes}</div>}
+                        </div>
+                        {setAnimals && (
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); openSaleEdit(a); setExpandedSaleId(null); }}>Edit</Btn>
+                            <Btn size="sm" variant="secondary" onClick={e => { e.stopPropagation(); setBosModal({ sale: a, saleType: "individual" }); }}>Bill of Sale</Btn>
+                            <Btn size="sm" variant="danger" onClick={e => { e.stopPropagation(); deleteSaleRecord(a.id); }}>Delete</Btn>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </Card>
 
@@ -784,29 +829,29 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
         {displayGroupLoadSales.length === 0 ? (
           <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>{filterActive ? "No load sales match the current filters." : "No load sales recorded yet. Use the button above to log a sale barn load."}</div>
         ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+          <div>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}>
               <thead>
                 <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Date</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Head</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Species</th>
-                  <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Total</th>
-                  <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Buyer</th>
-                  <th style={{ width: "40px" }} />
+                  <th className="hl-hide-mobile" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Date</th>
+                  <th style={{ width: "14%", textAlign: "left", padding: "10px 8px", fontWeight: 600 }}>Head</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px", fontWeight: 600 }}>Species</th>
+                  <th style={{ width: "22%", textAlign: "right", padding: "10px 8px", fontWeight: 600 }}>Total</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px", fontWeight: 600 }}>Buyer</th>
+                  <th style={{ width: "90px", padding: "10px 4px" }} />
                 </tr>
               </thead>
               <tbody>
                 {[...displayGroupLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
                   <tr key={l.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
-                    <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{l.date ? fmt(l.date) : "—"}</td>
-                    <td style={{ padding: "10px 12px" }}>{l.headCount ?? "—"}</td>
-                    <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{l.species || "—"}</td>
-                    <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                    <td style={{ padding: "10px 12px" }}>{l.buyerName || "—"}</td>
-                    <td style={{ padding: "4px 8px", whiteSpace: "nowrap" }}>
-                      <button type="button" onClick={() => setBosModal({ sale: l, saleType: "load" })} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "12px", fontWeight: 600, display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "44px", minWidth: "44px", padding: "0 4px", marginRight: "2px", touchAction: "manipulation" }}>BOS</button>
-                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "44px", minWidth: "44px", padding: "0", touchAction: "manipulation" }} aria-label="Remove">×</button>
+                    <td className="hl-hide-mobile" style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{l.date ? fmt(l.date) : "—"}</td>
+                    <td style={{ padding: "10px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.headCount ?? "—"}</td>
+                    <td style={{ padding: "10px 8px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.species || "—"}</td>
+                    <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: "10px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.buyerName || "—"}</td>
+                    <td style={{ padding: "4px 4px", whiteSpace: "nowrap", textAlign: "right" }}>
+                      <button type="button" onClick={e => { e.stopPropagation(); setBosModal({ sale: l, saleType: "load" }); }} style={{ background: "transparent", border: "1.5px solid var(--green)", color: "var(--green)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "12px", fontWeight: 600, minHeight: "36px", cursor: "pointer", touchAction: "manipulation", marginRight: "4px" }}>BOS</button>
+                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "36px", minWidth: "28px", padding: "0", touchAction: "manipulation" }} aria-label="Remove">×</button>
                     </td>
                   </tr>
                 ))}

@@ -966,11 +966,52 @@
 .hl-sales-col-date  { width: 18%; }
 .hl-sales-col-price { width: 22%; }
 
-/* Sales: individual sales table — mobile column widths (species col hidden) */
+/* Sales: desktop table shown on wide screens, hidden on mobile */
+.hl-sales-desktop-table { display: block; }
+.hl-sales-mobile-rows   { display: none; }
+
 @media (max-width: 600px) {
-  .hl-sales-col-name  { width: 45%; }
-  .hl-sales-col-date  { width: 30%; }
-  .hl-sales-col-price { width: 22%; }
+  .hl-sales-desktop-table { display: none; }
+  .hl-sales-mobile-rows   { display: block; }
+}
+
+/* Sales: mobile card rows */
+.hl-sales-mobile-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--cream2);
+  cursor: pointer;
+  user-select: none;
+  gap: 8px;
+}
+.hl-sales-mobile-row:active { background: rgba(201,149,42,0.06); }
+.hl-sales-mobile-row-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.hl-sales-mobile-row-date {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.hl-sales-mobile-row-price {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--ink);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.hl-sales-mobile-row-detail {
+  padding: 0 16px 14px;
+  background: rgba(201,149,42,0.06);
+  border-bottom: 1px solid var(--cream2);
 }
 
 /* Animals filter bar: on mobile show single button that opens bottom sheet */

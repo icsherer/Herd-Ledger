@@ -10,6 +10,7 @@ export default function Account({ user, subscription }) {
   const [portalError, setPortalError] = useState(null);
   const [upgradeLoading, setUpgradeLoading] = useState(null);
   const [upgradeError, setUpgradeError] = useState(null);
+  const [hasStripeCustomer, setHasStripeCustomer] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleteError, setDeleteError] = useState(null);
@@ -18,11 +19,12 @@ export default function Account({ user, subscription }) {
   useEffect(() => {
     supabase
       .from("subscriptions")
-      .select("current_period_end")
+      .select("current_period_end, stripe_customer_id")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
         if (data?.current_period_end) setPeriodEnd(data.current_period_end);
+        setHasStripeCustomer(!!data?.stripe_customer_id);
       });
   }, [user.id]);
 
@@ -167,7 +169,7 @@ export default function Account({ user, subscription }) {
                   </div>
                 )}
               </div>
-              {isPro && !sub.grandfathered && (
+              {isPro && !sub.grandfathered && hasStripeCustomer && (
                 <button
                   type="button"
                   onClick={handleManageSubscription}

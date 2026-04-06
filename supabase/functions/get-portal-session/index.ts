@@ -69,7 +69,7 @@ Deno.serve(async (req: Request) => {
     const stripeCustomerId: string | null = rows?.[0]?.stripe_customer_id ?? null;
 
     if (!stripeCustomerId) {
-      return new Response(JSON.stringify({ error: "No active subscription found. Please subscribe first." }), {
+      return new Response(JSON.stringify({ error: "No billing account found" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

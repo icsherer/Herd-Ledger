@@ -32,7 +32,7 @@ export const HORSE_DISCIPLINES = ["Barrel Racing", "Cutting", "Reining", "Trail"
 /** Suggested equine vaccines for horse vaccination form. */
 export const EQUINE_VACCINE_SUGGESTIONS = ["West Nile", "Rabies", "EEE/WEE", "Influenza", "Rhinopneumonitis", "Strangles"];
 
-export const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes"];
+export const IMPORT_HL_FIELDS = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes", "Acquisition Type", "Purchase Price", "Purchased From", "Current Pasture", "Dam Name", "Sire Name", "Registration Number"];
 
 /** Cull flag reason options for "Mark for Cull" on animal profiles. */
 export const CULL_REASONS = ["Prolapse", "Poor Mother", "Reproductive Issue", "Injury", "Age", "Temperament", "Low Production", "Other"];

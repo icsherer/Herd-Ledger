@@ -777,6 +777,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     "Color": ["color", "coat", "markings", "colour"],
     "Purchase Date": ["purchase date", "bought", "date purchased", "acquisition date"],
     "Notes": ["notes", "note", "comments", "remarks", "comments notes"],
+    "Acquisition Type": ["acquisition type", "acquisition", "how acquired", "source type", "origin"],
+    "Purchase Price": ["purchase price", "price", "cost", "price paid", "amount paid", "buy price"],
+    "Purchased From": ["purchased from", "seller", "vendor", "bought from", "source", "from"],
+    "Current Pasture": ["current pasture", "pasture", "pasture name", "field", "paddock", "location"],
+    "Dam Name": ["dam name", "dam", "mother", "mom", "mother name", "dam id"],
+    "Sire Name": ["sire name", "sire", "father", "bull", "sire id", "father name"],
+    "Registration Number": ["registration number", "reg number", "reg no", "registration", "reg #", "registry number"],
   };
 
   function fuzzyMapHeaders(headers) {
@@ -1066,6 +1073,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const purchaseDateVal = colIndex("Purchase Date") >= 0 ? row[colIndex("Purchase Date")] : "";
       const purchaseDate = normalizeDob(purchaseDateVal);
       const notes = colIndex("Notes") >= 0 ? (row[colIndex("Notes")] || "").trim() : "";
+      const acquisitionTypeRaw = colIndex("Acquisition Type") >= 0 ? (row[colIndex("Acquisition Type")] || "").trim() : "";
+      const VALID_ACQUISITION_TYPES = ["Purchased", "Home Raised", "Gift", "Lease"];
+      const acquisitionTypeNorm = VALID_ACQUISITION_TYPES.find(t => t.toLowerCase() === acquisitionTypeRaw.toLowerCase()) || null;
+      const acquisitionType = acquisitionTypeNorm || (purchaseDate ? "Purchased" : "Home Raised");
+      const purchasePriceRaw = colIndex("Purchase Price") >= 0 ? (row[colIndex("Purchase Price")] || "").toString().trim() : "";
+      const purchasePrice = purchasePriceRaw ? parseFloat(purchasePriceRaw.replace(/[^0-9.]/g, "")) : undefined;
+      const purchasedFrom = colIndex("Purchased From") >= 0 ? (row[colIndex("Purchased From")] || "").trim() : "";
+      const currentPasture = colIndex("Current Pasture") >= 0 ? (row[colIndex("Current Pasture")] || "").trim() : "";
+      const damName = colIndex("Dam Name") >= 0 ? (row[colIndex("Dam Name")] || "").trim() : "";
+      const sireName = colIndex("Sire Name") >= 0 ? (row[colIndex("Sire Name")] || "").trim() : "";
+      const registrationNumber = colIndex("Registration Number") >= 0 ? (row[colIndex("Registration Number")] || "").trim() : "";
       const data = {
         name: name || undefined,
         tag: tag || undefined,
@@ -1075,8 +1093,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         dob: dob || undefined,
         color: colorVal || undefined,
         notes: notes || undefined,
-        acquisitionType: purchaseDate || undefined ? "Purchased" : "Home Raised",
+        acquisitionType,
         purchaseDate: purchaseDate || undefined,
+        purchasePrice: (purchasePrice && !isNaN(purchasePrice)) ? purchasePrice : undefined,
+        purchasedFrom: purchasedFrom || undefined,
+        currentPasture: currentPasture || undefined,
+        damName: damName || undefined,
+        sireName: sireName || undefined,
+        registrationNumber: registrationNumber || undefined,
       };
       const dupByTag = tag ? existingByTag.get(tag.trim().toLowerCase()) : null;
       const dupByNameSpecies = name ? existingByNameSpecies.get(`${name.trim().toLowerCase()}|${species.toLowerCase()}`) : null;
@@ -1144,11 +1168,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes"];
+    const headers = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes", "Acquisition Type", "Purchase Price", "Purchased From", "Current Pasture", "Dam Name", "Sire Name", "Registration Number"];
     const examples = [
-      ["Bessie", "1001", "Cattle", "Angus", "Cow", "2020-03-15", "Black", "", "Home raised"],
-      ["Blue", "1002", "Cattle", "Hereford", "Steer", "2021-05-20", "Red", "", ""],
-      ["Daisy", "1003", "Horse", "Quarter Horse", "Mare", "2019-01-10", "Bay", "2022-04-15", "Purchased 2022"],
+      ["Bessie", "1001", "Cattle", "Angus", "Cow", "2020-03-15", "Black", "", "Home raised", "Home Raised", "", "", "South Pasture", "", "Big Red", ""],
+      ["Blue", "1002", "Cattle", "Hereford", "Steer", "2021-05-20", "Red", "2021-06-01", "", "Purchased", "850.00", "Smith Livestock", "North Lot", "Bessie", "Big Red", ""],
+      ["Daisy", "1003", "Horse", "Quarter Horse", "Mare", "2019-01-10", "Bay", "2022-04-15", "Purchased 2022", "Purchased", "3500.00", "Jones Ranch", "", "", "", "QH-2019-4821"],
+      ["", "", "", "", "", "", "", "", "Valid Acquisition Types: Purchased | Home Raised | Gift | Lease", "", "", "", "", "", "", ""],
     ];
     const rows = [headers, ...examples];
     const csv = rows.map(r => r.map(c => (typeof c === "string" && (c.includes(",") || c.includes('"') || c.includes("\n")) ? `"${String(c).replace(/"/g, '""')}"` : c)).join(",")).join("\r\n");
@@ -4742,6 +4767,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       dateSold: bulkForm.dateSold,
       pricePerHead: bulkForm.pricePerHead?.trim() ? parseFloat(bulkForm.pricePerHead) : undefined,
       buyerName: bulkForm.buyerName?.trim() || undefined,
+      buyerContact: bulkForm.buyerContact?.trim() || undefined,
       saleLocation: bulkForm.saleLocation?.trim() || undefined,
       notes: bulkForm.notes?.trim() || undefined,
     };
@@ -5078,7 +5104,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <span className="hl-bulk-sheet-chevron">›</span>
                 </button>
               )}
-              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("sale"); setBulkForm({ dateSold: "", pricePerHead: "", buyerName: "", saleLocation: "", notes: "" }); }}>
+              <button type="button" className="hl-bulk-sheet-row" onClick={() => { setBulkFormType("sale"); setBulkForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); }}>
                 <span className="hl-bulk-sheet-icon">💰</span>
                 <span className="hl-bulk-sheet-label">Mark as Sold</span>
                 <span className="hl-bulk-sheet-chevron">›</span>
@@ -5381,7 +5407,11 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <DateInputWithValidation label="Date Sold *" value={bulkForm.dateSold} onValueChange={v => setBulkForm(p => ({ ...p, dateSold: v }))} />
             <Input label="Price Per Head ($)" type="number" min="0" step="0.01" value={bulkForm.pricePerHead} onChange={e => setBulkForm(p => ({ ...p, pricePerHead: e.target.value }))} placeholder="e.g. 1250.00" />
-            <Input label="Buyer Name" value={bulkForm.buyerName} onChange={e => setBulkForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Cattle Co." />
+            {contacts && setContacts ? (
+              <ContactPicker label="Buyer" value={bulkForm.buyerName} onChange={v => setBulkForm(p => ({ ...p, buyerName: v }))} contacts={contacts} setContacts={setContacts} placeholder="Search contacts or type name" onSelectContact={c => setBulkForm(p => ({ ...p, buyerName: c.name || "", buyerContact: [c.phone, c.email].filter(Boolean).join(" · ") || "" }))} />
+            ) : (
+              <Input label="Buyer Name" value={bulkForm.buyerName} onChange={e => setBulkForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Cattle Co." />
+            )}
             <Input label="Sale Location" value={bulkForm.saleLocation} onChange={e => setBulkForm(p => ({ ...p, saleLocation: e.target.value }))} placeholder="e.g. Dodge City Sale Barn" />
           </div>
           <Textarea label="Notes" value={bulkForm.notes} onChange={e => setBulkForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "14px" }} />
@@ -5763,6 +5793,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             <div><span style={{ color: "var(--muted)" }}>Breed</span><div>{current.data.breed || "—"}</div></div>
                             <div><span style={{ color: "var(--muted)" }}>Sex</span><div>{current.data.sex || "—"}</div></div>
                             <div><span style={{ color: "var(--muted)" }}>Date of Birth</span><div>{current.data.dob ? fmt(current.data.dob) : "—"}</div></div>
+                            <div><span style={{ color: "var(--muted)" }}>Acquisition Type</span><div>{current.data.acquisitionType || "—"}</div></div>
+                            {current.data.purchasePrice != null && <div><span style={{ color: "var(--muted)" }}>Purchase Price</span><div>${current.data.purchasePrice.toLocaleString()}</div></div>}
+                            {current.data.purchasedFrom && <div><span style={{ color: "var(--muted)" }}>Purchased From</span><div>{current.data.purchasedFrom}</div></div>}
+                            {current.data.currentPasture && <div><span style={{ color: "var(--muted)" }}>Current Pasture</span><div>{current.data.currentPasture}</div></div>}
+                            {current.data.damName && <div><span style={{ color: "var(--muted)" }}>Dam</span><div>{current.data.damName}</div></div>}
+                            {current.data.sireName && <div><span style={{ color: "var(--muted)" }}>Sire</span><div>{current.data.sireName}</div></div>}
+                            {current.data.registrationNumber && <div><span style={{ color: "var(--muted)" }}>Reg. No.</span><div>{current.data.registrationNumber}</div></div>}
                             <div style={{ gridColumn: "1 / -1" }}><span style={{ color: "var(--muted)" }}>Notes</span><div>{current.data.notes || "—"}</div></div>
                           </div>
                         ) : null}

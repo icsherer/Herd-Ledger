@@ -743,6 +743,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [filterSexStatus, setFilterSexStatus] = useState("All");
   const [filterPasture, setFilterPasture] = useState("All Pastures");
   const [filterCull, setFilterCull] = useState("All");
+  const [filterArchiveStatus, setFilterArchiveStatus] = useState("All");
   const [sortBy, setSortBy] = useState("dateAddedNewest");
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [showBreedingForm, setShowBreedingForm] = useState(false);
@@ -1309,8 +1310,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   );
 
   const filtered = (animals || []).filter(a => {
-    const showByArchived = showArchivedAnimals ? true : !a.sale && !a.butchered && !a.deceased;
+    const archivedFilterActive = filterArchiveStatus !== "All";
+    const showByArchived = archivedFilterActive || showArchivedAnimals ? true : !a.sale && !a.butchered && !a.deceased;
     if (!showByArchived) return false;
+    if (filterArchiveStatus === "Sold" && !a.sale) return false;
+    if (filterArchiveStatus === "Deceased" && !a.deceased) return false;
+    if (filterArchiveStatus === "Butchered" && !a.butchered) return false;
 
     const q = (search || "").trim().toLowerCase();
     const matchesSearch = !q ||
@@ -4946,13 +4951,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
       {/* Filter & Sort bar (desktop: full bar; mobile: button that opens bottom sheet) */}
       {(() => {
-        const activeFilterCount = (search.trim() ? 1 : 0) + (filterSpecies !== "All Species" ? 1 : 0) + (filterSexStatus !== "All" ? 1 : 0) + (filterPasture !== "All Pastures" ? 1 : 0) + (filterCull !== "All" ? 1 : 0) + (filterHeatDue ? 1 : 0);
+        const activeFilterCount = (search.trim() ? 1 : 0) + (filterSpecies !== "All Species" ? 1 : 0) + (filterSexStatus !== "All" ? 1 : 0) + (filterPasture !== "All Pastures" ? 1 : 0) + (filterCull !== "All" ? 1 : 0) + (filterHeatDue ? 1 : 0) + (filterArchiveStatus !== "All" ? 1 : 0);
         const clearFilters = () => {
           setSearch("");
           setFilterSpecies("All Species");
           setFilterSexStatus("All");
           setFilterPasture("All Pastures");
           setFilterCull("All");
+          setFilterArchiveStatus("All");
           setFilterHeatDue?.(false);
         };
 
@@ -4981,6 +4987,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             <Select value={filterCull} onChange={e => setFilterCull(e.target.value)} style={{ minWidth: "140px" }}>
               <option value="All">All</option>
               <option value="Marked for Cull">Marked for Cull</option>
+            </Select>
+            <Select value={filterArchiveStatus} onChange={e => setFilterArchiveStatus(e.target.value)} style={{ minWidth: "140px" }}>
+              <option value="All">All Statuses</option>
+              <option value="Sold">Sold</option>
+              <option value="Deceased">Deceased</option>
+              <option value="Butchered">Butchered</option>
             </Select>
             <Select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ minWidth: "160px" }}>
               <option value="dateAddedNewest">Date Added (newest first)</option>
@@ -5079,6 +5091,15 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       <Select value={filterCull} onChange={e => setFilterCull(e.target.value)} style={{ width: "100%" }}>
                         <option value="All">All</option>
                         <option value="Marked for Cull">Marked for Cull</option>
+                      </Select>
+                    </div>
+                    <div>
+                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Status</label>
+                      <Select value={filterArchiveStatus} onChange={e => setFilterArchiveStatus(e.target.value)} style={{ width: "100%" }}>
+                        <option value="All">All Statuses</option>
+                        <option value="Sold">Sold</option>
+                        <option value="Deceased">Deceased</option>
+                        <option value="Butchered">Butchered</option>
                       </Select>
                     </div>
                     <div>
@@ -5579,12 +5600,15 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div className="hl-animals-list-cell hl-animals-list-age" style={{ fontSize: "13px", color: "var(--muted)" }}>{ageFromDob(a.dob)}</div>
                   <div className="hl-animals-list-cell hl-animals-list-status" style={{ fontSize: "13px", color: "var(--muted)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                     {a.cull && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff", fontSize: "11px" }}>CULL</Badge>}
-                    {activeGest ? (
+                    {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff", fontSize: "11px" }}>Sold{a.sale.dateSold ? ` ${fmt(a.sale.dateSold)}` : ""}</Badge>}
+                    {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff", fontSize: "11px" }}>Deceased{a.deceased.date ? ` ${fmt(a.deceased.date)}` : ""}</Badge>}
+                    {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff", fontSize: "11px" }}>Butchered{a.butchered.date ? ` ${fmt(a.butchered.date)}` : ""}</Badge>}
+                    {!a.sale && !a.deceased && !a.butchered && (activeGest ? (
                       <span style={{ fontWeight: 600, color: "var(--brass)" }} title={`Due ${fmtDueRange(activeGest)}`}>Pregnant</span>
                     ) : (() => {
                       const runningWith = getRunningWithMaleForFemale(a, animals);
                       return runningWith ? <span style={{ color: "var(--brass2)" }}>Running with {getAnimalName(runningWith)}</span> : displaySex(a, gestations);
-                    })()}
+                    })())}
                   </div>
                 </div>
               );
@@ -5609,19 +5633,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleBulkSelect(a.id)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", cursor: "pointer" }} />
               </div>
             )}
-            {(a.deceased || a.butchered) && (
+            {(a.deceased || a.butchered || a.sale) && (
               <>
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", pointerEvents: "none" }} />
-                <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none" }}>
+                <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
                   {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
                   {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff" }}>Butchered</Badge>}
+                  {a.sale && !a.deceased && !a.butchered && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
                 </div>
               </>
             )}
-            {(a.cull || (a.sale && !a.deceased && !a.butchered)) && (
+            {(a.cull && !a.deceased && !a.butchered && !a.sale) && (
               <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
-                {a.cull && !a.deceased && !a.butchered && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>}
-                {a.sale && !a.deceased && !a.butchered && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
+                <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>
               </div>
             )}
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "10px" }}>

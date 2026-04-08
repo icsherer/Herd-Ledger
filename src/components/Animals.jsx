@@ -88,7 +88,7 @@ function TagColorSwatches({ value, onChange }) {
 
 function animalOptionLabel(a) {
   const base = getAnimalName(a) + (a.tag ? ` #${a.tag}` : "");
-  if (a.sale) return `${base} (sold)`;
+  if (a.sale && a.sale.dateSold) return `${base} (sold)`;
   if (a.deceased) return `${base} (deceased)`;
   return base;
 }
@@ -1311,9 +1311,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   const filtered = (animals || []).filter(a => {
     const archivedFilterActive = filterArchiveStatus !== "All";
-    const showByArchived = archivedFilterActive || showArchivedAnimals ? true : !a.sale && !a.butchered && !a.deceased;
+    const isSold = a.sale && a.sale.dateSold;
+    const showByArchived = archivedFilterActive || showArchivedAnimals ? true : !isSold && !a.butchered && !a.deceased;
     if (!showByArchived) return false;
-    if (filterArchiveStatus === "Sold" && !a.sale) return false;
+    if (filterArchiveStatus === "Sold" && !isSold) return false;
     if (filterArchiveStatus === "Deceased" && !a.deceased) return false;
     if (filterArchiveStatus === "Butchered" && !a.butchered) return false;
 
@@ -2235,7 +2236,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               {getRunningWithMaleForFemale(a, animals) && <Badge color="var(--brass2)" style={{ background: "rgba(201,149,42,0.2)", color: "var(--brass)" }}>Running with {getAnimalName(getRunningWithMaleForFemale(a, animals))}</Badge>}
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased{a.deceased.date ? ` ${fmt(a.deceased.date)}` : ""}</Badge>}
               {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff" }}>Butchered{a.butchered.date ? ` ${fmt(a.butchered.date)}` : ""}</Badge>}
-              {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
+              {a.sale && a.sale.dateSold && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {fmt(a.sale.dateSold)}</Badge>}
               {a.tag && a.name && !a.deceased && <Badge color={a.tagColor || "var(--brass2)"} style={{ color: tagBadgeTextColor(a.tagColor) }}>#{a.tag}</Badge>}
               {a.excludeFromReports && <Badge color="#C0392B" style={{ background: "rgba(192,57,43,0.12)", color: "#C0392B", border: "1px solid rgba(192,57,43,0.3)" }}>Excluded from reports</Badge>}
             </div>
@@ -2762,7 +2763,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             </div>
             )}
 
-            {a.species === "Cattle" && !a.deceased && !a.sale && (
+            {a.species === "Cattle" && !a.deceased && !(a.sale && a.sale.dateSold) && (
               <div className="hl-profile-section" style={{ marginTop: "24px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Feeder Program</div>
                 {(() => {
@@ -4188,7 +4189,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             {/* Sale */}
             <div className="hl-profile-section" style={{ marginTop: "24px" }}>
               <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Sale</div>
-              {a.sale && !showSaleForm && (
+              {a.sale && a.sale.dateSold && !showSaleForm && (
                 <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid var(--brass)", marginBottom: "10px" }}>
                   <div style={{ fontSize: "13px", color: "var(--ink2)" }}>
                     {a.sale.dateSold && <div><strong>Date sold:</strong> {fmt(a.sale.dateSold)}</div>}
@@ -4202,7 +4203,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                 </div>
               )}
-              {!a.sale && !a.butchered && !a.deceased && !showSaleForm && !showButcheredForm && !showDeceasedForm && (
+              {!(a.sale && a.sale.dateSold) && !a.butchered && !a.deceased && !showSaleForm && !showButcheredForm && !showDeceasedForm && (
                 <div className="hl-status-actions">
                   <Btn variant="secondary" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
                   <Btn variant="secondary" onClick={() => { setButcheredForm({ date: "", notes: "" }); setShowButcheredForm(true); }}>Mark as Butchered</Btn>
@@ -4551,8 +4552,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   const deceasedCount = animals.filter(a => a.deceased).length;
   const butcheredCount = animals.filter(a => a.butchered).length;
-  const archivedCount = animals.filter(a => a.sale || a.butchered || a.deceased).length;
-  const activeCount = animals.filter(a => !a.sale && !a.butchered && !a.deceased).length;
+  const archivedCount = animals.filter(a => (a.sale && a.sale.dateSold) || a.butchered || a.deceased).length;
+  const activeCount = animals.filter(a => !(a.sale && a.sale.dateSold) && !a.butchered && !a.deceased).length;
 
   function toggleBulkSelect(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -5600,10 +5601,10 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div className="hl-animals-list-cell hl-animals-list-age" style={{ fontSize: "13px", color: "var(--muted)" }}>{ageFromDob(a.dob)}</div>
                   <div className="hl-animals-list-cell hl-animals-list-status" style={{ fontSize: "13px", color: "var(--muted)", display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
                     {a.cull && <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff", fontSize: "11px" }}>CULL</Badge>}
-                    {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff", fontSize: "11px" }}>Sold{a.sale.dateSold ? ` ${fmt(a.sale.dateSold)}` : ""}</Badge>}
+                    {a.sale && a.sale.dateSold && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff", fontSize: "11px" }}>Sold {fmt(a.sale.dateSold)}</Badge>}
                     {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff", fontSize: "11px" }}>Deceased{a.deceased.date ? ` ${fmt(a.deceased.date)}` : ""}</Badge>}
                     {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff", fontSize: "11px" }}>Butchered{a.butchered.date ? ` ${fmt(a.butchered.date)}` : ""}</Badge>}
-                    {!a.sale && !a.deceased && !a.butchered && (activeGest ? (
+                    {!(a.sale && a.sale.dateSold) && !a.deceased && !a.butchered && (activeGest ? (
                       <span style={{ fontWeight: 600, color: "var(--brass)" }} title={`Due ${fmtDueRange(activeGest)}`}>Pregnant</span>
                     ) : (() => {
                       const runningWith = getRunningWithMaleForFemale(a, animals);
@@ -5633,17 +5634,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleBulkSelect(a.id)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", cursor: "pointer" }} />
               </div>
             )}
-            {(a.deceased || a.butchered || a.sale) && (
+            {(a.deceased || a.butchered || (a.sale && a.sale.dateSold)) && (
               <>
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", pointerEvents: "none" }} />
                 <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
                   {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
                   {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff" }}>Butchered</Badge>}
-                  {a.sale && !a.deceased && !a.butchered && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
+                  {a.sale && a.sale.dateSold && !a.deceased && !a.butchered && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {fmt(a.sale.dateSold)}</Badge>}
                 </div>
               </>
             )}
-            {(a.cull && !a.deceased && !a.butchered && !a.sale) && (
+            {(a.cull && !a.deceased && !a.butchered && !(a.sale && a.sale.dateSold)) && (
               <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
                 <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>
               </div>

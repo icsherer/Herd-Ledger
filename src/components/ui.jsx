@@ -12,7 +12,7 @@ export function Card({ children, style = {}, className = "", ...rest }) {
   );
 }
 
-export function Badge({ children, color = "var(--green)" }) {
+export function Badge({ children, color = "var(--green)", style: customStyle }) {
   return (
     <span style={{
       display: "inline-flex",
@@ -25,6 +25,7 @@ export function Badge({ children, color = "var(--green)" }) {
       background: color,
       color: "#fff",
       letterSpacing: "0.3px",
+      ...customStyle,
     }}>{children}</span>
   );
 }

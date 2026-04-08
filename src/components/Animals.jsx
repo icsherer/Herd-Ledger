@@ -26,11 +26,78 @@ import { supabase } from "../supabase";
 import { sanitizeDate, sanitizeBirthDate, isValidDate, fixBreedingDueTwoDigitYear, DATE_WARN_INVALID } from "../lib/dateUtils.js";
 import DateInputWithValidation from "./DateInputWithValidation.jsx";
 
+const TAG_COLORS = [
+  { label: "Default", value: "" },
+  { label: "Yellow", value: "#F5C518" },
+  { label: "Orange", value: "#E07B39" },
+  { label: "Red", value: "#C0392B" },
+  { label: "Pink", value: "#E91E8C" },
+  { label: "Purple", value: "#7B2D8B" },
+  { label: "Blue", value: "#2471A3" },
+  { label: "Green", value: "#27AE60" },
+  { label: "White", value: "#F0F0F0" },
+  { label: "Black", value: "#1A1A1A" },
+];
+
+function tagBadgeTextColor(hexColor) {
+  if (!hexColor) return "#fff";
+  const c = hexColor.replace("#", "");
+  const r = parseInt(c.substring(0, 2), 16);
+  const g = parseInt(c.substring(2, 4), 16);
+  const b = parseInt(c.substring(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 > 0.6 ? "#333" : "#fff";
+}
+
+function TagColorSwatches({ value, onChange }) {
+  return (
+    <div style={{ gridColumn: "1 / -1", marginBottom: "4px" }}>
+      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "8px" }}>Tag Color</div>
+      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+        {TAG_COLORS.map(tc => (
+          <button
+            key={tc.value}
+            type="button"
+            title={tc.label}
+            onClick={() => onChange(tc.value)}
+            style={{
+              width: "24px",
+              height: "24px",
+              borderRadius: "50%",
+              background: tc.value || "var(--brass2)",
+              border: value === tc.value ? "2.5px solid var(--ink)" : tc.value === "#F0F0F0" ? "1.5px solid var(--cream3)" : "2px solid transparent",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: 0,
+              flexShrink: 0,
+              outline: "none",
+            }}
+          >
+            {value === tc.value && (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M2 6l3 3 5-5" stroke={tagBadgeTextColor(tc.value)} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function animalOptionLabel(a) {
+  const base = getAnimalName(a) + (a.tag ? ` #${a.tag}` : "");
+  if (a.sale) return `${base} (sold)`;
+  if (a.deceased) return `${base} (deceased)`;
+  return base;
+}
+
 /** Intact males of the species for sire dropdowns (edit / register / breeding / offspring). No age or DOB requirement — differs from getBreedingMalesForSpecies → isBreedingMale used elsewhere. */
 function getSireDropdownMalesForSpecies(animals, species) {
   if (!species) return [];
   return (animals || []).filter(
-    a => !a.deceased && !a.sale && a.species === species && BREEDING_MALE_SEX_TERMS.includes(a.sex)
+    a => a.species === species && BREEDING_MALE_SEX_TERMS.includes(a.sex)
   );
 }
 
@@ -45,6 +112,7 @@ export function animalToEditInitialValues(a) {
     dob: a.dob || "",
     breed: a.breed || "",
     tag: a.tag || "",
+    tagColor: a.tagColor || "",
     notes: a.notes || "",
     color: a.color || "",
     acquisitionType: a.acquisitionType || "Home Raised",
@@ -78,6 +146,7 @@ function buildRegisterSingleForm(defaultSpecies, seed) {
     dob: "",
     breed: "",
     tag: "",
+    tagColor: "",
     notes: "",
     color: "",
     currentPasture: "",
@@ -135,6 +204,7 @@ export function EditAnimalForm({
       dob,
       breed: (form.breed || "").trim() || undefined,
       tag: (form.tag || "").trim() || undefined,
+      tagColor: form.tagColor || undefined,
       notes: (form.notes || "").trim() || undefined,
       color: (form.color || "").trim() || undefined,
       acquisitionType: form.acquisitionType || "Home Raised",
@@ -159,7 +229,7 @@ export function EditAnimalForm({
     onSave(updated);
   }
 
-  const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && an.id !== editingAnimalId && !an.deceased && !an.sale);
+  const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && an.id !== editingAnimalId);
   const malesSameSpecies = getSireDropdownMalesForSpecies(animals, form.species).filter(m => m.id !== editingAnimalId);
   const damOptionsEdit = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
   const sireOptionsEdit = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
@@ -171,6 +241,7 @@ export function EditAnimalForm({
         <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
         <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
         <DateInputWithValidation label="Date of Birth" value={form.dob} onValueChange={v => setForm(p => ({ ...p, dob: v }))} birthDate />
+        <TagColorSwatches value={form.tagColor} onChange={v => setForm(p => ({ ...p, tagColor: v }))} />
         <Select label="Species" value={form.species} onChange={e => {
           const newSpecies = e.target.value;
           const opts = getSexOptions(newSpecies);
@@ -227,7 +298,7 @@ export function EditAnimalForm({
             <Input label="Search dams" value={form.damSearch || ""} onChange={e => setForm(p => ({ ...p, damSearch: e.target.value }))} placeholder="Type to filter..." />
             <Select label="Dam" value={form.damId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, damId: "", damName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, damId: v, damName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
               <option value="">— None —</option>
-              {damOptionsEdit.map(f => <option key={f.id} value={f.id}>{getAnimalName(f)}{f.tag ? ` #${f.tag}` : ""}</option>)}
+              {damOptionsEdit.map(f => <option key={f.id} value={f.id}>{animalOptionLabel(f)}</option>)}
             </Select>
           </div>
         ) : (
@@ -242,7 +313,7 @@ export function EditAnimalForm({
             <Input label="Search sires" value={form.sireSearch || ""} onChange={e => setForm(p => ({ ...p, sireSearch: e.target.value }))} placeholder="Type to filter..." />
             <Select label="Sire" value={form.sireId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, sireId: "", sireName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, sireId: v, sireName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
               <option value="">— None —</option>
-              {sireOptionsEdit.map(m => <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>)}
+              {sireOptionsEdit.map(m => <option key={m.id} value={m.id}>{animalOptionLabel(m)}</option>)}
             </Select>
           </div>
         ) : (
@@ -410,7 +481,7 @@ export function RegisterAnimalForm({
     onCancel();
   }
 
-  const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species && !an.deceased && !an.sale);
+  const femalesSameSpecies = (animals || []).filter(an => isFemale(an) && an.species === form.species);
   const malesSameSpecies = getSireDropdownMalesForSpecies(animals, form.species);
   const damOptions = femalesSameSpecies.filter(f => getAnimalName(f).toLowerCase().includes((form.damSearch || "").toLowerCase().trim()));
   const sireOptions = malesSameSpecies.filter(m => getAnimalName(m).toLowerCase().includes((form.sireSearch || "").toLowerCase().trim()));
@@ -449,6 +520,7 @@ export function RegisterAnimalForm({
             <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
             <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
             <DateInputWithValidation label="Date of Birth" value={form.dob} onValueChange={v => setForm(p => ({ ...p, dob: v }))} birthDate />
+            <TagColorSwatches value={form.tagColor} onChange={v => setForm(p => ({ ...p, tagColor: v }))} />
             <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
               {getSexOptions(form.species).map(opt => <option key={opt}>{opt}</option>)}
             </Select>
@@ -502,7 +574,7 @@ export function RegisterAnimalForm({
                 <Input label="Search dams" value={form.damSearch || ""} onChange={e => setForm(p => ({ ...p, damSearch: e.target.value }))} placeholder="Type to filter..." />
                 <Select label="Dam" value={form.damId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, damId: "", damName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, damId: v, damName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
                   <option value="">— None —</option>
-                  {damOptions.map(f => <option key={f.id} value={f.id}>{getAnimalName(f)}{f.tag ? ` #${f.tag}` : ""}</option>)}
+                  {damOptions.map(f => <option key={f.id} value={f.id}>{animalOptionLabel(f)}</option>)}
                 </Select>
               </div>
             ) : (
@@ -519,7 +591,7 @@ export function RegisterAnimalForm({
                 <Input label="Search sires" value={form.sireSearch || ""} onChange={e => setForm(p => ({ ...p, sireSearch: e.target.value }))} placeholder="Type to filter..." />
                 <Select label="Sire" value={form.sireId || ""} onChange={e => { const v = e.target.value; if (!v) setForm(p => ({ ...p, sireId: "", sireName: "" })); else { const an = animals.find(x => x.id === v); setForm(p => ({ ...p, sireId: v, sireName: an ? getAnimalName(an) : "" })); } }} style={{ marginTop: "6px" }}>
                   <option value="">— None —</option>
-                  {sireOptions.map(m => <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>)}
+                  {sireOptions.map(m => <option key={m.id} value={m.id}>{animalOptionLabel(m)}</option>)}
                 </Select>
               </div>
             ) : (
@@ -2159,7 +2231,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased{a.deceased.date ? ` ${fmt(a.deceased.date)}` : ""}</Badge>}
               {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff" }}>Butchered{a.butchered.date ? ` ${fmt(a.butchered.date)}` : ""}</Badge>}
               {a.sale && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {a.sale.dateSold ? fmt(a.sale.dateSold) : ""}</Badge>}
-              {a.tag && a.name && !a.deceased && <Badge color="var(--brass2)">#{a.tag}</Badge>}
+              {a.tag && a.name && !a.deceased && <Badge color={a.tagColor || "var(--brass2)"} style={{ color: tagBadgeTextColor(a.tagColor) }}>#{a.tag}</Badge>}
               {a.excludeFromReports && <Badge color="#C0392B" style={{ background: "rgba(192,57,43,0.12)", color: "#C0392B", border: "1px solid rgba(192,57,43,0.3)" }}>Excluded from reports</Badge>}
             </div>
           </div>
@@ -4401,7 +4473,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, prog))}%`, background: "var(--brass)", borderRadius: "2px" }} />
                         </div>
                       )}
-                      {g.calf && (g.calf.stillborn ? <div style={{ marginTop: "2px" }}>Stillborn</div> : (g.calf.name ? <div style={{ marginTop: "2px" }}>{getOffspringTerm(a.species)}: {g.calf.name}</div> : null))}
+                      {g.calf && (g.calf.stillborn
+                        ? <div style={{ marginTop: "2px" }}>Stillborn{(g.calf.offspringCount ?? 1) > 1 ? ` · ${g.calf.offspringCount} born` : ""}</div>
+                        : (() => {
+                            const count = g.calf.offspringCount ?? 1;
+                            const term = getOffspringTerm(a.species);
+                            const plural = term === "Calf" ? "Calves" : term === "Puppy" ? "Puppies" : term + "s";
+                            if (g.calf.name) return <div style={{ marginTop: "2px" }}>{term}: {g.calf.name}{count > 1 ? ` · ${count} born` : ""}</div>;
+                            if (count > 1) return <div style={{ marginTop: "2px" }}>{plural} born: {count}</div>;
+                            return null;
+                          })()
+                      )}
                       {linkedHeat && <div style={{ fontSize: "12px", color: "var(--green)", marginTop: "2px" }}>Following heat observed on {fmt(linkedHeat.observedDate)}</div>}
                     </div>
                   );
@@ -5553,7 +5635,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <span style={{ fontSize: "28px" }}>{SPECIES[a.species]?.emoji}</span>
                 )}
               </div>
-              {a.name && a.tag && !a.deceased && <span style={{ fontSize: "11px", color: "var(--muted)", fontWeight: 600 }}>#{a.tag}</span>}
+              {a.name && a.tag && !a.deceased && <span style={{ fontSize: "11px", fontWeight: 600, ...(a.tagColor ? { background: a.tagColor, color: tagBadgeTextColor(a.tagColor), padding: "1px 5px", borderRadius: "8px" } : { color: "var(--muted)" }) }}>#{a.tag}</span>}
             </div>
             <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, marginBottom: "2px" }}>{getAnimalName(a)}</div>
             <div style={{ fontSize: "13px", color: "var(--muted)" }}>{a.breed || a.species} · {displaySex(a, gestations)}</div>

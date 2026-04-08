@@ -739,6 +739,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [butcheredForm, setButcheredForm] = useState({ date: "", notes: "" });
   const [showDeceasedForm, setShowDeceasedForm] = useState(false);
   const [deceasedForm, setDeceasedForm] = useState({ date: "", notes: "" });
+  const [showTransferForm, setShowTransferForm] = useState(false);
+  const [transferForm, setTransferForm] = useState({ date: "", reason: "", recipient: "", notes: "" });
   const [filterSpecies, setFilterSpecies] = useState("All Species");
   const [filterSexStatus, setFilterSexStatus] = useState("All");
   const [filterPasture, setFilterPasture] = useState("All Pastures");
@@ -1312,11 +1314,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const filtered = (animals || []).filter(a => {
     const archivedFilterActive = filterArchiveStatus !== "All";
     const isSold = a.sale && a.sale.dateSold;
-    const showByArchived = archivedFilterActive || showArchivedAnimals ? true : !isSold && !a.butchered && !a.deceased;
+    const showByArchived = archivedFilterActive || showArchivedAnimals ? true : !isSold && !a.butchered && !a.deceased && !a.transfer;
     if (!showByArchived) return false;
     if (filterArchiveStatus === "Sold" && !isSold) return false;
     if (filterArchiveStatus === "Deceased" && !a.deceased) return false;
     if (filterArchiveStatus === "Butchered" && !a.butchered) return false;
+    if (filterArchiveStatus === "Transferred" && !a.transfer) return false;
 
     const q = (search || "").trim().toLowerCase();
     const matchesSearch = !q ||
@@ -1645,6 +1648,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       setViewing(prev => prev && prev.id === a.id ? { ...prev, deceased: rec } : prev);
       setShowDeceasedForm(false);
       setDeceasedForm({ date: "", notes: "" });
+    }
+
+    function saveTransfer() {
+      const rec = {
+        date: transferForm.date || undefined,
+        reason: transferForm.reason?.trim() || undefined,
+        recipient: transferForm.recipient?.trim() || undefined,
+        notes: transferForm.notes?.trim() || undefined,
+      };
+      setAnimals(prev => prev.map(an => an.id === a.id ? { ...an, transfer: rec } : an));
+      setViewing(prev => prev && prev.id === a.id ? { ...prev, transfer: rec } : prev);
+      setShowTransferForm(false);
+      setTransferForm({ date: "", reason: "", recipient: "", notes: "" });
     }
 
     function markDeliveredToBuyer(animalId) {
@@ -2237,6 +2253,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased{a.deceased.date ? ` ${fmt(a.deceased.date)}` : ""}</Badge>}
               {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff" }}>Butchered{a.butchered.date ? ` ${fmt(a.butchered.date)}` : ""}</Badge>}
               {a.sale && a.sale.dateSold && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {fmt(a.sale.dateSold)}</Badge>}
+              {a.transfer && <Badge color="#0E7490" style={{ background: "#0E7490", color: "#fff" }}>Transferred{a.transfer.date ? ` ${fmt(a.transfer.date)}` : ""}</Badge>}
               {a.tag && a.name && !a.deceased && <Badge color={a.tagColor || "var(--brass2)"} style={{ color: tagBadgeTextColor(a.tagColor) }}>#{a.tag}</Badge>}
               {a.excludeFromReports && <Badge color="#C0392B" style={{ background: "rgba(192,57,43,0.12)", color: "#C0392B", border: "1px solid rgba(192,57,43,0.3)" }}>Excluded from reports</Badge>}
             </div>
@@ -2763,7 +2780,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             </div>
             )}
 
-            {a.species === "Cattle" && !a.deceased && !(a.sale && a.sale.dateSold) && (
+            {a.species === "Cattle" && !a.deceased && !(a.sale && a.sale.dateSold) && !a.transfer && (
               <div className="hl-profile-section" style={{ marginTop: "24px" }}>
                 <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "10px" }}>Feeder Program</div>
                 {(() => {
@@ -4203,11 +4220,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                 </div>
               )}
-              {!(a.sale && a.sale.dateSold) && !a.butchered && !a.deceased && !showSaleForm && !showButcheredForm && !showDeceasedForm && (
+              {!(a.sale && a.sale.dateSold) && !a.butchered && !a.deceased && !a.transfer && !showSaleForm && !showButcheredForm && !showDeceasedForm && !showTransferForm && (
                 <div className="hl-status-actions">
                   <Btn variant="secondary" onClick={() => { setSaleForm({ dateSold: "", pricePerHead: "", buyerName: "", buyerContact: "", saleLocation: "", notes: "" }); setShowSaleForm(true); }}>Mark as Sold</Btn>
                   <Btn variant="secondary" onClick={() => { setButcheredForm({ date: "", notes: "" }); setShowButcheredForm(true); }}>Mark as Butchered</Btn>
                   <Btn variant="secondary" onClick={() => { setDeceasedForm({ date: "", notes: "" }); setShowDeceasedForm(true); }}>Mark as Deceased</Btn>
+                  <Btn variant="secondary" onClick={() => { setTransferForm({ date: "", reason: "", recipient: "", notes: "" }); setShowTransferForm(true); }} style={{ borderColor: "#0E7490", color: "#0E7490" }}>Mark as Transferred</Btn>
                 </div>
               )}
               {showSaleForm && (
@@ -4274,6 +4292,43 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
                     <Btn size="sm" onClick={saveDeceased}>Save</Btn>
                     <Btn size="sm" variant="ghost" onClick={() => { setShowDeceasedForm(false); setDeceasedForm({ date: "", notes: "" }); }}>Cancel</Btn>
+                  </div>
+                </Card>
+              )}
+              {/* Transfer info + form */}
+              {a.transfer && !showTransferForm && (
+                <div style={{ padding: "12px 14px", borderRadius: "var(--radius)", background: "var(--cream)", borderLeft: "3px solid #0E7490", marginBottom: "10px", marginTop: "10px" }}>
+                  <div style={{ fontSize: "13px", color: "var(--ink2)" }}>
+                    {a.transfer.date && <div><strong>Date transferred:</strong> {fmt(a.transfer.date)}</div>}
+                    {a.transfer.reason && <div><strong>Reason:</strong> {a.transfer.reason}</div>}
+                    {a.transfer.recipient && <div><strong>Recipient:</strong> {a.transfer.recipient}</div>}
+                    {a.transfer.notes && <div style={{ marginTop: "4px" }}><strong>Notes:</strong> {a.transfer.notes}</div>}
+                  </div>
+                </div>
+              )}
+              {showTransferForm && (
+                <Card style={{ padding: "18px 20px", borderLeft: "3px solid #0E7490", marginTop: "10px" }}>
+                  <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "12px" }}>Mark as Transferred / Other</div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <DateInputWithValidation label="Date" value={transferForm.date} onValueChange={v => setTransferForm(p => ({ ...p, date: v }))} />
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <Select label="Reason" value={transferForm.reason} onChange={e => setTransferForm(p => ({ ...p, reason: e.target.value }))}>
+                      <option value="">Select reason...</option>
+                      <option value="Given Away">Given Away</option>
+                      <option value="Lost">Lost</option>
+                      <option value="Escaped">Escaped</option>
+                      <option value="Transferred to Another Farm">Transferred to Another Farm</option>
+                      <option value="Other">Other</option>
+                    </Select>
+                  </div>
+                  <div style={{ marginBottom: "12px" }}>
+                    <Input label="Recipient name (optional)" value={transferForm.recipient} onChange={e => setTransferForm(p => ({ ...p, recipient: e.target.value }))} placeholder="e.g. John Smith" />
+                  </div>
+                  <Textarea label="Notes (optional)" value={transferForm.notes} onChange={e => setTransferForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
+                  <div className="hl-card-actions" style={{ display: "flex", gap: "10px" }}>
+                    <Btn size="sm" onClick={saveTransfer}>Save</Btn>
+                    <Btn size="sm" variant="ghost" onClick={() => { setShowTransferForm(false); setTransferForm({ date: "", reason: "", recipient: "", notes: "" }); }}>Cancel</Btn>
                   </div>
                 </Card>
               )}
@@ -4552,8 +4607,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   const deceasedCount = animals.filter(a => a.deceased).length;
   const butcheredCount = animals.filter(a => a.butchered).length;
-  const archivedCount = animals.filter(a => (a.sale && a.sale.dateSold) || a.butchered || a.deceased).length;
-  const activeCount = animals.filter(a => !(a.sale && a.sale.dateSold) && !a.butchered && !a.deceased).length;
+  const archivedCount = animals.filter(a => (a.sale && a.sale.dateSold) || a.butchered || a.deceased || a.transfer).length;
+  const activeCount = animals.filter(a => !(a.sale && a.sale.dateSold) && !a.butchered && !a.deceased && !a.transfer).length;
 
   function toggleBulkSelect(id) {
     setSelectedIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
@@ -4994,6 +5049,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <option value="Sold">Sold</option>
               <option value="Deceased">Deceased</option>
               <option value="Butchered">Butchered</option>
+              <option value="Transferred">Transferred</option>
             </Select>
             <Select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ minWidth: "160px" }}>
               <option value="dateAddedNewest">Date Added (newest first)</option>
@@ -5101,6 +5157,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         <option value="Sold">Sold</option>
                         <option value="Deceased">Deceased</option>
                         <option value="Butchered">Butchered</option>
+                        <option value="Transferred">Transferred</option>
                       </Select>
                     </div>
                     <div>
@@ -5604,7 +5661,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     {a.sale && a.sale.dateSold && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff", fontSize: "11px" }}>Sold {fmt(a.sale.dateSold)}</Badge>}
                     {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff", fontSize: "11px" }}>Deceased{a.deceased.date ? ` ${fmt(a.deceased.date)}` : ""}</Badge>}
                     {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff", fontSize: "11px" }}>Butchered{a.butchered.date ? ` ${fmt(a.butchered.date)}` : ""}</Badge>}
-                    {!(a.sale && a.sale.dateSold) && !a.deceased && !a.butchered && (activeGest ? (
+                    {a.transfer && <Badge color="#0E7490" style={{ background: "#0E7490", color: "#fff", fontSize: "11px" }}>Transferred{a.transfer.date ? ` ${fmt(a.transfer.date)}` : ""}</Badge>}
+                    {!(a.sale && a.sale.dateSold) && !a.deceased && !a.butchered && !a.transfer && (activeGest ? (
                       <span style={{ fontWeight: 600, color: "var(--brass)" }} title={`Due ${fmtDueRange(activeGest)}`}>Pregnant</span>
                     ) : (() => {
                       const runningWith = getRunningWithMaleForFemale(a, animals);
@@ -5634,17 +5692,18 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 <input type="checkbox" checked={selectedIds.includes(a.id)} onChange={() => toggleBulkSelect(a.id)} style={{ width: "18px", height: "18px", accentColor: "var(--green)", cursor: "pointer" }} />
               </div>
             )}
-            {(a.deceased || a.butchered || (a.sale && a.sale.dateSold)) && (
+            {(a.deceased || a.butchered || (a.sale && a.sale.dateSold) || a.transfer) && (
               <>
                 <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.35)", pointerEvents: "none" }} />
                 <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
                   {a.deceased && <Badge color="#666" style={{ background: "#666", color: "#fff" }}>Deceased</Badge>}
                   {a.butchered && <Badge color="#5a3e2b" style={{ background: "#5a3e2b", color: "#fff" }}>Butchered</Badge>}
                   {a.sale && a.sale.dateSold && !a.deceased && !a.butchered && <Badge color="#8B6914" style={{ background: "var(--brass)", color: "#fff" }}>Sold {fmt(a.sale.dateSold)}</Badge>}
+                  {a.transfer && !a.deceased && !a.butchered && !(a.sale && a.sale.dateSold) && <Badge color="#0E7490" style={{ background: "#0E7490", color: "#fff" }}>Transferred</Badge>}
                 </div>
               </>
             )}
-            {(a.cull && !a.deceased && !a.butchered && !(a.sale && a.sale.dateSold)) && (
+            {(a.cull && !a.deceased && !a.butchered && !(a.sale && a.sale.dateSold) && !a.transfer) && (
               <div style={{ position: "absolute", top: "12px", right: "12px", pointerEvents: "none", zIndex: 1, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px" }}>
                 <Badge color="#c0392b" style={{ background: "#c0392b", color: "#fff" }}>CULL</Badge>
               </div>

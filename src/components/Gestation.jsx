@@ -78,6 +78,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   });
   const [activeSort, setActiveSort] = useState("dueSoonest");
   const [editingGestationId, setEditingGestationId] = useState(null);
+  const [deletingGestationId, setDeletingGestationId] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [editForm, setEditForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false });
 
@@ -276,8 +277,16 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   }
 
   function remove(id) {
-    if (!confirm("Remove this breeding record?")) return;
-    setGestations(p => (p ?? []).filter(g => g.id !== id));
+    const g = gestationsList.find(x => x.id === id);
+    setGestations(p => (p ?? []).filter(gr => gr.id !== id));
+    if (g?.linkedHeatCycleId && setAnimals) {
+      setAnimals(prev => prev.map(a =>
+        a.id === g.animalId
+          ? { ...a, heatCycles: (a.heatCycles || []).map(h => h.id === g.linkedHeatCycleId ? { ...h, linkedGestationId: undefined } : h) }
+          : a
+      ));
+    }
+    setDeletingGestationId(null);
   }
 
   function startEdit(g) {
@@ -531,12 +540,20 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                 <span>{g.gestationDays} day gestation{g.runningWithBull ? " (range)" : ""}</span>
               </div>
               {g.notes && <p style={{ fontSize: "13px", color: "var(--ink2)", fontStyle: "italic", marginBottom: "12px" }}>{g.notes}</p>}
-              <div style={{ display: "flex", gap: "8px" }}>
+              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                 <Btn size="sm" onClick={() => markDelivered(g.id)}>✓ Mark Delivered</Btn>
-                <Btn size="sm" variant="secondary" onClick={() => editingGestationId === g.id ? setEditingGestationId(null) : startEdit(g)}>
+                <Btn size="sm" variant="secondary" onClick={() => { if (editingGestationId === g.id) { setEditingGestationId(null); } else { startEdit(g); setDeletingGestationId(null); } }}>
                   {editingGestationId === g.id ? "Cancel Edit" : "Edit"}
                 </Btn>
-                <Btn size="sm" variant="ghost" onClick={() => remove(g.id)}>Remove</Btn>
+                {deletingGestationId === g.id ? (
+                  <>
+                    <span style={{ fontSize: "13px", color: "var(--danger2)", fontWeight: 500 }}>Delete this breeding record?</span>
+                    <Btn size="sm" variant="danger" onClick={() => remove(g.id)}>Yes, Delete</Btn>
+                    <Btn size="sm" variant="secondary" onClick={() => setDeletingGestationId(null)}>Cancel</Btn>
+                  </>
+                ) : (
+                  <Btn size="sm" variant="ghost" onClick={() => { setDeletingGestationId(g.id); setEditingGestationId(null); }}>Delete</Btn>
+                )}
               </div>
               {editingGestationId === g.id && (() => {
                 const editSireOptions = getBreedingMalesForSpecies(animalsList, animal?.species);

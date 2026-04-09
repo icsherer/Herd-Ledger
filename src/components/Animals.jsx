@@ -2083,6 +2083,49 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       setHeatForm({ observedDate: "", intensity: "Moderate", notes: "", breedingType: "Natural Service", semenName: "", semenCost: "", sireId: "" });
     }
 
+    function confirmBred(h) {
+      const breedingDate = h.observedDate;
+      const totalDays = SPECIES[a.species]?.days || 150;
+      const minDays = SPECIES[a.species]?.minDays ?? totalDays;
+      const maxDays = SPECIES[a.species]?.maxDays ?? totalDays;
+      const range = dueDateRangeFromSingleDate(breedingDate, minDays, maxDays);
+      const isAI = h.breedingType === "AI (Artificial Insemination)";
+      const sireAnimalId = !isAI && h.sireId ? h.sireId : undefined;
+      const sireAnimal = sireAnimalId ? (animals || []).find(m => m.id === sireAnimalId) : null;
+      const sireDisplay = isAI
+        ? (h.semenName || undefined)
+        : (sireAnimal ? getAnimalName(sireAnimal) : h.sireName || undefined);
+      const recordId = Date.now().toString();
+      const gestRecord = {
+        id: recordId,
+        animalId: a.id,
+        breedingDate,
+        dueDate: range.dueDateStart,
+        dueDateStart: range.dueDateStart,
+        dueDateEnd: range.dueDateEnd,
+        sire: sireDisplay,
+        ...(sireAnimalId && { sireAnimalId }),
+        gestationDays: totalDays,
+        status: "Active",
+        createdAt: new Date().toISOString(),
+        linkedHeatCycleId: h.id,
+        linkedHeatObservedDate: h.observedDate,
+      };
+      setGestations(p => [...(p ?? []), gestRecord]);
+      setAnimals(prev => prev.map(x =>
+        x.id === a.id
+          ? {
+              ...x,
+              heatCycles: (x.heatCycles || []).map(hc =>
+                hc.id === h.id
+                  ? { ...hc, confirmed: true, confirmedDate: new Date().toISOString().split("T")[0], linkedGestationId: recordId }
+                  : hc
+              ),
+            }
+          : x
+      ));
+    }
+
     const breedingSireOptions = getSireDropdownMalesForSpecies(animals, a.species);
     const heatCyclesSorted = [...(a.heatCycles || [])].sort((x, y) => (y.observedDate || "").localeCompare(x.observedDate || ""));
     const nextExpectedHeat = getNextExpectedHeatDate(a);
@@ -3753,13 +3796,22 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         <div style={{ fontSize: "14px" }}>
                           {heatCyclesSorted.map((h, idx) => {
                             const linkedGestation = gestationForHeat(h.observedDate, h);
-                            const returnHeatRange = h.observedDate ? (() => {
-                              const d = new Date(h.observedDate + "T12:00:00");
-                              const d18 = new Date(d); d18.setDate(d18.getDate() + 18);
-                              const d21 = new Date(d); d21.setDate(d21.getDate() + 21);
-                              return `${fmt(d18.toISOString().split("T")[0])} – ${fmt(d21.toISOString().split("T")[0])}`;
-                            })() : null;
                             const sireDisplay = h.sireName || (h.sireId ? getAnimalName((animals || []).find(m => m.id === h.sireId)) : null);
+                            const obsDate = new Date(h.observedDate + "T12:00:00");
+                            const todayNoon = new Date(); todayNoon.setHours(12, 0, 0, 0);
+                            const day18 = new Date(obsDate); day18.setDate(day18.getDate() + 18);
+                            const day21 = new Date(obsDate); day21.setDate(day21.getDate() + 21);
+                            const day18Str = day18.toISOString().split("T")[0];
+                            const day21Str = day21.toISOString().split("T")[0];
+                            const inReturnWindow = todayNoon >= day18 && todayNoon <= day21;
+                            const pastWindow = todayNoon > day21;
+                            const hasReturnHeat = heatCyclesSorted.some(other => {
+                              if (other.id === h.id) return false;
+                              const otherMs = new Date((other.observedDate || "") + "T12:00:00").getTime();
+                              const diffDays = (otherMs - obsDate.getTime()) / 86400000;
+                              return diffDays > 0 && diffDays <= 21;
+                            });
+                            const alreadyLinked = !!linkedGestation || !!h.confirmed;
                             return (
                               <div key={h.id} style={{ padding: "8px 0", borderBottom: "1px solid #EDE6D6" }}>
                                 {fmt(h.observedDate)} · {h.intensity || "—"}
@@ -3775,9 +3827,25 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                                   </div>
                                 )}
                                 {h.notes && <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>{h.notes}</div>}
-                                {returnHeatRange && (
+                                {/* Status badges / actions — only one shown based on priority */}
+                                {!alreadyLinked && hasReturnHeat && (
+                                  <div style={{ fontSize: "12px", color: "var(--danger2)", fontWeight: 600, marginTop: "4px", padding: "3px 8px", background: "rgba(196,92,38,0.10)", borderRadius: "4px", display: "inline-block" }}>
+                                    Not Bred — return heat observed
+                                  </div>
+                                )}
+                                {!alreadyLinked && !hasReturnHeat && inReturnWindow && (
                                   <div style={{ fontSize: "12px", color: "var(--brass2)", fontWeight: 600, marginTop: "4px", padding: "3px 8px", background: "rgba(201,149,42,0.10)", borderRadius: "4px", display: "inline-block" }}>
-                                    Watch for return heat: {returnHeatRange}
+                                    ⚠ Watch for return heat: {fmt(day18Str)} – {fmt(day21Str)}
+                                  </div>
+                                )}
+                                {!alreadyLinked && !hasReturnHeat && pastWindow && (
+                                  <div style={{ marginTop: "6px" }}>
+                                    <Btn size="sm" onClick={() => confirmBred(h)}>✓ Confirm Bred</Btn>
+                                  </div>
+                                )}
+                                {h.confirmed && !linkedGestation && (
+                                  <div style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, marginTop: "4px" }}>
+                                    ✓ Confirmed bred {h.confirmedDate ? `on ${fmt(h.confirmedDate)}` : ""} — gestation record created
                                   </div>
                                 )}
                                 {linkedGestation && (

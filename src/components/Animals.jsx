@@ -751,7 +751,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [showBreedingForm, setShowBreedingForm] = useState(false);
   const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" });
   const [showHeatForm, setShowHeatForm] = useState(false);
-  const [heatForm, setHeatForm] = useState({ observedDate: "", intensity: "Moderate", notes: "" });
+  const [heatForm, setHeatForm] = useState({ observedDate: "", intensity: "Moderate", notes: "", breedingType: "Natural Service", semenName: "", semenCost: "", sireId: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
   const [moveForm, setMoveForm] = useState({ pastureName: "", dateMovedIn: "", notes: "" });
   const [showWeightForm, setShowWeightForm] = useState(false);
@@ -2062,15 +2062,25 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
     function saveHeat() {
       if (!heatForm.observedDate) return;
+      const isAI = heatForm.breedingType === "AI (Artificial Insemination)";
+      const sireLookup = !isAI && heatForm.sireId ? (animals || []).find(m => m.id === heatForm.sireId) : null;
       const record = {
         id: Date.now().toString(),
         observedDate: heatForm.observedDate,
         intensity: heatForm.intensity || "Moderate",
         notes: (heatForm.notes || "").trim(),
+        breedingType: heatForm.breedingType || "Natural Service",
+        ...(isAI ? {
+          ...(heatForm.semenName.trim() && { semenName: heatForm.semenName.trim() }),
+          ...(heatForm.semenCost !== "" && !isNaN(parseFloat(heatForm.semenCost)) && { semenCost: parseFloat(heatForm.semenCost) }),
+        } : {
+          ...(heatForm.sireId && { sireId: heatForm.sireId }),
+          ...(sireLookup && { sireName: getAnimalName(sireLookup) }),
+        }),
       };
       setAnimals(prev => prev.map(x => x.id === a.id ? { ...x, heatCycles: [...(x.heatCycles || []), record] } : x));
       setShowHeatForm(false);
-      setHeatForm({ observedDate: "", intensity: "Moderate", notes: "" });
+      setHeatForm({ observedDate: "", intensity: "Moderate", notes: "", breedingType: "Natural Service", semenName: "", semenCost: "", sireId: "" });
     }
 
     const breedingSireOptions = getSireDropdownMalesForSpecies(animals, a.species);
@@ -3686,7 +3696,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                     {!showHeatForm ? (
                       <div style={{ marginBottom: "12px" }}>
                         <Btn size="sm" variant="secondary" onClick={() => {
-                          setHeatForm({ observedDate: new Date().toISOString().split("T")[0], intensity: "Moderate", notes: "" });
+                          setHeatForm({ observedDate: new Date().toISOString().split("T")[0], intensity: "Moderate", notes: "", breedingType: "Natural Service", semenName: "", semenCost: "", sireId: "" });
                           setShowHeatForm(true);
                         }}>Log Heat</Btn>
                       </div>
@@ -3701,10 +3711,39 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             <option value="Weak">Weak</option>
                           </Select>
                         </div>
+                        <div style={{ marginBottom: "14px" }}>
+                          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "8px" }}>Breeding Type</div>
+                          <div style={{ display: "flex", gap: "20px", flexWrap: "wrap" }}>
+                            <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                              <input type="radio" name="heat-breeding-type" checked={heatForm.breedingType === "Natural Service"} onChange={() => setHeatForm(p => ({ ...p, breedingType: "Natural Service", semenName: "", semenCost: "" }))} style={{ accentColor: "var(--green)" }} />
+                              Natural Service
+                            </label>
+                            <label style={{ display: "flex", alignItems: "center", gap: "6px", cursor: "pointer", fontSize: "14px" }}>
+                              <input type="radio" name="heat-breeding-type" checked={heatForm.breedingType === "AI (Artificial Insemination)"} onChange={() => setHeatForm(p => ({ ...p, breedingType: "AI (Artificial Insemination)", sireId: "" }))} style={{ accentColor: "var(--green)" }} />
+                              AI (Artificial Insemination)
+                            </label>
+                          </div>
+                        </div>
+                        {heatForm.breedingType === "Natural Service" && breedingSireOptions.length > 0 && (
+                          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+                            <Select label="Sire (optional)" value={heatForm.sireId || ""} onChange={e => setHeatForm(p => ({ ...p, sireId: e.target.value }))}>
+                              <option value="">— None —</option>
+                              {breedingSireOptions.map(m => (
+                                <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>
+                              ))}
+                            </Select>
+                          </div>
+                        )}
+                        {heatForm.breedingType === "AI (Artificial Insemination)" && (
+                          <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+                            <Input label="Semen name / lot" value={heatForm.semenName} onChange={e => setHeatForm(p => ({ ...p, semenName: e.target.value }))} placeholder="e.g. Connealy Consensus 7229" />
+                            <Input label="Cost (optional)" type="number" value={heatForm.semenCost} onChange={e => setHeatForm(p => ({ ...p, semenCost: e.target.value }))} placeholder="e.g. 25.00" />
+                          </div>
+                        )}
                         <Textarea label="Notes" value={heatForm.notes} onChange={e => setHeatForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
                         <div className="hl-card-actions" style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                           <Btn onClick={saveHeat} disabled={!heatForm.observedDate}>Save</Btn>
-                          <Btn variant="secondary" onClick={() => { setShowHeatForm(false); setHeatForm({ observedDate: "", intensity: "Moderate", notes: "" }); }}>Cancel</Btn>
+                          <Btn variant="secondary" onClick={() => { setShowHeatForm(false); setHeatForm({ observedDate: "", intensity: "Moderate", notes: "", breedingType: "Natural Service", semenName: "", semenCost: "", sireId: "" }); }}>Cancel</Btn>
                         </div>
                       </Card>
                     )}
@@ -3714,11 +3753,33 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         <div style={{ fontSize: "14px" }}>
                           {heatCyclesSorted.map((h, idx) => {
                             const linkedGestation = gestationForHeat(h.observedDate, h);
+                            const returnHeatRange = h.observedDate ? (() => {
+                              const d = new Date(h.observedDate + "T12:00:00");
+                              const d18 = new Date(d); d18.setDate(d18.getDate() + 18);
+                              const d21 = new Date(d); d21.setDate(d21.getDate() + 21);
+                              return `${fmt(d18.toISOString().split("T")[0])} – ${fmt(d21.toISOString().split("T")[0])}`;
+                            })() : null;
+                            const sireDisplay = h.sireName || (h.sireId ? getAnimalName((animals || []).find(m => m.id === h.sireId)) : null);
                             return (
                               <div key={h.id} style={{ padding: "8px 0", borderBottom: "1px solid #EDE6D6" }}>
                                 {fmt(h.observedDate)} · {h.intensity || "—"}
                                 {heatDaysSince(idx) != null && <span style={{ color: "var(--muted)", marginLeft: "6px" }}>({heatDaysSince(idx)} days since last heat)</span>}
+                                {h.breedingType && <span style={{ color: "var(--muted)", marginLeft: "6px", fontSize: "12px" }}>· {h.breedingType}</span>}
+                                {h.breedingType === "Natural Service" && sireDisplay && (
+                                  <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>Sire: {sireDisplay}</div>
+                                )}
+                                {h.breedingType === "AI (Artificial Insemination)" && (h.semenName || h.semenCost != null) && (
+                                  <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>
+                                    {h.semenName && <span>{h.semenName}</span>}
+                                    {h.semenCost != null && <span style={{ color: "var(--muted)", marginLeft: "6px" }}>${h.semenCost.toFixed(2)}</span>}
+                                  </div>
+                                )}
                                 {h.notes && <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>{h.notes}</div>}
+                                {returnHeatRange && (
+                                  <div style={{ fontSize: "12px", color: "var(--brass2)", fontWeight: 600, marginTop: "4px", padding: "3px 8px", background: "rgba(201,149,42,0.10)", borderRadius: "4px", display: "inline-block" }}>
+                                    Watch for return heat: {returnHeatRange}
+                                  </div>
+                                )}
                                 {linkedGestation && (
                                   <div style={{ fontSize: "12px", color: "var(--green)", marginTop: "2px" }}>Breeding logged on {fmt(linkedGestation.breedingDate)}{linkedGestation.status !== "Delivered" ? " (active pregnancy)" : ""}</div>
                                 )}

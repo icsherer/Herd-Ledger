@@ -750,6 +750,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [showBreedingForm, setShowBreedingForm] = useState(false);
   const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" });
+  const [deletingGestationIdProfile, setDeletingGestationIdProfile] = useState(null);
   const [showHeatForm, setShowHeatForm] = useState(false);
   const [heatForm, setHeatForm] = useState({ observedDate: "", intensity: "Moderate", notes: "", breedingType: "Natural Service", semenName: "", semenCost: "", sireId: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
@@ -1298,6 +1299,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
   function hasActiveGestation(animalId) {
     return (gestations || []).some(g => g.animalId === animalId && g.status !== "Delivered");
+  }
+
+  function removeGestationFromProfile(id) {
+    const g = (gestations || []).find(x => x.id === id);
+    setGestations(p => (p ?? []).filter(gr => gr.id !== id));
+    if (g?.linkedHeatCycleId) {
+      setAnimals(prev => prev.map(a =>
+        a.id === g.animalId
+          ? { ...a, heatCycles: (a.heatCycles || []).map(h => h.id === g.linkedHeatCycleId ? { ...h, linkedGestationId: undefined } : h) }
+          : a
+      ));
+    }
+    setDeletingGestationIdProfile(null);
   }
 
   const todayStrForHeat = new Date().toISOString().split("T")[0];
@@ -4675,6 +4689,19 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           })()
                       )}
                       {linkedHeat && <div style={{ fontSize: "12px", color: "var(--green)", marginTop: "2px" }}>Following heat observed on {fmt(linkedHeat.observedDate)}</div>}
+                      {g.status !== "Delivered" && (
+                        <div style={{ marginTop: "8px", display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                          {deletingGestationIdProfile === g.id ? (
+                            <>
+                              <span style={{ fontSize: "13px", color: "var(--danger2)", fontWeight: 500 }}>Delete this breeding record?</span>
+                              <Btn size="sm" variant="danger" onClick={() => removeGestationFromProfile(g.id)}>Yes, Delete</Btn>
+                              <Btn size="sm" variant="secondary" onClick={() => setDeletingGestationIdProfile(null)}>Cancel</Btn>
+                            </>
+                          ) : (
+                            <Btn size="sm" variant="ghost" onClick={() => setDeletingGestationIdProfile(g.id)}>Delete</Btn>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}

@@ -52,7 +52,7 @@ function TagColorSwatches({ value, onChange }) {
   return (
     <div style={{ gridColumn: "1 / -1", marginBottom: "4px" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "8px" }}>Tag Color</div>
-      <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "flex-start" }}>
         {TAG_COLORS.map(tc => (
           <button
             key={tc.value}
@@ -62,6 +62,8 @@ function TagColorSwatches({ value, onChange }) {
             style={{
               width: "24px",
               height: "24px",
+              minWidth: "24px",
+              minHeight: "24px",
               borderRadius: "50%",
               background: tc.value || "var(--brass2)",
               border: value === tc.value ? "2.5px solid var(--ink)" : tc.value === "#F0F0F0" ? "1.5px solid var(--cream3)" : "2px solid transparent",

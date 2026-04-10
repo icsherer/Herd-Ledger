@@ -3829,29 +3829,40 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             });
                             const alreadyLinked = !!linkedGestation || !!h.confirmed;
                             return (
-                              <div key={h.id} style={{ padding: "8px 0", borderBottom: "1px solid #EDE6D6" }}>
-                                {fmt(h.observedDate)} · {h.intensity || "—"}
-                                {heatDaysSince(idx) != null && <span style={{ color: "var(--muted)", marginLeft: "6px" }}>({heatDaysSince(idx)} days since last heat)</span>}
-                                {h.breedingType && <span style={{ color: "var(--muted)", marginLeft: "6px", fontSize: "12px" }}>· {h.breedingType}</span>}
-                                {h.breedingType === "Natural Service" && sireDisplay && (
-                                  <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>Sire: {sireDisplay}</div>
-                                )}
-                                {h.breedingType === "AI (Artificial Insemination)" && (h.semenName || h.semenCost != null) && (
-                                  <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>
-                                    {h.semenName && <span>{h.semenName}</span>}
-                                    {h.semenCost != null && <span style={{ color: "var(--muted)", marginLeft: "6px" }}>${h.semenCost.toFixed(2)}</span>}
+                              <div key={h.id} style={{ borderLeft: "3px solid var(--brass)", paddingLeft: "10px", paddingTop: "8px", paddingBottom: "8px", marginBottom: "8px", background: "transparent" }}>
+                                {/* Line 1: date · intensity + days-since pill */}
+                                <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                                  <span style={{ fontWeight: 700, color: "var(--ink)", fontSize: "14px" }}>{fmt(h.observedDate)}</span>
+                                  <span style={{ color: "var(--ink2)", fontSize: "14px" }}>· {h.intensity || "—"}</span>
+                                  {heatDaysSince(idx) != null && (
+                                    <span style={{ fontSize: "11px", color: "var(--muted)", background: "#EDE6D6", borderRadius: "10px", padding: "1px 7px", fontWeight: 500, whiteSpace: "nowrap" }}>
+                                      {heatDaysSince(idx)}d since last
+                                    </span>
+                                  )}
+                                </div>
+                                {/* Line 2: breeding type + sire/semen */}
+                                {h.breedingType && (
+                                  <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "3px" }}>
+                                    {h.breedingType === "Natural Service" ? (
+                                      <>Natural Service{sireDisplay ? <span style={{ color: "var(--ink2)", fontWeight: 500 }}> · {sireDisplay}</span> : null}</>
+                                    ) : (
+                                      <>AI{h.semenName ? <span style={{ color: "var(--ink2)", fontWeight: 500 }}> · {h.semenName}</span> : null}{h.semenCost != null && h.semenCost !== "" ? <span style={{ color: "var(--muted)" }}> (${Number(h.semenCost).toFixed(2)})</span> : null}</>
+                                    )}
                                   </div>
                                 )}
-                                {h.notes && <div style={{ fontSize: "13px", color: "#2C3A2C", marginTop: "2px" }}>{h.notes}</div>}
-                                {/* Status badges / actions — only one shown based on priority */}
+                                {/* Notes */}
+                                {h.notes && (
+                                  <div style={{ fontSize: "12px", color: "var(--muted)", fontStyle: "italic", marginTop: "3px" }}>{h.notes}</div>
+                                )}
+                                {/* Status — always own line, priority order */}
                                 {!alreadyLinked && hasReturnHeat && (
-                                  <div style={{ fontSize: "12px", color: "var(--danger2)", fontWeight: 600, marginTop: "4px", padding: "3px 8px", background: "rgba(196,92,38,0.10)", borderRadius: "4px", display: "inline-block" }}>
-                                    Not Bred — return heat observed
+                                  <div style={{ marginTop: "6px", borderLeft: "3px solid var(--danger2)", paddingLeft: "8px", background: "rgba(196,92,38,0.07)", borderRadius: "0 4px 4px 0", padding: "5px 8px 5px 8px" }}>
+                                    <span style={{ fontSize: "12px", color: "var(--danger2)", fontWeight: 600 }}>Not Bred — return heat observed</span>
                                   </div>
                                 )}
                                 {!alreadyLinked && !hasReturnHeat && inReturnWindow && (
-                                  <div style={{ fontSize: "12px", color: "var(--brass2)", fontWeight: 600, marginTop: "4px", padding: "3px 8px", background: "rgba(201,149,42,0.10)", borderRadius: "4px", display: "inline-block" }}>
-                                    ⚠ Watch for return heat: {fmt(day18Str)} – {fmt(day21Str)}
+                                  <div style={{ marginTop: "6px", borderLeft: "3px solid var(--brass2)", paddingLeft: "8px", background: "rgba(201,149,42,0.08)", borderRadius: "0 4px 4px 0", padding: "5px 8px 5px 8px" }}>
+                                    <span style={{ fontSize: "12px", color: "var(--brass2)", fontWeight: 600 }}>Watch for return heat: {fmt(day18Str)} – {fmt(day21Str)}</span>
                                   </div>
                                 )}
                                 {!alreadyLinked && !hasReturnHeat && pastWindow && (
@@ -3860,12 +3871,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                                   </div>
                                 )}
                                 {h.confirmed && !linkedGestation && (
-                                  <div style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, marginTop: "4px" }}>
-                                    ✓ Confirmed bred {h.confirmedDate ? `on ${fmt(h.confirmedDate)}` : ""} — gestation record created
+                                  <div style={{ fontSize: "12px", color: "var(--green)", fontWeight: 600, marginTop: "5px" }}>
+                                    ✓ Confirmed bred{h.confirmedDate ? ` on ${fmt(h.confirmedDate)}` : ""} — gestation record created
                                   </div>
                                 )}
                                 {linkedGestation && (
-                                  <div style={{ fontSize: "12px", color: "var(--green)", marginTop: "2px" }}>Breeding logged on {fmt(linkedGestation.breedingDate)}{linkedGestation.status !== "Delivered" ? " (active pregnancy)" : ""}</div>
+                                  <div style={{ fontSize: "12px", color: "var(--green)", marginTop: "5px" }}>
+                                    Breeding logged on {fmt(linkedGestation.breedingDate)}{linkedGestation.status !== "Delivered" ? " (active pregnancy)" : ""}
+                                  </div>
                                 )}
                               </div>
                             );

@@ -25,8 +25,8 @@ src/
     dateUtils.js              # Shared date validation and formatting
     generateBillOfSale.js     # jsPDF Bill of Sale generator
   components/
-    Animals.jsx               # Animal register, profiles, health, treatments, photos
-    Gestation.jsx             # Breeding records, due dates, delivery
+    Animals.jsx               # Animal register, profiles, health, treatments, photos, heat cycles
+    Gestation.jsx             # Breeding records, due dates, delivery, edit/delete
     Dashboard.jsx             # Summary cards, quick actions
     Pastures.jsx              # Pasture assignment, feed logging
     Expenses.jsx              # Expense tracking
@@ -94,11 +94,57 @@ const isSold = a.sale && a.sale.dateSold;
 const isArchived = isSold || a.butchered || a.deceased || a.transfer;
 ```
 
+Animals.jsx has a `filterArchiveStatus` state — options: All Statuses, Sold, Deceased, Butchered, Transferred.
+
 ## Animal extra_data Notable Fields
 - `photoUrl` — public URL in animal-photos bucket
 - `tagColor` — hex string for tag badge; use `a.tagColor || "var(--brass2)"` as default
 - `sale`, `deceased`, `butchered`, `transfer` — archive status objects (see above)
 - `weights`, `treatments`, `vaccinations`, `documents`, `movements` — arrays
+- `heatCycles` — array of heat cycle entries (see Heat Tracking below)
+
+## Heat Tracking (extra_data.heatCycles)
+Each entry shape:
+```js
+{
+  id,             // uuid
+  observedDate,   // YYYY-MM-DD
+  intensity,      // "Mild" | "Moderate" | "Strong"
+  notes,
+  breedingType,   // "Natural Service" | "AI (Artificial Insemination)"
+  semenName,      // AI only
+  semenCost,      // AI only, number
+  sireId,         // Natural Service only
+  sireName,       // Natural Service only
+  confirmed,      // bool — user confirmed bred
+  confirmedDate,  // YYYY-MM-DD — date user confirmed
+  linkedGestationId  // set when Confirm Bred auto-creates a gestation record
+}
+```
+
+Log Heat form fields: date, intensity, breeding type (Natural Service / AI), sire picker (Natural) or semen name + cost (AI), notes.
+
+Per-entry status logic — mutually exclusive, evaluated in priority order:
+1. `hasReturnHeat` — another heat within 21 days → red "Not Bred" badge
+2. `inReturnWindow` — day 18–21, no return heat → brass "Watch for return heat" banner
+3. `pastWindow` — day 21+, no return heat, not confirmed → green "Confirm Bred" button
+4. `confirmed` — user confirmed, no gestation linked → green "Confirmed bred on [date]" text
+5. `linkedGestation` — gestation record exists → "Breeding logged on [date]" text
+
+Confirm Bred auto-creates a gestation record using the heat's `observedDate` as `breedingDate`, copying sire/semen data, and writes `linkedGestationId` back to the heat cycle via `setAnimals`.
+
+## Breeding Records — Edit / Delete
+- Edit and Delete buttons on active gestation cards in Gestation.jsx
+- Delete button also in Gestation History section on animal profile in Animals.jsx (`deletingGestationIdProfile` state)
+- Both use inline confirmation: "Delete this breeding record?" + Yes, Delete + Cancel
+- Deleting a gestation clears `linkedGestationId` from the linked heat cycle via `setAnimals`
+
+## Tag Colors
+- `tagColor` stored in `extra_data` as hex string
+- `TagColorSwatches` component in Animals.jsx — 10 preset colors, rendered as 24px circles
+- Circle fix: each button has `width/height: 24px`, `minWidth/minHeight: 24px`, `flexShrink: 0`; container has `alignItems: "flex-start"` and `gap: 6px` to prevent oval distortion on mobile
+- `tagBadgeTextColor(hex)` helper — luminance-aware, returns `"#333"` or `"#fff"`
+- Always render tag badge as: `a.tagColor || "var(--brass2)"`
 
 ## Stripe / Billing
 - **Entity**: North Shore Ventures LLC
@@ -120,7 +166,6 @@ Defined in `vercel.json` as SPA rewrites (all serve `index.html`):
 - `/account` — Billing/subscription page (auth required), rendered by `Account.jsx`
 
 ## Known Issues / Active Work
-- Breeding record editing (#6) — not yet implemented (edit turn out/pull date/sire on existing records)
 - Log Feed modal (#8) — currently scrolls to top, needs modal
 - Account deletion (#13) — required for App Store, not yet built
 
@@ -128,6 +173,7 @@ Defined in `vercel.json` as SPA rewrites (all serve `index.html`):
 - **Empty sale object** — `a.sale` can be `{}` from old data; always guard with `a.sale && a.sale.dateSold`
 - **Vaccinations/health records** now log to journal automatically
 - **Offspring terms** — species-specific names use `OFFSPRING_TERM_BY_SPECIES` from `constants.js`; never hardcode "calf"
+- **TagColorSwatches ovals** — flex container stretching fixed with `minWidth/minHeight` + `alignItems: flex-start`
 
 ## Upcoming Features (Priority Order)
 1. Push notifications for task reminders (pg_cron + Resend)
@@ -149,6 +195,7 @@ Defined in `vercel.json` as SPA rewrites (all serve `index.html`):
 - **Tag colors**: use `a.tagColor || "var(--brass2)"` for tag badge color
 - **Offspring terms**: always use `getOffspringTerm(species)` from `constants.js`
 - **Transfer status**: check `a.transfer` for given away/lost/escaped/transferred animals
+- **Heat cycles**: stored in `extra_data.heatCycles` array, persisted via `persistAnimals`
 
 ## Dev Commands
 ```bash

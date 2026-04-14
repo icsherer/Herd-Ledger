@@ -151,6 +151,7 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
     defaultSpecies: settingsRow.default_species ?? 'Cattle',
     tabVisibility: settingsRow.tab_visibility ?? { ...DEFAULT_TAB_VISIBILITY },
     farmLogo: settingsRow.farm_logo ?? null,
+    vaccinationProtocols: settingsRow.vaccination_protocols ?? [],
   } : { ...DEFAULT_SETTINGS };
 
   const offspring = offspringRawData && typeof offspringRawData === 'object'
@@ -322,6 +323,7 @@ export async function persistSettings(userId, settings) {
     default_species: settings.defaultSpecies ?? 'Cattle',
     tab_visibility: settings.tabVisibility ?? {},
     farm_logo: settings.farmLogo ?? null,
+    vaccination_protocols: settings.vaccinationProtocols ?? [],
     updated_at: new Date().toISOString(),
   }, { onConflict: 'user_id' });
   if (error) console.error('[DB] user_settings upsert error:', error);

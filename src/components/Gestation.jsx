@@ -384,7 +384,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
             </Select>
           </div>
           <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
-            <input type="checkbox" checked={form.runningWithBull} onChange={e => setForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDate : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+            <input type="checkbox" checked={form.runningWithBull} onChange={e => setForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDate: e.target.checked ? "" : p.breedingDate, breedingDateEnd: "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
             <span>Running with Bull (date range for bull exposure)</span>
           </label>
           <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} />

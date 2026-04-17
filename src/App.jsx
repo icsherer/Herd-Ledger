@@ -380,11 +380,47 @@ export default function App() {
 
   const PERSIST_DEBOUNCE_MS = 2000;
 
+  // Refs always mirror latest state so debounced callbacks never close over stale values
+  const animalsRef = useRef(animals);
+  animalsRef.current = animals;
+  const gestationsRef = useRef(gestations);
+  gestationsRef.current = gestations;
+  const notesRef = useRef(notes);
+  notesRef.current = notes;
+  const offspringRef = useRef(offspring);
+  offspringRef.current = offspring;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const feederProgramsRef = useRef(feederPrograms);
+  feederProgramsRef.current = feederPrograms;
+  const pasturesRef = useRef(pastures);
+  pasturesRef.current = pastures;
+  const pastureFeedLogsRef = useRef(pastureFeedLogs);
+  pastureFeedLogsRef.current = pastureFeedLogs;
+  const expensesRef = useRef(expenses);
+  expensesRef.current = expenses;
+  const loadSalesRef = useRef(loadSales);
+  loadSalesRef.current = loadSales;
+  const tasksRef = useRef(tasks);
+  tasksRef.current = tasks;
+  const contactsRef = useRef(contacts);
+  contactsRef.current = contacts;
+
   const persistGuest = () => {
     try {
       localStorage.setItem(GUEST_STORAGE_KEY, JSON.stringify({
-        animals, gestations, notes, offspring, settings, feederPrograms,
-        pastures, pastureFeedLogs, expenses, loadSales, tasks, contacts,
+        animals: animalsRef.current,
+        gestations: gestationsRef.current,
+        notes: notesRef.current,
+        offspring: offspringRef.current,
+        settings: settingsRef.current,
+        feederPrograms: feederProgramsRef.current,
+        pastures: pasturesRef.current,
+        pastureFeedLogs: pastureFeedLogsRef.current,
+        expenses: expensesRef.current,
+        loadSales: loadSalesRef.current,
+        tasks: tasksRef.current,
+        contacts: contactsRef.current,
       }));
     } catch (_) {}
   };
@@ -393,84 +429,84 @@ export default function App() {
     console.log('[PERSIST] animals fired — user:', !!user, 'loadDone:', initialLoadDone.current, 'isGuest:', user?.isGuest);
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistAnimals(user.id, animals), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistAnimals(user.id, animalsRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, animals]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistGestations(user.id, gestations), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistGestations(user.id, gestationsRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, gestations]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistNotes(user.id, notes), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistNotes(user.id, notesRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, notes]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistOffspring(user.id, offspring), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistOffspring(user.id, offspringRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, offspring]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistSettings(user.id, settings), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistSettings(user.id, settingsRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, settings]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistFeederPrograms(user.id, feederPrograms), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistFeederPrograms(user.id, feederProgramsRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, feederPrograms]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistPastures(user.id, pastures), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistPastures(user.id, pasturesRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, pastures]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistPastureFeedLogs(user.id, pastureFeedLogs), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistPastureFeedLogs(user.id, pastureFeedLogsRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, pastureFeedLogs]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistExpenses(user.id, expenses), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistExpenses(user.id, expensesRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, expenses]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistLoadSales(user.id, loadSales), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistLoadSales(user.id, loadSalesRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, loadSales]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistTasks(user.id, tasks), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistTasks(user.id, tasksRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, tasks]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
     if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistContacts(user.id, contacts), PERSIST_DEBOUNCE_MS);
+    const t = setTimeout(() => persistContacts(user.id, contactsRef.current), PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, contacts]);
 

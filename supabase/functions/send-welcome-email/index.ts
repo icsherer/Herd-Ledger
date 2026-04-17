@@ -42,6 +42,7 @@ Deno.serve(async (req: Request) => {
         from: "Ian at Herd Ledger <ian@herdledger.app>",
         to: [email],
         subject: "Welcome to Herd Ledger 🐄",
+        reply_to: "iancsherer@gmail.com",
         html,
       }),
     });

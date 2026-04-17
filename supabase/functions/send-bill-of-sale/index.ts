@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
       body: JSON.stringify({
         from: `${farmName || "Herd Ledger"} via Herd Ledger <ian@herdledger.app>`,
         to: [toEmail],
-        ...(senderEmail ? { reply_to: senderEmail } : {}),
+        reply_to: senderEmail || "iancsherer@gmail.com",
         subject: `Your Bill of Sale from ${farmName || "Herd Ledger"}`,
         html,
         attachments: [

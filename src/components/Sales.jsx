@@ -28,6 +28,8 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
   const [filterMonthYear, setFilterMonthYear] = useState("");
   const [editingSaleAnimalId, setEditingSaleAnimalId] = useState(null);
   const [expandedSaleId, setExpandedSaleId] = useState(null);
+  const [expandedLoadSaleId, setExpandedLoadSaleId] = useState(null);
+  const [selectedLoadAnimalIds, setSelectedLoadAnimalIds] = useState([]);
   const [saleEditForm, setSaleEditForm] = useState(emptySaleEditForm);
   const [showFlatSaleModal, setShowFlatSaleModal] = useState(false);
   const [flatSaleForm, setFlatSaleForm] = useState({
@@ -146,8 +148,10 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
       totalAmount: total ?? undefined,
       buyerName: loadForm.buyerName?.trim() || undefined,
       notes: loadForm.notes?.trim() || undefined,
+      animalIds: selectedLoadAnimalIds.length > 0 ? [...selectedLoadAnimalIds] : [],
     }]);
     setLoadForm({ date: todayLocalISODate(), headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" });
+    setSelectedLoadAnimalIds([]);
     setShowLoadForm(false);
   }
 
@@ -820,9 +824,39 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
               <Input label="Buyer / sale barn name" value={loadForm.buyerName} onChange={e => setLoadForm(p => ({ ...p, buyerName: e.target.value }))} placeholder="e.g. Smith Sale Barn" style={{ gridColumn: "1 / -1" }} />
             </div>
             <Textarea label="Notes" value={loadForm.notes} onChange={e => setLoadForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
+            {(() => {
+              const loadFormAnimals = (animals || []).filter(a => {
+                const isSold = a.sale && a.sale.dateSold;
+                if (isSold || a.deceased || a.butchered || a.transfer) return false;
+                if (loadForm.species && a.species !== loadForm.species) return false;
+                return true;
+              });
+              if (loadFormAnimals.length === 0) return null;
+              return (
+                <div style={{ marginBottom: "12px" }}>
+                  <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>
+                    Animals included ({selectedLoadAnimalIds.length} selected — optional)
+                  </label>
+                  <div style={{ maxHeight: "160px", overflowY: "auto", border: "1.5px solid var(--cream3)", borderRadius: "var(--radius)", padding: "8px 10px", background: "#fff", display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {loadFormAnimals.map(a => (
+                      <label key={a.id} style={{ display: "flex", alignItems: "center", gap: "8px", cursor: "pointer", fontSize: "14px", padding: "2px 0" }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedLoadAnimalIds.includes(a.id)}
+                          onChange={e => setSelectedLoadAnimalIds(prev =>
+                            e.target.checked ? [...prev, a.id] : prev.filter(id => id !== a.id)
+                          )}
+                        />
+                        {getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             <div style={{ display: "flex", gap: "10px" }}>
               <Btn size="sm" onClick={saveLoadSale} disabled={!loadForm.date || !loadForm.headCount || parseInt(loadForm.headCount, 10) < 1}>Save load sale</Btn>
-              <Btn size="sm" variant="ghost" onClick={() => { setShowLoadForm(false); setLoadForm({ date: todayLocalISODate(), headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" }); }}>Cancel</Btn>
+              <Btn size="sm" variant="ghost" onClick={() => { setShowLoadForm(false); setSelectedLoadAnimalIds([]); setLoadForm({ date: todayLocalISODate(), headCount: "", species: "Cattle", averageWeight: "", priceType: "perHead", priceValue: "", totalAmount: "", buyerName: "", notes: "" }); }}>Cancel</Btn>
             </div>
           </div>
         )}
@@ -842,19 +876,61 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                 </tr>
               </thead>
               <tbody>
-                {[...displayGroupLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => (
-                  <tr key={l.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
-                    <td className="hl-hide-mobile" style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{l.date ? fmt(l.date) : "—"}</td>
-                    <td style={{ padding: "10px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.headCount ?? "—"}</td>
-                    <td style={{ padding: "10px 8px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.species || "—"}</td>
-                    <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap" }}>${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
-                    <td style={{ padding: "10px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{l.buyerName || "—"}</td>
-                    <td style={{ padding: "4px 4px", whiteSpace: "nowrap", textAlign: "right" }}>
-                      <button type="button" onClick={e => { e.stopPropagation(); setBosModal({ sale: l, saleType: "load" }); }} style={{ background: "transparent", border: "1.5px solid var(--green)", color: "var(--green)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "12px", fontWeight: 600, minHeight: "36px", cursor: "pointer", touchAction: "manipulation", marginRight: "4px" }}>BOS</button>
-                      <button type="button" onClick={() => removeLoadSale(l.id)} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "36px", minWidth: "28px", padding: "0", touchAction: "manipulation" }} aria-label="Remove">×</button>
-                    </td>
-                  </tr>
-                ))}
+                {[...displayGroupLoadSales].sort((a, b) => (b.date || "").localeCompare(a.date || "")).map(l => {
+                  const isExpanded = expandedLoadSaleId === l.id;
+                  const linkedAnimals = (l.animalIds || []).map(id => (animals || []).find(a => a.id === id)).filter(Boolean);
+                  const rowBg = isExpanded ? "rgba(201,149,42,0.06)" : "transparent";
+                  return (
+                    <>
+                      <tr
+                        key={l.id}
+                        onClick={() => setExpandedLoadSaleId(isExpanded ? null : l.id)}
+                        style={{ borderBottom: isExpanded ? "none" : "1px solid var(--cream2)", background: rowBg, cursor: "pointer", userSelect: "none" }}
+                      >
+                        <td className="hl-hide-mobile" style={{ padding: "10px 12px", whiteSpace: "nowrap", background: rowBg }}>{l.date ? fmt(l.date) : "—"}</td>
+                        <td style={{ padding: "10px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", background: rowBg }}>{l.headCount ?? "—"}</td>
+                        <td style={{ padding: "10px 8px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", background: rowBg }}>{l.species || "—"}</td>
+                        <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap", background: rowBg }}>
+                          ${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}{" "}
+                          <span style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 400 }}>{isExpanded ? "▲" : "▼"}</span>
+                        </td>
+                        <td style={{ padding: "10px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", background: rowBg }}>{l.buyerName || "—"}</td>
+                        <td style={{ padding: "4px 4px", whiteSpace: "nowrap", textAlign: "right", background: rowBg }}>
+                          <button type="button" onClick={e => { e.stopPropagation(); setBosModal({ sale: l, saleType: "load" }); }} style={{ background: "transparent", border: "1.5px solid var(--green)", color: "var(--green)", borderRadius: "var(--radius)", padding: "6px 10px", fontSize: "12px", fontWeight: 600, minHeight: "36px", cursor: "pointer", touchAction: "manipulation", marginRight: "4px" }}>BOS</button>
+                          <button type="button" onClick={e => { e.stopPropagation(); removeLoadSale(l.id); }} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: "18px", display: "inline-flex", alignItems: "center", justifyContent: "center", minHeight: "36px", minWidth: "28px", padding: "0", touchAction: "manipulation" }} aria-label="Remove">×</button>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr key={`${l.id}-detail`} style={{ borderBottom: "1px solid var(--cream2)", background: "rgba(201,149,42,0.06)" }}>
+                          <td colSpan={6} style={{ padding: "0 12px 14px" }}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", fontSize: "13px", color: "var(--ink2)", paddingTop: "10px" }}>
+                              {l.priceType && l.priceValue != null && (
+                                <div>
+                                  <span style={{ color: "var(--muted)", fontWeight: 600 }}>Price: </span>
+                                  ${l.priceValue}/{l.priceType === "perLb" ? "lb" : "head"}
+                                  {l.averageWeight != null && l.priceType === "perLb" && ` · avg ${l.averageWeight} lbs/head`}
+                                </div>
+                              )}
+                              {l.averageWeight != null && l.priceType !== "perLb" && (
+                                <div><span style={{ color: "var(--muted)", fontWeight: 600 }}>Avg weight: </span>{l.averageWeight} lbs</div>
+                              )}
+                              {l.notes && (
+                                <div style={{ width: "100%" }}><span style={{ color: "var(--muted)", fontWeight: 600 }}>Notes: </span>{l.notes}</div>
+                              )}
+                              <div style={{ width: "100%" }}>
+                                <span style={{ color: "var(--muted)", fontWeight: 600 }}>Animals: </span>
+                                {linkedAnimals.length === 0
+                                  ? <span style={{ color: "var(--muted)" }}>No individual animals linked</span>
+                                  : linkedAnimals.map(a => `${getAnimalName(a)}${a.tag ? ` #${a.tag}` : ""}`).join(", ")
+                                }
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </>
+                  );
+                })}
               </tbody>
             </table>
           </div>

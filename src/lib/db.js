@@ -126,6 +126,10 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
   const loadSales = (salesRows || []).map(r => ({
     id: r.id, date: r.date, species: r.species, buyerName: r.buyer_name,
     headCount: r.head_count, priceType: r.price_type, totalAmount: r.total_amount,
+    animalIds: r.animal_ids ?? [],
+    averageWeight: r.average_weight ?? null,
+    priceValue: r.price_value ?? null,
+    notes: r.notes ?? null,
   }));
 
   const notes = (notesRows || []).map(r => ({
@@ -278,6 +282,10 @@ export async function persistLoadSales(userId, loadSales) {
     id: s.id, user_id: userId, date: s.date || null, species: s.species ?? null,
     buyer_name: s.buyerName ?? null, head_count: s.headCount ?? null,
     price_type: s.priceType ?? null, total_amount: s.totalAmount ?? null,
+    animal_ids: s.animalIds ?? [],
+    average_weight: s.averageWeight ?? null,
+    price_value: s.priceValue ?? null,
+    notes: s.notes ?? null,
     updated_at: new Date().toISOString(),
   }));
   await syncRows('load_sales', userId, rows);

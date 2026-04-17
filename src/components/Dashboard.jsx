@@ -20,7 +20,13 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
   const cullCount = (animals || []).filter(a => a.cull && !a.deceased && !a.butchered && !a.sale).length;
   const speciesCounts = activeAnimals.reduce((acc, a) => { acc[a.species] = (acc[a.species] || 0) + 1; return acc; }, {});
   const gestationsList = Array.isArray(gestations) ? gestations : [];
-  const activeGestations = gestationsList.filter(g => g.status !== "Delivered");
+  const activeGestations = gestationsList.filter(g => {
+    if (g.status === "Delivered") return false;
+    const a = (animals || []).find(x => x.id === g.animalId);
+    if (!a) return false;
+    const isSold = a.sale && a.sale.dateSold;
+    return !isSold && !a.deceased && !a.butchered && !a.transfer;
+  });
   if (gestationsList.length === 0 && (animals?.length > 0)) {
     console.warn("[Dashboard] gestations prop is empty (length 0) — Dashboard receives same gestations state from App as Gestation tab. If Gestation tab shows data, check that both use the same prop. Keys from App: animals, gestations, offspring, ...");
   }

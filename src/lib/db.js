@@ -47,7 +47,7 @@ async function loadAllDataFallback(userId) {
     { data: settingsRow },
     { data: offspringRaw },
   ] = await Promise.all([
-    supabase.from('animals').select('id,user_id,name,tag,species,breed,sex,dob,notes,extra_data,updated_at').eq('user_id', userId),
+    supabase.from('animals').select('id,user_id,name,tag,species,breed,sex,dob,notes,extra_data,updated_at,deleted_at').eq('user_id', userId).is('deleted_at', null),
     supabase.from('tasks').select('*').eq('user_id', userId),
     supabase.from('gestations').select('*').eq('user_id', userId),
     supabase.from('contacts').select('*').eq('user_id', userId),
@@ -70,11 +70,13 @@ async function loadAllDataFallback(userId) {
 function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRows,
   feederRows, salesRows, notesRows, pastureRows, feedLogRows, settingsRow, offspringRawData }) {
 
-  const animals = (animalsRows || []).map(r => ({
-    ...(r.extra_data || {}),
-    id: r.id, name: r.name, tag: r.tag, species: r.species,
-    breed: r.breed, sex: r.sex, dob: r.dob, notes: r.notes,
-  }));
+  const animals = (animalsRows || [])
+    .filter(r => !r.deleted_at)
+    .map(r => ({
+      ...(r.extra_data || {}),
+      id: r.id, name: r.name, tag: r.tag, species: r.species,
+      breed: r.breed, sex: r.sex, dob: r.dob, notes: r.notes,
+    }));
 
   const tasks = (tasksRows || []).map(r => ({
     id: r.id, name: r.name, dueDate: r.due_date, dueTime: r.due_time,
@@ -171,7 +173,7 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
 
 // ── SAVE HELPERS ──────────────────────────────────────────────────────────────
 
-async function syncRows(table, userId, rows, idField = 'id') {
+async function syncRows(table, userId, rows, idField = 'id', softDelete = false) {
   if (rows.length === 0) return;
 
   // Chunk upserts to avoid statement timeouts on large tables
@@ -182,15 +184,23 @@ async function syncRows(table, userId, rows, idField = 'id') {
     if (error) { console.error(`[DB] ${table} upsert error:`, error); return; }
   }
 
-  // Delete rows that no longer exist in current state
-  const { data: existing } = await supabase
-    .from(table).select(idField).eq('user_id', userId);
+  // Soft-delete or hard-delete rows no longer in current state
+  let existingQuery = supabase.from(table).select(idField).eq('user_id', userId);
+  if (softDelete) existingQuery = existingQuery.is('deleted_at', null);
+  const { data: existing } = await existingQuery;
   const currentIds = new Set(rows.map(r => r[idField]));
   const toDelete = (existing || []).map(r => r[idField]).filter(id => !currentIds.has(id));
   if (toDelete.length > 0) {
-    const { error: delErr } = await supabase
-      .from(table).delete().eq('user_id', userId).in(idField, toDelete);
-    if (delErr) console.error(`[DB] ${table} delete error:`, delErr);
+    if (softDelete) {
+      const { error: delErr } = await supabase
+        .from(table).update({ deleted_at: new Date().toISOString() })
+        .eq('user_id', userId).in(idField, toDelete);
+      if (delErr) console.error(`[DB] ${table} soft-delete error:`, delErr);
+    } else {
+      const { error: delErr } = await supabase
+        .from(table).delete().eq('user_id', userId).in(idField, toDelete);
+      if (delErr) console.error(`[DB] ${table} delete error:`, delErr);
+    }
   }
 }
 
@@ -205,9 +215,20 @@ export async function persistAnimals(userId, animals) {
       dob: dob || null, notes: notes ?? null,
       extra_data: Object.keys(restNoPhoto).length > 0 ? restNoPhoto : null,
       updated_at: new Date().toISOString(),
+      deleted_at: null,
     };
   });
-  await syncRows('animals', userId, rows);
+  await syncRows('animals', userId, rows, 'id', true);
+}
+
+export async function logAnimalHistory(userId, animalCount) {
+  const { error } = await supabase.from('animal_history').insert({
+    user_id: userId,
+    action: 'bulk_save',
+    snapshot: { count: animalCount },
+    changed_at: new Date().toISOString(),
+  });
+  if (error) console.error('[DB] logAnimalHistory error:', error);
 }
 
 export async function persistTasks(userId, tasks) {

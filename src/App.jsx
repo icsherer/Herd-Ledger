@@ -9,7 +9,7 @@ import {
   persistAnimals, persistTasks, persistGestations, persistContacts,
   persistExpenses, persistFeederPrograms, persistLoadSales, persistNotes,
   persistPastures, persistPastureFeedLogs, persistSettings, persistOffspring,
-  loadHayInventory, loadSubscription,
+  loadHayInventory, loadSubscription, logAnimalHistory,
 } from './lib/db.js';
 import Dashboard from "./components/Dashboard.jsx";
 import Animals from "./components/Animals.jsx";
@@ -459,8 +459,11 @@ export default function App() {
     if (user.isGuest) { persistGuest(); completeSave(); return; }
     const t = setTimeout(async () => {
       if (saveIndicatorEnabled.current) setSaveStatus("saving");
-      try { await persistAnimals(user.id, animalsRef.current); completeSave(); }
-      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+      try {
+        await persistAnimals(user.id, animalsRef.current);
+        logAnimalHistory(user.id, animalsRef.current.length);
+        completeSave();
+      } catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
     }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, animals]);

@@ -867,11 +867,11 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", tableLayout: "fixed" }}>
               <thead>
                 <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
-                  <th className="hl-hide-mobile" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Date</th>
-                  <th style={{ width: "14%", textAlign: "left", padding: "10px 8px", fontWeight: 600 }}>Head</th>
-                  <th style={{ textAlign: "left", padding: "10px 8px", fontWeight: 600 }}>Species</th>
-                  <th style={{ width: "22%", textAlign: "right", padding: "10px 8px", fontWeight: 600 }}>Total</th>
-                  <th style={{ textAlign: "left", padding: "10px 8px", fontWeight: 600 }}>Buyer</th>
+                  <th className="hl-hide-mobile" style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>Date</th>
+                  <th style={{ width: "14%", textAlign: "left", padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Head</th>
+                  <th className="hl-hide-mobile" style={{ textAlign: "left", padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Species</th>
+                  <th style={{ width: "22%", textAlign: "right", padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Total</th>
+                  <th style={{ textAlign: "left", padding: "10px 8px", fontWeight: 600, whiteSpace: "nowrap" }}>Buyer</th>
                   <th style={{ width: "90px", padding: "10px 4px" }} />
                 </tr>
               </thead>
@@ -889,7 +889,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                       >
                         <td className="hl-hide-mobile" style={{ padding: "10px 12px", whiteSpace: "nowrap", background: rowBg }}>{l.date ? fmt(l.date) : "—"}</td>
                         <td style={{ padding: "10px 8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", background: rowBg }}>{l.headCount ?? "—"}</td>
-                        <td style={{ padding: "10px 8px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", background: rowBg }}>{l.species || "—"}</td>
+                        <td className="hl-hide-mobile" style={{ padding: "10px 8px", color: "var(--muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", background: rowBg }}>{l.species || "—"}</td>
                         <td style={{ padding: "10px 8px", textAlign: "right", fontWeight: 600, whiteSpace: "nowrap", background: rowBg }}>
                           ${(Number(l.totalAmount) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}{" "}
                           <span style={{ color: "var(--muted)", fontSize: "11px", fontWeight: 400 }}>{isExpanded ? "▲" : "▼"}</span>
@@ -903,7 +903,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
                       {isExpanded && (
                         <tr key={`${l.id}-detail`} style={{ borderBottom: "1px solid var(--cream2)", background: "rgba(201,149,42,0.06)" }}>
                           <td colSpan={6} style={{ padding: "0 12px 14px" }}>
-                            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", fontSize: "13px", color: "var(--ink2)", paddingTop: "10px" }}>
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", fontSize: "13px", color: "var(--ink2)", paddingTop: "10px", overflowWrap: "break-word", wordBreak: "break-word", minWidth: 0 }}>
                               {l.priceType && l.priceValue != null && (
                                 <div>
                                   <span style={{ color: "var(--muted)", fontWeight: 600 }}>Price: </span>

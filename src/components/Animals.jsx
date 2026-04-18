@@ -3737,7 +3737,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
                 {isFemale(a) && a.species !== "Mule" && (() => {
                   const hasConfirmedPregnancy = (animalId) => {
-                    const g = (gestations || []).find(gr => gr.animalId === animalId && gr.status !== "Delivered");
+                    const active = (gestations || []).filter(gr => gr.animalId === animalId && gr.status !== "Delivered");
+                    const g = active.sort((x, y) => (y.breedingDate || "").localeCompare(x.breedingDate || ""))[0];
                     if (!g?.breedingDate) return false;
                     const breedingMs = new Date(g.breedingDate + "T12:00:00").getTime();
                     const thirtyDaysAgo = Date.now() - 30 * 86400000;

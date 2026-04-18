@@ -49,12 +49,12 @@ async function loadAllDataFallback(userId) {
   ] = await Promise.all([
     supabase.from('animals').select('id,user_id,name,tag,species,breed,sex,dob,notes,extra_data,updated_at,deleted_at').eq('user_id', userId).is('deleted_at', null),
     supabase.from('tasks').select('*').eq('user_id', userId),
-    supabase.from('gestations').select('*').eq('user_id', userId),
+    supabase.from('gestations').select('id,user_id,animal_id,sire,notes,status,due_date,breeding_date,gestation_days,delivered_at,created_at_src,due_date_start,due_date_end,breeding_date_end,running_with_bull,sire_animal_id,calf_notes,calf_stillborn,calf_recorded_at,calf_birth_weight,calf_offspring_count,calf_sex,calf_tag,calf_name,calf_animal_id,updated_at,deleted_at').eq('user_id', userId).is('deleted_at', null),
     supabase.from('contacts').select('*').eq('user_id', userId),
-    supabase.from('expenses').select('*').eq('user_id', userId),
+    supabase.from('expenses').select('id,user_id,date,amount,animal_id,category,description,updated_at,deleted_at').eq('user_id', userId).is('deleted_at', null),
     supabase.from('feeder_programs').select('*').eq('user_id', userId),
     supabase.from('load_sales').select('*').eq('user_id', userId),
-    supabase.from('notes').select('*').eq('user_id', userId),
+    supabase.from('notes').select('id,user_id,title,body,date,animal_id,movement_id,updated_at,deleted_at').eq('user_id', userId).is('deleted_at', null),
     supabase.from('pastures').select('*').eq('user_id', userId),
     supabase.from('pasture_feed_logs').select('*').eq('user_id', userId),
     supabase.from('user_settings').select('*').eq('user_id', userId).maybeSingle(),
@@ -84,7 +84,7 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
     recurring: r.recurring, pastureName: r.pasture_name, completed: r.completed,
   }));
 
-  const gestations = (gestRows || []).map(r => {
+  const gestations = (gestRows || []).filter(r => !r.deleted_at).map(r => {
     const g = {
       id: r.id, animalId: r.animal_id, sire: r.sire, notes: r.notes,
       status: r.status, dueDate: r.due_date, breedingDate: r.breeding_date,
@@ -115,7 +115,7 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
     ranchCompany: r.ranch_company, notes: r.notes,
   }));
 
-  const expenses = (expenseRows || []).map(r => ({
+  const expenses = (expenseRows || []).filter(r => !r.deleted_at).map(r => ({
     id: r.id, date: r.date, amount: r.amount,
     animalId: r.animal_id, category: r.category, description: r.description,
   }));
@@ -134,7 +134,7 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
     notes: r.notes ?? null,
   }));
 
-  const notes = (notesRows || []).map(r => ({
+  const notes = (notesRows || []).filter(r => !r.deleted_at).map(r => ({
     id: r.id, title: r.title, body: r.body, date: r.date,
     animalId: r.animal_id, movementId: r.movement_id,
   }));
@@ -265,8 +265,9 @@ export async function persistGestations(userId, gestations) {
     calf_name: g.calf?.name ?? null,
     calf_animal_id: g.calf?.animalId ?? null,
     updated_at: new Date().toISOString(),
+    deleted_at: null,
   }));
-  await syncRows('gestations', userId, rows);
+  await syncRows('gestations', userId, rows, 'id', true);
 }
 
 export async function persistContacts(userId, contacts) {
@@ -283,8 +284,9 @@ export async function persistExpenses(userId, expenses) {
     id: e.id, user_id: userId, date: e.date || null, amount: e.amount ?? null,
     animal_id: e.animalId ?? null, category: e.category ?? null,
     description: e.description ?? null, updated_at: new Date().toISOString(),
+    deleted_at: null,
   }));
-  await syncRows('expenses', userId, rows);
+  await syncRows('expenses', userId, rows, 'id', true);
 }
 
 export async function persistFeederPrograms(userId, feederPrograms) {
@@ -317,8 +319,9 @@ export async function persistNotes(userId, notes) {
     id: n.id, user_id: userId, title: n.title ?? null, body: n.body ?? null,
     date: n.date || null, animal_id: n.animalId ?? null,
     movement_id: n.movementId ?? null, updated_at: new Date().toISOString(),
+    deleted_at: null,
   }));
-  await syncRows('notes', userId, rows);
+  await syncRows('notes', userId, rows, 'id', true);
 }
 
 export async function persistPastures(userId, pastures) {

@@ -246,6 +246,9 @@ export default function App() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const initialLoadDone = useRef(false);
   const [loadDone, setLoadDone] = useState(false);
+  const [saveStatus, setSaveStatus] = useState(null); // null | "saving" | "saved" | "error"
+  const saveStatusTimeoutRef = useRef(null);
+  const saveIndicatorEnabled = useRef(false);
 
   const isGuest = user?.isGuest === true;
   const isProUser = subscription.status === 'active' || subscription.status === 'trialing' || subscription.grandfathered;
@@ -258,6 +261,31 @@ export default function App() {
     document.head.appendChild(el);
     return () => document.head.removeChild(el);
   }, []);
+
+  useEffect(() => {
+    const el = document.createElement("style");
+    el.textContent = `
+      @keyframes hl-saved-fadeout { 0%, 60% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes hl-spinner-pulse { 0%, 100% { opacity: 0.9; } 50% { opacity: 0.25; } }
+      @media (max-width: 768px) { .hl-save-indicator { bottom: 72px !important; } }
+    `;
+    document.head.appendChild(el);
+    return () => document.head.removeChild(el);
+  }, []);
+
+  // Enable the save indicator only after initial load settles (prevents showing on first data fetch)
+  useEffect(() => {
+    if (!loadDone) { saveIndicatorEnabled.current = false; return; }
+    const t = setTimeout(() => { saveIndicatorEnabled.current = true; }, 3000);
+    return () => clearTimeout(t);
+  }, [loadDone]);
+
+  function completeSave() {
+    if (!saveIndicatorEnabled.current) return;
+    setSaveStatus("saved");
+    if (saveStatusTimeoutRef.current) clearTimeout(saveStatusTimeoutRef.current);
+    saveStatusTimeoutRef.current = setTimeout(() => setSaveStatus(null), 2000);
+  }
 
   // Persist one key to Supabase (user_data table). No-op for guest or missing session.
   // On timeout (57014): retry with exponential backoff (2s, 4s, 8s), up to 3 retries before surfacing error.
@@ -428,85 +456,133 @@ export default function App() {
   useEffect(() => {
     console.log('[PERSIST] animals fired — user:', !!user, 'loadDone:', initialLoadDone.current, 'isGuest:', user?.isGuest);
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistAnimals(user.id, animalsRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistAnimals(user.id, animalsRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, animals]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistGestations(user.id, gestationsRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistGestations(user.id, gestationsRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, gestations]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistNotes(user.id, notesRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistNotes(user.id, notesRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, notes]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistOffspring(user.id, offspringRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistOffspring(user.id, offspringRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, offspring]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistSettings(user.id, settingsRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistSettings(user.id, settingsRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, settings]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistFeederPrograms(user.id, feederProgramsRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistFeederPrograms(user.id, feederProgramsRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, feederPrograms]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistPastures(user.id, pasturesRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistPastures(user.id, pasturesRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, pastures]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistPastureFeedLogs(user.id, pastureFeedLogsRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistPastureFeedLogs(user.id, pastureFeedLogsRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, pastureFeedLogs]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistExpenses(user.id, expensesRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistExpenses(user.id, expensesRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, expenses]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistLoadSales(user.id, loadSalesRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistLoadSales(user.id, loadSalesRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, loadSales]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistTasks(user.id, tasksRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistTasks(user.id, tasksRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, tasks]);
 
   useEffect(() => {
     if (!user || !initialLoadDone.current) return;
-    if (user.isGuest) { persistGuest(); return; }
-    const t = setTimeout(() => persistContacts(user.id, contactsRef.current), PERSIST_DEBOUNCE_MS);
+    if (user.isGuest) { persistGuest(); completeSave(); return; }
+    const t = setTimeout(async () => {
+      if (saveIndicatorEnabled.current) setSaveStatus("saving");
+      try { await persistContacts(user.id, contactsRef.current); completeSave(); }
+      catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
+    }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, contacts]);
 
@@ -596,6 +672,48 @@ export default function App() {
       {tab === "help"      && <TabErrorBoundary key="help" setTab={setTab}><Help onBack={() => setTab("settings")} /></TabErrorBoundary>}
       {tab === "settings"  && <TabErrorBoundary key="settings" setTab={setTab}><Settings settings={settings} setSettings={setSettings} contacts={contacts} setContacts={setContacts} onLogout={isGuest ? () => setUser(null) : () => supabase.auth.signOut()} setTab={setTab} /></TabErrorBoundary>}
       {showUpgradeModal && <UpgradeModal user={user} onClose={() => setShowUpgradeModal(false)} />}
+      {saveStatus && (
+        <div
+          className="hl-save-indicator no-print"
+          style={{
+            position: "fixed",
+            bottom: "20px",
+            right: "16px",
+            zIndex: 9999,
+            fontSize: "12px",
+            fontWeight: 500,
+            padding: "6px 12px",
+            borderRadius: "20px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            pointerEvents: "none",
+            userSelect: "none",
+            lineHeight: 1.4,
+            ...(saveStatus === "saving" ? {
+              background: "rgba(255,255,255,0.96)",
+              color: "var(--brass)",
+              border: "1px solid rgba(201,149,42,0.35)",
+            } : saveStatus === "saved" ? {
+              background: "rgba(255,255,255,0.96)",
+              color: "var(--green)",
+              border: "1px solid rgba(42,100,74,0.3)",
+              animation: "hl-saved-fadeout 2s forwards",
+            } : {
+              background: "rgba(255,255,255,0.97)",
+              color: "#c0392b",
+              border: "1px solid rgba(192,57,43,0.3)",
+            }),
+          }}
+        >
+          {saveStatus === "saving" && (
+            <><span style={{ animation: "hl-spinner-pulse 1s ease-in-out infinite", display: "inline-block" }}>●</span>Saving...</>
+          )}
+          {saveStatus === "saved" && "✓ Saved"}
+          {saveStatus === "error" && "⚠ Save failed — check connection"}
+        </div>
+      )}
     </div>
   );
 }

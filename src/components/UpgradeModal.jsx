@@ -77,7 +77,7 @@ export default function UpgradeModal({ user, onClose }) {
             color: "rgba(255,255,255,0.75)",
             marginTop: "8px",
           }}>
-            You've reached the 10 animal limit on the free plan
+            You've reached the 20 animal limit on the free plan
           </div>
         </div>
 
@@ -289,7 +289,7 @@ export default function UpgradeModal({ user, onClose }) {
                 textDecoration: "underline",
               }}
             >
-              Stay on free plan (10 animal limit)
+              Stay on free plan (20 animal limit)
             </button>
           </div>
         </div>

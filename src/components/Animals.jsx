@@ -1537,6 +1537,8 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         if (isEdit) {
           setAnimals(prev => prev.map(an => an.id === editingOffspringId ? { ...an, ...updatedAnimal } : an));
         } else {
+          const activeCount = (animals || []).filter(a => !(a.sale && a.sale.dateSold) && !a.butchered && !a.deceased && !a.transfer).length;
+          if (!isProUser && activeCount >= 20) { setShowUpgradeModal?.(true); return; }
           setAnimals(prev => [...prev, updatedAnimal]);
         }
       }

@@ -236,6 +236,11 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
           name: `${getOffspringTerm(mother.species)} ${i + 1}`,
           excludeFromReports: false,
         }));
+        const activeAnimals = (animals ?? []).filter(a => !(a.sale && a.sale.dateSold) && !a.butchered && !a.deceased && !a.transfer);
+        if (!isProUser && (activeAnimals.length + stubs.length) > 20) {
+          if (setShowUpgradeModal) setShowUpgradeModal(true);
+          return;
+        }
         setAnimals(prev => [...(prev ?? []), ...stubs]);
         if (setTab) setTab("animals");
         window.alert(`${count} ${plural} added to your herd — tap each to add details.`);

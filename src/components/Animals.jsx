@@ -1193,7 +1193,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   function runImport() {
     const { byRow, validCount: newCount, duplicateRows, blankCount } = getImportPreview();
 
-    if (!isProUser && (activeCount + newCount) > 10) {
+    if (!isProUser && (activeCount + newCount) > 20) {
       setShowUpgradeModal?.(true);
       return;
     }
@@ -5158,7 +5158,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
               <span className="hl-animals-header-btn-text">Import Animals</span>
             </button>
             <Btn onClick={() => {
-              if (!isProUser && activeCount >= 10) { setShowUpgradeModal?.(true); return; }
+              if (!isProUser && activeCount >= 20) { setShowUpgradeModal?.(true); return; }
               setEditingId(null); setRegisterInitialSingle(null); setRegisterFormKey(k => k + 1); setShowAdd(true);
             }}>+ Register Animals</Btn>
           </div>
@@ -5766,8 +5766,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           setContacts={setContacts}
           setNotes={setNotes}
           onRegister={(payload) => {
-            if (payload.kind === "single") setAnimals(p => [...p, payload.animal]);
-            else setAnimals(p => [...p, ...payload.animals]);
+            if (payload.kind === "single") {
+              if (!isProUser && activeCount >= 20) { setShowUpgradeModal?.(true); return; }
+              setAnimals(p => [...p, payload.animal]);
+            } else {
+              if (!isProUser && (activeCount + payload.animals.length) > 20) { setShowUpgradeModal?.(true); return; }
+              setAnimals(p => [...p, ...payload.animals]);
+            }
           }}
           onCancel={() => setShowAdd(false)}
         />

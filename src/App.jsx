@@ -368,7 +368,6 @@ export default function App() {
         setPastureFeedLogs({});
         setContacts([]);
       }
-      initialLoadDone.current = true;
       setLoadDone(true);
       return;
     }
@@ -397,11 +396,9 @@ export default function App() {
       setLoadSales(salesData);
       setTasks(tasksData);
       setContacts(contactsData);
-      initialLoadDone.current = true;
       setLoadDone(true);
     }).catch(err => {
       console.error('[DB] loadAllData failed:', err);
-      initialLoadDone.current = true;
       setLoadDone(true);
     });
   }, [user?.id, user?.isGuest]);
@@ -588,6 +585,13 @@ export default function App() {
     }, PERSIST_DEBOUNCE_MS);
     return () => clearTimeout(t);
   }, [user, contacts]);
+
+  // Mirror loadDone into the ref AFTER all persist effects run (effects fire in source order).
+  // This ensures persist effects see initialLoadDone.current === false on the first post-load
+  // render and skip it; subsequent renders from user edits see true and persist normally.
+  useEffect(() => {
+    initialLoadDone.current = loadDone;
+  }, [loadDone]);
 
   useEffect(() => {
     if (!user || user.isGuest) return;

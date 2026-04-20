@@ -251,7 +251,7 @@ export function EditAnimalForm({
       <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
         <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
         <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
-        <Input label="Scrapie Tag" value={form.scrapieTag} onChange={e => setForm(p => ({ ...p, scrapieTag: e.target.value }))} placeholder="e.g. 840003123456789" />
+        {(form.species === "Sheep" || form.species === "Goat") && <Input label="Scrapie Tag" value={form.scrapieTag} onChange={e => setForm(p => ({ ...p, scrapieTag: e.target.value }))} placeholder="e.g. 840003123456789" />}
         <Input label="Microchip ID" value={form.microchipId} onChange={e => setForm(p => ({ ...p, microchipId: e.target.value }))} placeholder="e.g. 985112345678" />
         <Input label="Tattoo ID" value={form.tattooId} onChange={e => setForm(p => ({ ...p, tattooId: e.target.value }))} placeholder="e.g. AB1234" />
         <DateInputWithValidation label="Date of Birth" value={form.dob} onValueChange={v => setForm(p => ({ ...p, dob: v }))} birthDate />
@@ -533,7 +533,7 @@ export function RegisterAnimalForm({
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
             <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
-            <Input label="Scrapie Tag" value={form.scrapieTag} onChange={e => setForm(p => ({ ...p, scrapieTag: e.target.value }))} placeholder="e.g. 840003123456789" />
+            {(form.species === "Sheep" || form.species === "Goat") && <Input label="Scrapie Tag" value={form.scrapieTag} onChange={e => setForm(p => ({ ...p, scrapieTag: e.target.value }))} placeholder="e.g. 840003123456789" />}
             <Input label="Microchip ID" value={form.microchipId} onChange={e => setForm(p => ({ ...p, microchipId: e.target.value }))} placeholder="e.g. 985112345678" />
             <Input label="Tattoo ID" value={form.tattooId} onChange={e => setForm(p => ({ ...p, tattooId: e.target.value }))} placeholder="e.g. AB1234" />
             <DateInputWithValidation label="Date of Birth" value={form.dob} onValueChange={v => setForm(p => ({ ...p, dob: v }))} birthDate />

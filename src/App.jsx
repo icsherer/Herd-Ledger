@@ -458,7 +458,7 @@ export default function App() {
       if (saveIndicatorEnabled.current) setSaveStatus("saving");
       try {
         await persistAnimals(user.id, animalsRef.current);
-        logAnimalHistory(user.id, animalsRef.current.length);
+        logAnimalHistory(user.id, animalsRef.current);
         completeSave();
       } catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }
     }, PERSIST_DEBOUNCE_MS);

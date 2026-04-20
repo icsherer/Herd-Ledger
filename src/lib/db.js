@@ -88,7 +88,8 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
     const g = {
       id: r.id, animalId: r.animal_id, sire: r.sire, notes: r.notes,
       status: r.status, dueDate: r.due_date, breedingDate: r.breeding_date,
-      gestationDays: r.gestation_days, deliveredAt: r.delivered_at,
+      gestationDays: r.gestation_days != null ? Number(r.gestation_days) : undefined,
+      deliveredAt: r.delivered_at,
       createdAt: r.created_at_src,
       dueDateStart: r.due_date_start || null,
       dueDateEnd: r.due_date_end || null,
@@ -102,7 +103,8 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
     if (hasCalf) {
       g.calf = {
         notes: r.calf_notes, stillborn: r.calf_stillborn,
-        recordedAt: r.calf_recorded_at, birthWeight: r.calf_birth_weight,
+        recordedAt: r.calf_recorded_at,
+        birthWeight: r.calf_birth_weight != null ? Number(r.calf_birth_weight) : undefined,
         offspringCount: r.calf_offspring_count, sex: r.calf_sex,
         tag: r.calf_tag, name: r.calf_name, animalId: r.calf_animal_id,
       };
@@ -116,21 +118,25 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
   }));
 
   const expenses = (expenseRows || []).filter(r => !r.deleted_at).map(r => ({
-    id: r.id, date: r.date, amount: r.amount,
+    id: r.id, date: r.date, amount: r.amount != null ? Number(r.amount) : undefined,
     animalId: r.animal_id, category: r.category, description: r.description,
   }));
 
   const feederPrograms = (feederRows || []).map(r => ({
     id: r.id, penName: r.pen_name, animalId: r.animal_id, feedType: r.feed_type,
-    startDate: r.start_date, adg: r.adg, feedConversionRatio: r.feed_conversion_ratio,
+    startDate: r.start_date,
+    adg: r.adg != null ? Number(r.adg) : undefined,
+    feedConversionRatio: r.feed_conversion_ratio != null ? Number(r.feed_conversion_ratio) : undefined,
   }));
 
   const loadSales = (salesRows || []).map(r => ({
     id: r.id, date: r.date, species: r.species, buyerName: r.buyer_name,
-    headCount: r.head_count, priceType: r.price_type, totalAmount: r.total_amount,
+    headCount: r.head_count != null ? Number(r.head_count) : undefined,
+    priceType: r.price_type,
+    totalAmount: r.total_amount != null ? Number(r.total_amount) : undefined,
     animalIds: r.animal_ids ?? [],
-    averageWeight: r.average_weight ?? null,
-    priceValue: r.price_value ?? null,
+    averageWeight: r.average_weight != null ? Number(r.average_weight) : null,
+    priceValue: r.price_value != null ? Number(r.price_value) : null,
     notes: r.notes ?? null,
   }));
 
@@ -145,8 +151,11 @@ function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRow
   for (const r of (feedLogRows || [])) {
     if (!pastureFeedLogs[r.pasture_name]) pastureFeedLogs[r.pasture_name] = [];
     pastureFeedLogs[r.pasture_name].push({
-      id: r.id, cost: r.cost, date: r.date, feedType: r.feed_type,
-      quantity: r.quantity, expenseId: r.expense_id,
+      id: r.id,
+      cost: r.cost != null ? Number(r.cost) : undefined,
+      date: r.date, feedType: r.feed_type,
+      quantity: r.quantity != null ? Number(r.quantity) : undefined,
+      expenseId: r.expense_id,
     });
   }
 
@@ -221,13 +230,24 @@ export async function persistAnimals(userId, animals) {
   await syncRows('animals', userId, rows, 'id', true);
 }
 
-export async function logAnimalHistory(userId, animalCount) {
-  const { error } = await supabase.from('animal_history').insert({
+export async function logAnimalHistory(userId, animals) {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 90);
+  await supabase.from('animal_history')
+    .delete()
+    .eq('user_id', userId)
+    .lt('changed_at', cutoff.toISOString());
+
+  if (!animals || animals.length === 0) return;
+  const now = new Date().toISOString();
+  const rows = animals.map(a => ({
+    animal_id: a.id,
     user_id: userId,
-    action: 'bulk_save',
-    snapshot: { count: animalCount },
-    changed_at: new Date().toISOString(),
-  });
+    action: 'save',
+    snapshot: a,
+    changed_at: now,
+  }));
+  const { error } = await supabase.from('animal_history').insert(rows);
   if (error) console.error('[DB] logAnimalHistory error:', error);
 }
 

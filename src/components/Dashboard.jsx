@@ -2,7 +2,7 @@ import { TIPS, SPECIES, DEFAULT_TAB_VISIBILITY, PASTURE_SPECIES } from "../lib/c
 import { getExpectedWeaningDate, getAnimalName, daysUntilDue, fmtDueRange, formatGestationDaysRemaining, progress, breedingDateForProgress, formatCompactDollar, getNextExpectedHeatDate, isFemale } from "../lib/helpers.js";
 import { Card, Badge, ProgressBar } from "./ui.jsx";
 
-export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, setAnimalsFilterHeatDue, expenses, tasks, settings, loadDone, setHighlightGestationId }) {
+export default function Dashboard({ animals, gestations, offspring, moon, season, user, setTab, setAnimalsSearch, setAnimalsFilterHeatDue, expenses, tasks, settings, loadDone, setHighlightGestationId, setViewingAnimal }) {
   const today = new Date();
   const tip = TIPS[season][today.getDate() % TIPS[season].length];
   const currentYear = today.getFullYear();
@@ -171,8 +171,8 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
                     <span
                       role="button"
                       tabIndex={0}
-                      onClick={() => { setHighlightGestationId?.(g.id); setTab?.("gestation"); }}
-                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHighlightGestationId?.(g.id); setTab?.("gestation"); } }}
+                      onClick={() => { setViewingAnimal?.(g.animal); setTab?.("animals"); }}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setViewingAnimal?.(g.animal); setTab?.("animals"); } }}
                       style={{ fontWeight: 600, cursor: "pointer", color: "var(--green)", textDecoration: "underline", textDecorationColor: "var(--green3)" }}
                     >{getAnimalName(g.animal)}</span>
                     <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{g.animal?.species}</span>
@@ -199,8 +199,8 @@ export default function Dashboard({ animals, gestations, offspring, moon, season
                         <div
                           role="button"
                           tabIndex={0}
-                          onClick={() => { setHighlightGestationId?.(g.id); setTab?.("gestation"); }}
-                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setHighlightGestationId?.(g.id); setTab?.("gestation"); } }}
+                          onClick={() => { setViewingAnimal?.(g.animal); setTab?.("animals"); }}
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setViewingAnimal?.(g.animal); setTab?.("animals"); } }}
                           style={{ fontWeight: 600, cursor: "pointer", color: "var(--green)", textDecoration: "underline", textDecorationColor: "var(--green3)" }}
                         >{getAnimalName(g.animal)}</div>
                         <div style={{ fontSize: "12px", color: "var(--muted)" }}>{g.animal?.species} · Due {fmtDueRange(g)}</div>

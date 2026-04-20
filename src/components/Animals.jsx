@@ -126,6 +126,9 @@ export function animalToEditInitialValues(a) {
     discipline: a.discipline || "",
     registrationNumber: a.registrationNumber || "",
     markings: a.markings || "",
+    scrapieTag: a.scrapieTag || "",
+    microchipId: a.microchipId || "",
+    tattooId: a.tattooId || "",
     damId: a.damId || a.motherId || "",
     damName: (a.damName || a.motherName) || "",
     damNotInHerd: !(a.damId || a.motherId),
@@ -161,6 +164,9 @@ function buildRegisterSingleForm(defaultSpecies, seed) {
     discipline: "",
     registrationNumber: "",
     markings: "",
+    scrapieTag: "",
+    microchipId: "",
+    tattooId: "",
     damId: "",
     damName: "",
     damNotInHerd: false,
@@ -221,6 +227,9 @@ export function EditAnimalForm({
       sireId: form.sireNotInHerd ? undefined : (form.sireId || undefined),
       sireName: form.sireNotInHerd ? (form.sireName?.trim() || undefined) : (form.sireId ? form.sireName : undefined),
       excludeFromReports: form.excludeFromReports ?? false,
+      scrapieTag: (form.scrapieTag || "").trim() || undefined,
+      microchipId: (form.microchipId || "").trim() || undefined,
+      tattooId: (form.tattooId || "").trim() || undefined,
       ...(form.species === "Horse" && {
         heightHands: (form.heightHands || "").trim() || undefined,
         discipline: (form.discipline || "").trim() || undefined,
@@ -242,6 +251,9 @@ export function EditAnimalForm({
       <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
         <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
         <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
+        <Input label="Scrapie Tag" value={form.scrapieTag} onChange={e => setForm(p => ({ ...p, scrapieTag: e.target.value }))} placeholder="e.g. 840003123456789" />
+        <Input label="Microchip ID" value={form.microchipId} onChange={e => setForm(p => ({ ...p, microchipId: e.target.value }))} placeholder="e.g. 985112345678" />
+        <Input label="Tattoo ID" value={form.tattooId} onChange={e => setForm(p => ({ ...p, tattooId: e.target.value }))} placeholder="e.g. AB1234" />
         <DateInputWithValidation label="Date of Birth" value={form.dob} onValueChange={v => setForm(p => ({ ...p, dob: v }))} birthDate />
         <TagColorSwatches value={form.tagColor} onChange={v => setForm(p => ({ ...p, tagColor: v }))} />
         <Select label="Species" value={form.species} onChange={e => {
@@ -521,6 +533,9 @@ export function RegisterAnimalForm({
           <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
             <Input label="Name *" value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Bessie" />
             <Input label="Tag / ID" value={form.tag} onChange={e => setForm(p => ({ ...p, tag: e.target.value }))} placeholder="e.g. 1042" />
+            <Input label="Scrapie Tag" value={form.scrapieTag} onChange={e => setForm(p => ({ ...p, scrapieTag: e.target.value }))} placeholder="e.g. 840003123456789" />
+            <Input label="Microchip ID" value={form.microchipId} onChange={e => setForm(p => ({ ...p, microchipId: e.target.value }))} placeholder="e.g. 985112345678" />
+            <Input label="Tattoo ID" value={form.tattooId} onChange={e => setForm(p => ({ ...p, tattooId: e.target.value }))} placeholder="e.g. AB1234" />
             <DateInputWithValidation label="Date of Birth" value={form.dob} onValueChange={v => setForm(p => ({ ...p, dob: v }))} birthDate />
             <TagColorSwatches value={form.tagColor} onChange={v => setForm(p => ({ ...p, tagColor: v }))} />
             <Select label="Sex" value={form.sex} onChange={e => setForm(p => ({ ...p, sex: e.target.value }))}>
@@ -862,6 +877,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     "Dam Name": ["dam name", "dam", "mother", "mom", "mother name", "dam id"],
     "Sire Name": ["sire name", "sire", "father", "bull", "sire id", "father name"],
     "Registration Number": ["registration number", "reg number", "reg no", "registration", "reg #", "registry number"],
+    "Scrapie Tag": ["scrapie tag", "scrapie", "scrapie id", "scrapie number"],
+    "Microchip ID": ["microchip id", "microchip", "chip id", "chip number", "rfid"],
+    "Tattoo ID": ["tattoo id", "tattoo", "tattoo number"],
   };
 
   function fuzzyMapHeaders(headers) {
@@ -1162,6 +1180,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       const damName = colIndex("Dam Name") >= 0 ? (row[colIndex("Dam Name")] || "").trim() : "";
       const sireName = colIndex("Sire Name") >= 0 ? (row[colIndex("Sire Name")] || "").trim() : "";
       const registrationNumber = colIndex("Registration Number") >= 0 ? (row[colIndex("Registration Number")] || "").trim() : "";
+      const scrapieTag = colIndex("Scrapie Tag") >= 0 ? (row[colIndex("Scrapie Tag")] || "").trim() : "";
+      const microchipId = colIndex("Microchip ID") >= 0 ? (row[colIndex("Microchip ID")] || "").trim() : "";
+      const tattooId = colIndex("Tattoo ID") >= 0 ? (row[colIndex("Tattoo ID")] || "").trim() : "";
       const data = {
         name: name || undefined,
         tag: tag || undefined,
@@ -1179,6 +1200,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         damName: damName || undefined,
         sireName: sireName || undefined,
         registrationNumber: registrationNumber || undefined,
+        scrapieTag: scrapieTag || undefined,
+        microchipId: microchipId || undefined,
+        tattooId: tattooId || undefined,
       };
       const dupByTag = tag ? existingByTag.get(tag.trim().toLowerCase()) : null;
       const dupByNameSpecies = name ? existingByNameSpecies.get(`${name.trim().toLowerCase()}|${species.toLowerCase()}`) : null;
@@ -1246,12 +1270,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   }
 
   function downloadImportTemplate() {
-    const headers = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes", "Acquisition Type", "Purchase Price", "Purchased From", "Current Pasture", "Dam Name", "Sire Name", "Registration Number"];
+    const headers = ["Name", "Tag", "Species", "Breed", "Sex", "Date of Birth", "Color", "Purchase Date", "Notes", "Acquisition Type", "Purchase Price", "Purchased From", "Current Pasture", "Dam Name", "Sire Name", "Registration Number", "Scrapie Tag", "Microchip ID", "Tattoo ID"];
     const examples = [
-      ["Bessie", "1001", "Cattle", "Angus", "Cow", "2020-03-15", "Black", "", "Home raised", "Home Raised", "", "", "South Pasture", "", "Big Red", ""],
-      ["Blue", "1002", "Cattle", "Hereford", "Steer", "2021-05-20", "Red", "2021-06-01", "", "Purchased", "850.00", "Smith Livestock", "North Lot", "Bessie", "Big Red", ""],
-      ["Daisy", "1003", "Horse", "Quarter Horse", "Mare", "2019-01-10", "Bay", "2022-04-15", "Purchased 2022", "Purchased", "3500.00", "Jones Ranch", "", "", "", "QH-2019-4821"],
-      ["", "", "", "", "", "", "", "", "Valid Acquisition Types: Purchased | Home Raised | Gift | Lease", "", "", "", "", "", "", ""],
+      ["Bessie", "1001", "Cattle", "Angus", "Cow", "2020-03-15", "Black", "", "Home raised", "Home Raised", "", "", "South Pasture", "", "Big Red", "", "", "", ""],
+      ["Blue", "1002", "Cattle", "Hereford", "Steer", "2021-05-20", "Red", "2021-06-01", "", "Purchased", "850.00", "Smith Livestock", "North Lot", "Bessie", "Big Red", "", "840003123456789", "985112345678", ""],
+      ["Daisy", "1003", "Horse", "Quarter Horse", "Mare", "2019-01-10", "Bay", "2022-04-15", "Purchased 2022", "Purchased", "3500.00", "Jones Ranch", "", "", "", "QH-2019-4821", "", "", "AB1234"],
+      ["", "", "", "", "", "", "", "", "Valid Acquisition Types: Purchased | Home Raised | Gift | Lease", "", "", "", "", "", "", "", "", "", ""],
     ];
     const rows = [headers, ...examples];
     const csv = rows.map(r => r.map(c => (typeof c === "string" && (c.includes(",") || c.includes('"') || c.includes("\n")) ? `"${String(c).replace(/"/g, '""')}"` : c)).join(",")).join("\r\n");
@@ -2338,6 +2362,9 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                 ["Sex", displaySex(a, gestations)],
                 ["Date of Birth", fmt(a.dob)],
                 ["Tag / ID", a.tag || "—"],
+                ...(a.scrapieTag ? [["Scrapie Tag", a.scrapieTag]] : []),
+                ...(a.microchipId ? [["Microchip ID", a.microchipId]] : []),
+                ...(a.tattooId ? [["Tattoo ID", a.tattooId]] : []),
                 ...(a.species !== "Mule" && isFemale(a) ? [["Gestation", `${SPECIES[a.species]?.days ?? "—"} days`]] : []),
                 ...(a.species === "Horse" ? [["Height (hands)", a.heightHands || "—"], ["Discipline", a.discipline || "—"], ["Registration number", a.registrationNumber || "—"], ["Markings", a.markings || "—"]] : []),
               ].map(([k, v]) => (

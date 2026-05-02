@@ -720,15 +720,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [offspringForm, setOffspringForm] = useState({
     name: "",
     tag: "",
+    breed: "",
+    tagColor: "",
     sex: "",
     species: "",
     birthWeight: "",
+    color: "",
     dob: "",
     weaningDate: "",
     stillborn: false,
     sireId: "",
     sireName: "",
-    color: "",
     markings: "",
   });
   const [showCastrationForm, setShowCastrationForm] = useState(false);
@@ -1515,14 +1517,16 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         motherId: a.id,
         name: offspringForm.name || undefined,
         tag: offspringForm.tag || undefined,
+        breed: (offspringForm.breed || "").trim() || a.breed || undefined,
         sex: effectiveSex,
         species: motherSpecies,
         birthWeight: offspringForm.birthWeight ? parseFloat(offspringForm.birthWeight) : undefined,
+        color: (offspringForm.color || "").trim() || undefined,
         dob: dobOff,
         weaningDate: weaningDateVal,
         stillborn,
         createdAt: isEdit ? (offspringForMother.find(c => c.id === editingOffspringId)?.createdAt) : new Date().toISOString(),
-        ...(motherSpecies === "Horse" && { sireId: foalSireId, sireName: foalSireName, color: (offspringForm.color || "").trim() || undefined, markings: (offspringForm.markings || "").trim() || undefined }),
+        ...(motherSpecies === "Horse" && { sireId: foalSireId, sireName: foalSireName, markings: (offspringForm.markings || "").trim() || undefined }),
       };
       const prevRec = isEdit ? offspringForMother.find(c => c.id === editingOffspringId) : null;
       const activeForMother = gestations.filter(g => g.animalId === a.id && g.status !== "Delivered");
@@ -1545,10 +1549,13 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           id: rec.id,
           name: offspringForm.name || undefined,
           tag: offspringForm.tag || undefined,
+          tagColor: offspringForm.tagColor || undefined,
           sex: effectiveSex,
           species: motherSpecies,
           dob: dobOff,
-          breed: a.breed || undefined,
+          breed: rec.breed,
+          color: rec.color,
+          acquisitionType: "Home Raised",
           notes: undefined,
           motherId: a.id,
           motherName: getAnimalName(a),
@@ -1556,7 +1563,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
           damName: getAnimalName(a),
           sireId: sireIdFromGestation,
           sireName: sireIdFromGestation ? getAnimalName((animals || []).find(x => x.id === sireIdFromGestation)) : foalSireName,
-          ...(motherSpecies === "Horse" && { color: rec.color, markings: rec.markings }),
+          ...(motherSpecies === "Horse" && { markings: rec.markings }),
         };
         if (isEdit) {
           setAnimals(prev => prev.map(an => an.id === editingOffspringId ? { ...an, ...updatedAnimal } : an));
@@ -1608,15 +1615,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       setOffspringForm({
         name: "",
         tag: "",
+        breed: "",
+        tagColor: "",
         sex: "",
         species: "",
         birthWeight: "",
+        color: "",
         dob: "",
         weaningDate: "",
         stillborn: false,
         sireId: "",
         sireName: "",
-        color: "",
         markings: "",
       });
     }
@@ -3919,20 +3928,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                   </div>
                 )}
 
-                {promptAddOffspring?.animalId === a.id && setPromptAddOffspring && (
-                  <div style={{ marginBottom: "16px", padding: "14px 16px", background: "rgba(34, 139, 34, 0.12)", borderRadius: "var(--radius)", borderLeft: "4px solid var(--green)" }}>
-                    <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--ink2)", marginBottom: "8px" }}>You recorded a live birth. Add the {getOffspringTerm(a.species).toLowerCase()} to your herd?</div>
-                    <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                      <Btn size="sm" onClick={() => {
-                        setPromptAddOffspring(null);
-                        setEditingOffspringId(null);
-                        setShowOffspringForm(true);
-                        setOffspringForm(prev => ({ ...prev, dob: promptAddOffspring.deliveryDate || "", name: "", tag: "", sex: getOffspringDefaultSex(a.species), species: a.species, birthWeight: "", weaningDate: "", stillborn: false }));
-                      }}>Add Calf</Btn>
-                      <Btn size="sm" variant="secondary" onClick={() => setPromptAddOffspring(null)}>Dismiss</Btn>
-                    </div>
-                  </div>
-                )}
 
                 {(() => {
                   const totalPregnancies = offspringForMother.length;
@@ -3973,15 +3968,17 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                       setOffspringForm({
                         name: "",
                         tag: "",
+                        breed: a.breed || "",
+                        tagColor: "",
                         sex: getOffspringDefaultSex(a.species),
                         species: a.species,
                         birthWeight: "",
+                        color: "",
                         dob: "",
                         weaningDate: "",
                         stillborn: false,
                         sireId: "",
                         sireName: "",
-                        color: "",
                         markings: "",
                       });
                     setAddCalfMode("register");
@@ -4009,7 +4006,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             </div>
                           </div>
                           <div style={{ display: "flex", gap: "6px" }}>
-                            <Btn size="sm" variant="ghost" onClick={() => { const sp = c.species || a.species || ""; setEditingOffspringId(c.id); (() => { const an = (animals || []).find(x => x.id === c.id); const sireId = c.sireId || (c.sireName && !c.sireId ? "outside" : ""); const sireName = c.sireName || ""; setOffspringForm({ name: c.name || "", tag: c.tag || "", sex: (c.sex && String(c.sex).trim()) ? c.sex : getOffspringDefaultSex(sp), species: sp, birthWeight: c.birthWeight != null ? String(c.birthWeight) : "", dob: c.dob || "", weaningDate: c.weaningDate || "", stillborn: !!c.stillborn, sireId, sireName, color: c.color || an?.color || "", markings: c.markings || an?.markings || "" }); })(); setShowOffspringForm(true); }}>Edit</Btn>
+                            <Btn size="sm" variant="ghost" onClick={() => { const sp = c.species || a.species || ""; setEditingOffspringId(c.id); (() => { const an = (animals || []).find(x => x.id === c.id); const sireId = c.sireId || (c.sireName && !c.sireId ? "outside" : ""); const sireName = c.sireName || ""; setOffspringForm({ name: c.name || "", tag: c.tag || "", breed: c.breed || an?.breed || "", tagColor: c.tagColor || an?.tagColor || "", sex: (c.sex && String(c.sex).trim()) ? c.sex : getOffspringDefaultSex(sp), species: sp, birthWeight: c.birthWeight != null ? String(c.birthWeight) : "", color: c.color || an?.color || "", dob: c.dob || "", weaningDate: c.weaningDate || "", stillborn: !!c.stillborn, sireId, sireName, markings: c.markings || an?.markings || "" }); })(); setShowOffspringForm(true); }}>Edit</Btn>
                             <Btn size="sm" variant="ghost" onClick={() => deleteOffspring(c.id)}>Delete</Btn>
                           </div>
                         </div>
@@ -4116,6 +4113,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         onChange={e => setOffspringForm(p => ({ ...p, tag: e.target.value }))}
                         placeholder="e.g. 2043"
                       />
+                      <Input
+                        label="Breed"
+                        value={offspringForm.breed}
+                        onChange={e => setOffspringForm(p => ({ ...p, breed: e.target.value }))}
+                        placeholder={a.breed || "e.g. Angus"}
+                      />
                       <div style={{ borderLeft: (offspringForm.sex || getOffspringDefaultSex(a.species)) === getOffspringDefaultSex(a.species) ? "4px solid var(--brass)" : "4px solid transparent", borderRadius: "var(--radius)", paddingLeft: "4px", marginLeft: "-4px" }}>
                         <Select
                           label="Sex (default is pre-selected)"
@@ -4137,6 +4140,12 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                         value={offspringForm.birthWeight}
                         onChange={e => setOffspringForm(p => ({ ...p, birthWeight: e.target.value }))}
                         placeholder="e.g. 85"
+                      />
+                      <Input
+                        label="Color"
+                        value={offspringForm.color || ""}
+                        onChange={e => setOffspringForm(p => ({ ...p, color: e.target.value }))}
+                        placeholder={a.species === "Horse" ? "e.g. Bay, Chestnut, Gray" : "e.g. Black, Red, Roan"}
                       />
                       <DateInputWithValidation
                         label="Birthday"
@@ -4176,12 +4185,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                             )}
                           </div>
                           <Input
-                            label="Color"
-                            value={offspringForm.color || ""}
-                            onChange={e => setOffspringForm(p => ({ ...p, color: e.target.value }))}
-                            placeholder="e.g. Bay, Chestnut, Gray"
-                          />
-                          <Input
                             label="Markings"
                             value={offspringForm.markings || ""}
                             onChange={e => setOffspringForm(p => ({ ...p, markings: e.target.value }))}
@@ -4189,6 +4192,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           />
                         </>
                       )}
+                      <TagColorSwatches value={offspringForm.tagColor} onChange={v => setOffspringForm(p => ({ ...p, tagColor: v }))} />
                       <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
                         <input
                           type="checkbox"
@@ -4211,12 +4215,18 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                           setOffspringForm({
                             name: "",
                             tag: "",
+                            breed: "",
+                            tagColor: "",
                             sex: getOffspringDefaultSex(a.species),
                             species: a.species,
                             birthWeight: "",
+                            color: "",
                             dob: "",
                             weaningDate: "",
                             stillborn: false,
+                            sireId: "",
+                            sireName: "",
+                            markings: "",
                           });
                         }}
                       >
@@ -5957,6 +5967,48 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         ))}
       </div>
       )}
+
+      {promptAddOffspring && (() => {
+        const dam = (animals || []).find(x => x.id === promptAddOffspring.animalId);
+        const offspringTerm = getOffspringTerm(dam?.species);
+        return (
+          <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1050, padding: "16px" }} onClick={() => setPromptAddOffspring(null)}>
+            <Card style={{ maxWidth: "420px", width: "100%", padding: "28px 24px", borderLeft: "4px solid var(--green)" }} onClick={e => e.stopPropagation()}>
+              <div style={{ fontSize: "28px", textAlign: "center", marginBottom: "12px" }}>{SPECIES[dam?.species]?.emoji || "🐄"}</div>
+              <div style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, textAlign: "center", marginBottom: "10px" }}>Live Birth Recorded</div>
+              <p style={{ fontSize: "14px", color: "var(--ink2)", textAlign: "center", marginBottom: "24px", lineHeight: 1.5 }}>
+                Add the {offspringTerm.toLowerCase()} from <strong>{getAnimalName(dam)}</strong> to your herd?
+              </p>
+              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <Btn onClick={() => {
+                  setViewingAnimal(dam);
+                  setEditingOffspringId(null);
+                  setAddCalfMode("register");
+                  setShowOffspringForm(true);
+                  setOffspringForm({
+                    name: "",
+                    tag: "",
+                    breed: dam?.breed || "",
+                    tagColor: "",
+                    sex: getOffspringDefaultSex(dam?.species),
+                    species: dam?.species || "",
+                    birthWeight: "",
+                    color: "",
+                    dob: promptAddOffspring.deliveryDate || "",
+                    weaningDate: "",
+                    stillborn: false,
+                    sireId: "",
+                    sireName: "",
+                    markings: "",
+                  });
+                  setPromptAddOffspring(null);
+                }}>Add {offspringTerm} Details</Btn>
+                <Btn variant="secondary" onClick={() => setPromptAddOffspring(null)}>Skip for now</Btn>
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
 
       {inbreedingWarningPending && (
         <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => setInbreedingWarningPending(null)}>

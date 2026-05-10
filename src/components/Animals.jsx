@@ -5317,74 +5317,80 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             </div>
 
             {showFilterSheet && (
-              <div className="hl-filter-sheet-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000, display: "flex", alignItems: "flex-end", justifyContent: "center" }} onClick={() => setShowFilterSheet(false)}>
-                <div className="hl-filter-sheet" style={{ background: "var(--cream)", borderTopLeftRadius: "16px", borderTopRightRadius: "16px", width: "100%", maxWidth: "480px", maxHeight: "85vh", overflowY: "auto", padding: "24px", boxShadow: "0 -4px 24px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-                    <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, color: "var(--ink)" }}>Filter & Sort</span>
-                    <button type="button" onClick={() => setShowFilterSheet(false)} style={{ background: "none", border: "none", fontSize: "24px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
+              <div className="hl-filter-sheet-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 1000 }} onClick={() => setShowFilterSheet(false)}>
+                <div className="hl-filter-sheet" style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "var(--cream)", borderTopLeftRadius: "16px", borderTopRightRadius: "16px", maxHeight: "70vh", display: "flex", flexDirection: "column", boxShadow: "0 -4px 24px rgba(0,0,0,0.15)" }} onClick={e => e.stopPropagation()}>
+                  <div style={{ padding: "20px 24px 0", flexShrink: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                      <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600, color: "var(--ink)" }}>Filter & Sort</span>
+                      <button type="button" onClick={() => setShowFilterSheet(false)} style={{ background: "none", border: "none", fontSize: "24px", color: "var(--muted)", cursor: "pointer", lineHeight: 1 }} aria-label="Close">×</button>
+                    </div>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Search</label>
-                      <Input placeholder="Name or tag..." value={search} onChange={e => setSearch(e.target.value)} />
+                  <div style={{ overflowY: "auto", flex: 1, padding: "0 24px 8px" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Search</label>
+                        <Input placeholder="Name or tag..." value={search} onChange={e => setSearch(e.target.value)} />
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Species</label>
+                        <Select value={filterSpecies} onChange={e => setFilterSpecies(e.target.value)} style={{ width: "100%" }}>
+                          <option value="All Species">All Species</option>
+                          {speciesInHerd.map(s => <option key={s} value={s}>{s}</option>)}
+                        </Select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Sex / Status</label>
+                        <Select value={filterSexStatus} onChange={e => setFilterSexStatus(e.target.value)} style={{ width: "100%" }}>
+                          <option value="All">All</option>
+                          <option value="Intact Males">Intact Males</option>
+                          <option value="Females">Females</option>
+                          <option value="Castrated">Castrated</option>
+                          <option value="Bred/Pregnant">Bred/Pregnant</option>
+                          <option value="Open">Open</option>
+                        </Select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Pasture</label>
+                        <Select value={filterPasture} onChange={e => setFilterPasture(e.target.value)} style={{ width: "100%" }}>
+                          <option value="All Pastures">All Pastures</option>
+                          <option value="No Pasture Assigned">No Pasture Assigned</option>
+                          {pastureNamesForFilter.map(p => <option key={p} value={p}>{p}</option>)}
+                        </Select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Cull</label>
+                        <Select value={filterCull} onChange={e => setFilterCull(e.target.value)} style={{ width: "100%" }}>
+                          <option value="All">All</option>
+                          <option value="Marked for Cull">Marked for Cull</option>
+                        </Select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Status</label>
+                        <Select value={filterArchiveStatus} onChange={e => setFilterArchiveStatus(e.target.value)} style={{ width: "100%" }}>
+                          <option value="All">All Statuses</option>
+                          <option value="Sold">Sold</option>
+                          <option value="Deceased">Deceased</option>
+                          <option value="Butchered">Butchered</option>
+                          <option value="Transferred">Transferred</option>
+                        </Select>
+                      </div>
+                      <div>
+                        <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Sort by</label>
+                        <Select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ width: "100%" }}>
+                          <option value="dateAddedNewest">Date Added (newest first)</option>
+                          <option value="nameAZ">Name A–Z</option>
+                          <option value="ageYoungest">Age (youngest first)</option>
+                          <option value="ageOldest">Age (oldest first)</option>
+                          <option value="tagNumber">Tag Number</option>
+                        </Select>
+                      </div>
+                      {activeFilterCount > 0 && (
+                        <Btn variant="secondary" onClick={clearFilters}>Clear Filters</Btn>
+                      )}
                     </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Species</label>
-                      <Select value={filterSpecies} onChange={e => setFilterSpecies(e.target.value)} style={{ width: "100%" }}>
-                        <option value="All Species">All Species</option>
-                        {speciesInHerd.map(s => <option key={s} value={s}>{s}</option>)}
-                      </Select>
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Sex / Status</label>
-                      <Select value={filterSexStatus} onChange={e => setFilterSexStatus(e.target.value)} style={{ width: "100%" }}>
-                        <option value="All">All</option>
-                        <option value="Intact Males">Intact Males</option>
-                        <option value="Females">Females</option>
-                        <option value="Castrated">Castrated</option>
-                        <option value="Bred/Pregnant">Bred/Pregnant</option>
-                        <option value="Open">Open</option>
-                      </Select>
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Pasture</label>
-                      <Select value={filterPasture} onChange={e => setFilterPasture(e.target.value)} style={{ width: "100%" }}>
-                        <option value="All Pastures">All Pastures</option>
-                        <option value="No Pasture Assigned">No Pasture Assigned</option>
-                        {pastureNamesForFilter.map(p => <option key={p} value={p}>{p}</option>)}
-                      </Select>
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Cull</label>
-                      <Select value={filterCull} onChange={e => setFilterCull(e.target.value)} style={{ width: "100%" }}>
-                        <option value="All">All</option>
-                        <option value="Marked for Cull">Marked for Cull</option>
-                      </Select>
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Status</label>
-                      <Select value={filterArchiveStatus} onChange={e => setFilterArchiveStatus(e.target.value)} style={{ width: "100%" }}>
-                        <option value="All">All Statuses</option>
-                        <option value="Sold">Sold</option>
-                        <option value="Deceased">Deceased</option>
-                        <option value="Butchered">Butchered</option>
-                        <option value="Transferred">Transferred</option>
-                      </Select>
-                    </div>
-                    <div>
-                      <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", marginBottom: "6px", textTransform: "uppercase", letterSpacing: "0.5px" }}>Sort by</label>
-                      <Select value={sortBy} onChange={e => setSortBy(e.target.value)} style={{ width: "100%" }}>
-                        <option value="dateAddedNewest">Date Added (newest first)</option>
-                        <option value="nameAZ">Name A–Z</option>
-                        <option value="ageYoungest">Age (youngest first)</option>
-                        <option value="ageOldest">Age (oldest first)</option>
-                        <option value="tagNumber">Tag Number</option>
-                      </Select>
-                    </div>
-                    {activeFilterCount > 0 && (
-                      <Btn variant="secondary" onClick={clearFilters} style={{ marginTop: "8px" }}>Clear Filters</Btn>
-                    )}
-                    <Btn onClick={() => setShowFilterSheet(false)} style={{ marginTop: "8px" }}>Done</Btn>
+                  </div>
+                  <div style={{ padding: "12px 24px 24px", flexShrink: 0, borderTop: "1px solid var(--cream3)", background: "var(--cream)" }}>
+                    <Btn onClick={() => setShowFilterSheet(false)} style={{ width: "100%" }}>Done</Btn>
                   </div>
                 </div>
               </div>

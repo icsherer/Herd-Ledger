@@ -64,7 +64,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.pastures !== false ? [{ id: "pastures", label: "Pastures", icon: "🌿" }] : []),
     ...(visibility.notes !== false ? [{ id: "notes", label: "Journal", icon: "📓" }] : []),
     ...(visibility.expenses !== false ? [{ id: "expenses", label: "Expenses", icon: "💰" }] : []),
-    ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "💰" }] : []),
+    ...(visibility.sales !== false ? [{ id: "sales", label: "Ledger", icon: "💰" }] : []),
     ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✅" }] : []),
     ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🐄" }] : []),
     ...(visibility.hay !== false ? [{ id: "hay", label: "Hay & Forage", icon: "🌾" }] : []),
@@ -78,7 +78,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
     ...(visibility.tasks !== false ? [{ id: "tasks", label: "Tasks", icon: "✅", tile: "#4A7B9D" }] : []),
     ...(visibility.feeder !== false ? [{ id: "feeder", label: "Feeder Program", icon: "🌾", tile: "#B8972A" }] : []),
     ...(visibility.weaning !== false ? [{ id: "weaning", label: "Weaning", icon: "🐄", tile: "#8B5E3C" }] : []),
-    ...(visibility.sales !== false ? [{ id: "sales", label: "Sales", icon: "💰", tile: "#6B8C52" }] : []),
+    ...(visibility.sales !== false ? [{ id: "sales", label: "Ledger", icon: "💰", tile: "#6B8C52" }] : []),
     ...(visibility.hay !== false ? [{ id: "hay", label: "Hay & Forage", icon: "🌾", tile: "#B8972A" }] : []),
     { id: "settings", label: "Settings", icon: "⚙️", tile: "#7A6A5A" },
   ];
@@ -151,7 +151,7 @@ function Nav({ tab, setTab, hideGestationTab, settings }) {
         </button>
         <button className={`hl-bottom-tab${isFinancesActive ? " hl-bottom-tab-active" : ""}`} onClick={() => setTab("expenses")}>
           <span className="hl-bottom-tab-icon">💰</span>
-          <span className="hl-bottom-tab-label">Finances</span>
+          <span className="hl-bottom-tab-label">Expenses</span>
         </button>
         <button className={`hl-bottom-tab${isMoreActive ? " hl-bottom-tab-active" : ""}`} onClick={() => setShowMoreDrawer(true)}>
           <span className="hl-bottom-tab-icon">☰</span>

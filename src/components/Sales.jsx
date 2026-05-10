@@ -26,6 +26,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
   const [filterEndDate, setFilterEndDate] = useState("");
   const [filterSpecies, setFilterSpecies] = useState("");
   const [filterMonthYear, setFilterMonthYear] = useState("");
+  const [filterYear, setFilterYear] = useState("");
   const [editingSaleAnimalId, setEditingSaleAnimalId] = useState(null);
   const [expandedSaleId, setExpandedSaleId] = useState(null);
   const [expandedLoadSaleId, setExpandedLoadSaleId] = useState(null);
@@ -68,6 +69,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     if (!dateStr) return false;
     if (filterStartSan && dateStr < filterStartSan) return false;
     if (filterEndSan && dateStr > filterEndSan) return false;
+    if (filterYear && !dateStr.startsWith(String(filterYear))) return false;
     return true;
   };
 
@@ -82,7 +84,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     return true;
   });
 
-  const filterActive = filterStartDate || filterEndDate || filterSpecies || filterMonthYear;
+  const filterActive = filterStartDate || filterEndDate || filterSpecies || filterMonthYear || filterYear;
 
   const filteredHeadCount = filteredSoldAnimals.length + filteredLoadSales.reduce((s, l) => s + (Number(l.headCount) || 0), 0);
   const filteredRevenue = filteredSoldAnimals.reduce((s, a) => s + (Number(a.sale?.pricePerHead) || 0), 0) + filteredLoadSales.reduce((s, l) => s + (Number(l.totalAmount) || 0), 0);
@@ -111,6 +113,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     setFilterEndDate("");
     setFilterSpecies("");
     setFilterMonthYear("");
+    setFilterYear("");
   }
 
   const individualSalesYTD = soldAnimals
@@ -127,6 +130,31 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
     .filter(e => e.date && e.date.startsWith(String(year)))
     .reduce((sum, e) => sum + (Number(e.amount) || 0), 0);
   const netProfitLossYTD = totalSalesRevenueYTD - purchasesYTD - expensesYTD;
+
+  // Tax summary card — scoped to filterYear (or all-time if none selected)
+  const taxYearStr = filterYear ? String(filterYear) : null;
+  const taxSalesIncome =
+    soldAnimals
+      .filter(a => !taxYearStr || a.sale?.dateSold?.startsWith(taxYearStr))
+      .reduce((s, a) => s + (Number(a.sale?.pricePerHead) || 0), 0)
+    + (loadSales || [])
+      .filter(l => !taxYearStr || l.date?.startsWith(taxYearStr))
+      .reduce((s, l) => s + (Number(l.totalAmount) || 0), 0);
+  const taxPurchasesTotal = (animals || [])
+    .filter(a => a.acquisitionType === "Purchased" && (Number(a.purchasePrice) || 0) > 0)
+    .filter(a => !taxYearStr || (a.purchaseDate && a.purchaseDate.startsWith(taxYearStr)))
+    .reduce((s, a) => s + (Number(a.purchasePrice) || 0), 0);
+  const taxExpensesTotal = (expenses || [])
+    .filter(e => !taxYearStr || (e.date && e.date.startsWith(taxYearStr)))
+    .reduce((s, e) => s + (Number(e.amount) || 0), 0);
+  const taxNet = taxSalesIncome - taxPurchasesTotal - taxExpensesTotal;
+
+  // Purchases section display data
+  const displayPurchases = (animals || [])
+    .filter(a => a.acquisitionType === "Purchased" && (Number(a.purchasePrice) || 0) > 0)
+    .filter(a => !filterYear || (a.purchaseDate && a.purchaseDate.startsWith(String(filterYear))))
+    .sort((a, b) => (b.purchaseDate || "").localeCompare(a.purchaseDate || ""));
+  const displayPurchasesTotal = displayPurchases.reduce((s, a) => s + (Number(a.purchasePrice) || 0), 0);
 
   function saveLoadSale() {
     const headCount = parseInt(loadForm.headCount, 10);
@@ -624,6 +652,13 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "12px" }}>
           <DateInputWithValidation label="Start date" value={filterStartDate} onValueChange={setFilterStartDate} style={{ width: "140px" }} />
           <DateInputWithValidation label="End date" value={filterEndDate} onValueChange={setFilterEndDate} style={{ width: "140px" }} />
+          <div style={{ minWidth: "120px" }}>
+            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Tax Year</label>
+            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
+              <option value="">All Years</option>
+              {[currentYear, currentYear - 1, currentYear - 2].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
           <div style={{ minWidth: "140px" }}>
             <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Month / Year</label>
             {!hasAnySales ? (
@@ -651,6 +686,29 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
             <span><strong>Net gain:</strong> <span style={{ fontWeight: 600, color: filteredNetGain >= 0 ? "var(--green)" : "var(--danger2)" }}>${filteredNetGain.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></span>
           </div>
         )}
+      </Card>
+
+      {/* Tax Summary */}
+      <Card style={{ padding: "20px 24px", marginBottom: "16px", borderLeft: "4px solid var(--brass)" }}>
+        <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "14px" }}>
+          Tax Summary{filterYear ? ` — ${filterYear}` : " — All Years"}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
+          {[
+            { label: "Total Sales Income", value: taxSalesIncome, color: "var(--green)" },
+            { label: "Total Animal Purchases", value: taxPurchasesTotal, color: "var(--ink2)" },
+            { label: "Total Expenses", value: taxExpensesTotal, color: "var(--ink2)" },
+          ].map(({ label, value, color }) => (
+            <div key={label} className="hl-sales-summary-tile">
+              <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", lineHeight: 1.3 }}>{label}</div>
+              <div className="hl-sales-summary-value" style={{ fontFamily: "'Playfair Display'", fontWeight: 700, color }}>{formatCompactDollar(value)}</div>
+            </div>
+          ))}
+          <div style={{ background: taxNet >= 0 ? "rgba(107,140,82,0.1)" : "rgba(192,57,43,0.07)", border: `1.5px solid ${taxNet >= 0 ? "var(--green3)" : "var(--danger2)"}`, borderRadius: "var(--radius)", padding: "12px 14px" }}>
+            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", lineHeight: 1.3 }}>Net (Income − Purchases − Expenses)</div>
+            <div className="hl-sales-summary-value" style={{ fontFamily: "'Playfair Display'", fontWeight: 700, color: taxNet >= 0 ? "var(--green)" : "var(--danger2)" }}>{formatCompactDollar(taxNet)}</div>
+          </div>
+        </div>
       </Card>
 
       {/* Individual Sales */}
@@ -971,6 +1029,47 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
               </tbody>
             </table>
           </div>
+        )}
+      </Card>
+
+      {/* Animal Purchases */}
+      <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Animal Purchases</div>
+        {displayPurchases.length === 0 ? (
+          <div style={{ padding: "24px", color: "var(--muted)", fontSize: "14px" }}>
+            {filterYear ? `No purchased animals recorded for ${filterYear}.` : "No purchased animals recorded yet."}
+          </div>
+        ) : (
+          <>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <thead>
+                  <tr style={{ background: "var(--cream)", borderBottom: "1px solid var(--cream2)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Name</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Species</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>Date Purchased</th>
+                    <th style={{ textAlign: "right", padding: "10px 12px", fontWeight: 600 }}>Amount</th>
+                    <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600, whiteSpace: "nowrap" }}>Purchased From</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayPurchases.map(a => (
+                    <tr key={a.id} style={{ borderBottom: "1px solid var(--cream2)" }}>
+                      <td style={{ padding: "10px 12px" }}>{getAnimalName(a)}{a.tag ? ` #${a.tag}` : ""}</td>
+                      <td style={{ padding: "10px 12px", color: "var(--muted)" }}>{a.species || "—"}</td>
+                      <td style={{ padding: "10px 12px", whiteSpace: "nowrap" }}>{a.purchaseDate ? fmt(a.purchaseDate) : "—"}</td>
+                      <td style={{ padding: "10px 12px", textAlign: "right", fontWeight: 600 }}>${(Number(a.purchasePrice) || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: "10px 12px" }}>{a.purchasedFrom || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: "12px 20px", borderTop: "1px solid var(--cream2)", display: "flex", justifyContent: "flex-end", alignItems: "center", gap: "10px", fontSize: "14px" }}>
+              <span style={{ color: "var(--muted)" }}>Total Purchases:</span>
+              <span style={{ fontWeight: 700, color: "var(--ink)", fontFamily: "'Playfair Display'" }}>${displayPurchasesTotal.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span>
+            </div>
+          </>
         )}
       </Card>
 

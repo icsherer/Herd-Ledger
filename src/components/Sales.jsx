@@ -54,6 +54,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
   });
 
   const [bosModal, setBosModal] = useState(null); // { sale, saleType }
+  const [ledgerTab, setLedgerTab] = useState("summary");
 
   const soldAnimals = (animals || []).filter(a => a.sale).sort((x, y) => (y.sale?.dateSold || "").localeCompare(x.sale?.dateSold || ""));
   const loadSalesSorted = [...(loadSales || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
@@ -688,30 +689,68 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
         )}
       </Card>
 
-      {/* Tax Summary */}
-      <Card style={{ padding: "20px 24px", marginBottom: "16px", borderLeft: "4px solid var(--brass)" }}>
-        <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "14px" }}>
-          Tax Summary{filterYear ? ` — ${filterYear}` : " — All Years"}
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
-          {[
-            { label: "Total Sales Income", value: taxSalesIncome, color: "var(--green)" },
-            { label: "Total Animal Purchases", value: taxPurchasesTotal, color: "var(--ink2)" },
-            { label: "Total Expenses", value: taxExpensesTotal, color: "var(--ink2)" },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="hl-sales-summary-tile">
-              <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", lineHeight: 1.3 }}>{label}</div>
-              <div className="hl-sales-summary-value" style={{ fontFamily: "'Playfair Display'", fontWeight: 700, color }}>{formatCompactDollar(value)}</div>
-            </div>
-          ))}
-          <div style={{ background: taxNet >= 0 ? "rgba(107,140,82,0.1)" : "rgba(192,57,43,0.07)", border: `1.5px solid ${taxNet >= 0 ? "var(--green3)" : "var(--danger2)"}`, borderRadius: "var(--radius)", padding: "12px 14px" }}>
-            <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", lineHeight: 1.3 }}>Net (Income − Purchases − Expenses)</div>
-            <div className="hl-sales-summary-value" style={{ fontFamily: "'Playfair Display'", fontWeight: 700, color: taxNet >= 0 ? "var(--green)" : "var(--danger2)" }}>{formatCompactDollar(taxNet)}</div>
+      {/* Inner tab bar */}
+      {(() => {
+        const tabs = [
+          { id: "summary", label: "Summary" },
+          { id: "sales", label: "Sales" },
+          { id: "load-sales", label: "Load Sales" },
+          { id: "purchases", label: "Purchases" },
+        ];
+        return (
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", padding: "4px 0 16px" }}>
+            {tabs.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setLedgerTab(t.id)}
+                style={{
+                  padding: "7px 18px",
+                  borderRadius: "999px",
+                  border: "none",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  background: ledgerTab === t.id ? "var(--green)" : "var(--cream2)",
+                  color: ledgerTab === t.id ? "#fff" : "var(--ink)",
+                  transition: "background 0.15s, color 0.15s",
+                  whiteSpace: "nowrap",
+                  touchAction: "manipulation",
+                }}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
-        </div>
-      </Card>
+        );
+      })()}
 
-      {/* Individual Sales */}
+      {/* Tax Summary */}
+      {ledgerTab === "summary" && (
+        <Card style={{ padding: "20px 24px", marginBottom: "16px", borderLeft: "4px solid var(--brass)" }}>
+          <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "14px" }}>
+            Tax Summary{filterYear ? ` — ${filterYear}` : " — All Years"}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "12px" }}>
+            {[
+              { label: "Total Sales Income", value: taxSalesIncome, color: "var(--green)" },
+              { label: "Total Animal Purchases", value: taxPurchasesTotal, color: "var(--ink2)" },
+              { label: "Total Expenses", value: taxExpensesTotal, color: "var(--ink2)" },
+            ].map(({ label, value, color }) => (
+              <div key={label} className="hl-sales-summary-tile">
+                <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", lineHeight: 1.3 }}>{label}</div>
+                <div className="hl-sales-summary-value" style={{ fontFamily: "'Playfair Display'", fontWeight: 700, color }}>{formatCompactDollar(value)}</div>
+              </div>
+            ))}
+            <div style={{ background: taxNet >= 0 ? "rgba(107,140,82,0.1)" : "rgba(192,57,43,0.07)", border: `1.5px solid ${taxNet >= 0 ? "var(--green3)" : "var(--danger2)"}`, borderRadius: "var(--radius)", padding: "12px 14px" }}>
+              <div style={{ fontSize: "12px", color: "var(--muted)", marginBottom: "6px", lineHeight: 1.3 }}>Net (Income − Purchases − Expenses)</div>
+              <div className="hl-sales-summary-value" style={{ fontFamily: "'Playfair Display'", fontWeight: 700, color: taxNet >= 0 ? "var(--green)" : "var(--danger2)" }}>{formatCompactDollar(taxNet)}</div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {ledgerTab === "sales" && (
       <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Individual Sales</div>
         {editingSaleAnimalId && (() => {
@@ -853,8 +892,9 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           </>
         )}
       </Card>
+      )}
 
-      {/* Group / Load Sales */}
+      {ledgerTab === "load-sales" && (
       <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "10px" }}>
           <span style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Group / Load Sales</span>
@@ -994,8 +1034,9 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           </div>
         )}
       </Card>
+      )}
 
-      {/* Flat Sales */}
+      {ledgerTab === "sales" && (
       <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Flat Sales</div>
         {displayFlatSales.length === 0 ? (
@@ -1031,8 +1072,9 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           </div>
         )}
       </Card>
+      )}
 
-      {/* Animal Purchases */}
+      {ledgerTab === "purchases" && (
       <Card style={{ padding: "0", marginBottom: "24px", overflow: "hidden" }}>
         <div style={{ padding: "16px 20px", borderBottom: "1px solid var(--cream2)", fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Animal Purchases</div>
         {displayPurchases.length === 0 ? (
@@ -1072,6 +1114,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           </>
         )}
       </Card>
+      )}
 
       {/* Bill of Sale Modal */}
       {bosModal && (
@@ -1088,7 +1131,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
         />
       )}
 
-      {/* Annual Summary — bottom */}
+      {ledgerTab === "summary" && (
       <Card style={{ padding: "24px", marginBottom: "24px", borderLeft: "4px solid var(--brass)" }}>
         <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "14px" }}>Annual Summary ({year})</div>
         <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "18px" }}>
@@ -1118,6 +1161,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           <div style={{ fontSize: "13px", color: "var(--muted)", marginTop: "4px" }}>Sales − Purchases − Expenses</div>
         </div>
       </Card>
+      )}
     </div>
   );
 }

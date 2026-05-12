@@ -396,6 +396,7 @@ export default function App() {
       setLoadSales(salesData);
       setTasks(tasksData);
       setContacts(contactsData);
+      lastLoadedAt.current = Date.now();
       setLoadDone(true);
     }).catch(err => {
       console.error('[DB] loadAllData failed:', err);
@@ -404,6 +405,9 @@ export default function App() {
   }, [user?.id, user?.isGuest]);
 
   const PERSIST_DEBOUNCE_MS = 2000;
+
+  // Tracks when data was last loaded or persisted — used to detect external DB changes
+  const lastLoadedAt = useRef(0);
 
   // Refs always mirror latest state so debounced callbacks never close over stale values
   const animalsRef = useRef(animals);
@@ -457,7 +461,15 @@ export default function App() {
     const t = setTimeout(async () => {
       if (saveIndicatorEnabled.current) setSaveStatus("saving");
       try {
-        await persistAnimals(user.id, animalsRef.current);
+        await persistAnimals(user.id, animalsRef.current, {
+          lastLoadedAt: lastLoadedAt.current,
+          onStaleData: async () => {
+            const fresh = await loadAllData(user.id);
+            lastLoadedAt.current = Date.now();
+            setAnimals(fresh.animals);
+          },
+        });
+        lastLoadedAt.current = Date.now();
         logAnimalHistory(user.id, animalsRef.current);
         completeSave();
       } catch (_) { if (saveIndicatorEnabled.current) setSaveStatus("error"); }

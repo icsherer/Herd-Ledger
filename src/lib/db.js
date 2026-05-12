@@ -213,7 +213,22 @@ async function syncRows(table, userId, rows, idField = 'id', softDelete = false)
   }
 }
 
-export async function persistAnimals(userId, animals) {
+export async function persistAnimals(userId, animals, { onStaleData, lastLoadedAt } = {}) {
+  if (onStaleData != null && lastLoadedAt != null) {
+    const { data: newest } = await supabase
+      .from('animals')
+      .select('updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (newest?.updated_at && new Date(newest.updated_at).getTime() > lastLoadedAt) {
+      console.warn('[DB] persistAnimals: external change detected — skipping save, reloading');
+      onStaleData();
+      return;
+    }
+  }
+
   const rows = animals.map(a => {
     const { id, name, tag, species, breed, sex, dob, notes, ...rest } = a;
     // Strip photo from extra_data — too large to upsert on every save

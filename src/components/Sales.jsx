@@ -55,6 +55,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
 
   const [bosModal, setBosModal] = useState(null); // { sale, saleType }
   const [ledgerTab, setLedgerTab] = useState("summary");
+  const [showFilters, setShowFilters] = useState(false);
 
   const soldAnimals = (animals || []).filter(a => a.sale).sort((x, y) => (y.sale?.dateSold || "").localeCompare(x.sale?.dateSold || ""));
   const loadSalesSorted = [...(loadSales || [])].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
@@ -622,7 +623,7 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           </div>
         </div>
       }>
-        Sales
+        Ledger
       </SectionTitle>
 
       {showFlatSaleModal && (
@@ -648,46 +649,75 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
       )}
 
       {/* Filter bar */}
-      <Card style={{ padding: "16px 20px", marginBottom: "12px", borderLeft: "4px solid var(--green3)" }}>
-        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: "12px" }}>Filters</div>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "12px" }}>
-          <DateInputWithValidation label="Start date" value={filterStartDate} onValueChange={setFilterStartDate} style={{ width: "140px" }} />
-          <DateInputWithValidation label="End date" value={filterEndDate} onValueChange={setFilterEndDate} style={{ width: "140px" }} />
-          <div style={{ minWidth: "120px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Tax Year</label>
-            <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
-              <option value="">All Years</option>
-              {[currentYear, currentYear - 1, currentYear - 2].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-          <div style={{ minWidth: "140px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Month / Year</label>
-            {!hasAnySales ? (
-              <div style={{ padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "var(--cream)", color: "var(--muted)" }}>No sales recorded yet</div>
-            ) : (
-              <select value={filterMonthYear} onChange={e => setMonthYear(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
-                <option value="">— Select —</option>
-                {monthYearOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
+      {(() => {
+        const activeFilterCount = [filterSpecies, filterYear, filterMonthYear || filterStartDate || filterEndDate].filter(Boolean).length;
+        return (
+          <Card style={{ padding: "0", marginBottom: "12px", borderLeft: "4px solid var(--green3)", overflow: "hidden" }}>
+            <div
+              onClick={() => setShowFilters(f => !f)}
+              style={{ display: "flex", alignItems: "center", gap: "10px", cursor: "pointer", padding: "12px 20px", userSelect: "none" }}
+            >
+              <span style={{ fontSize: "12px", fontWeight: 700, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.8px" }}>Filters</span>
+              {activeFilterCount > 0 && (
+                <span style={{ background: "var(--green)", color: "#fff", borderRadius: "999px", padding: "1px 8px", fontSize: "11px", fontWeight: 700, lineHeight: "18px" }}>
+                  {activeFilterCount}
+                </span>
+              )}
+              {filterActive && !showFilters && (
+                <button
+                  type="button"
+                  onClick={e => { e.stopPropagation(); clearFilters(); }}
+                  style={{ background: "none", border: "none", fontSize: "12px", color: "var(--muted)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
+                >
+                  Clear
+                </button>
+              )}
+              <span style={{ marginLeft: "auto", fontSize: "12px", color: "var(--muted)" }}>{showFilters ? "▲" : "▼"}</span>
+            </div>
+            {showFilters && (
+              <div style={{ padding: "0 20px 16px", borderTop: "1px solid var(--cream2)" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: "12px", paddingTop: "12px" }}>
+                  <DateInputWithValidation label="Start date" value={filterStartDate} onValueChange={setFilterStartDate} style={{ width: "140px" }} />
+                  <DateInputWithValidation label="End date" value={filterEndDate} onValueChange={setFilterEndDate} style={{ width: "140px" }} />
+                  <div style={{ minWidth: "120px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Tax Year</label>
+                    <select value={filterYear} onChange={e => setFilterYear(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
+                      <option value="">All Years</option>
+                      {[currentYear, currentYear - 1, currentYear - 2].map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ minWidth: "140px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Month / Year</label>
+                    {!hasAnySales ? (
+                      <div style={{ padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "var(--cream)", color: "var(--muted)" }}>No sales recorded yet</div>
+                    ) : (
+                      <select value={filterMonthYear} onChange={e => setMonthYear(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
+                        <option value="">— Select —</option>
+                        {monthYearOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                      </select>
+                    )}
+                  </div>
+                  <div style={{ minWidth: "160px" }}>
+                    <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Species</label>
+                    <select value={filterSpecies} onChange={e => setFilterSpecies(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
+                      <option value="">All Species</option>
+                      {speciesWithSales.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <Btn size="sm" variant="secondary" onClick={clearFilters} disabled={!filterActive}>Clear Filters</Btn>
+                </div>
+                {filterActive && (
+                  <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid var(--cream2)", display: "flex", flexWrap: "wrap", gap: "20px", fontSize: "14px" }}>
+                    <span><strong>Filtered total:</strong> <span style={{ color: "var(--ink2)" }}>{filteredHeadCount}</span> head sold</span>
+                    <span><strong>Revenue:</strong> <span style={{ fontWeight: 600, color: "var(--green)" }}>${filteredRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></span>
+                    <span><strong>Net gain:</strong> <span style={{ fontWeight: 600, color: filteredNetGain >= 0 ? "var(--green)" : "var(--danger2)" }}>${filteredNetGain.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></span>
+                  </div>
+                )}
+              </div>
             )}
-          </div>
-          <div style={{ minWidth: "160px" }}>
-            <label style={{ display: "block", fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Species</label>
-            <select value={filterSpecies} onChange={e => setFilterSpecies(e.target.value)} style={{ width: "100%", padding: "9px 12px", borderRadius: "var(--radius)", border: "1.5px solid var(--cream3)", fontSize: "14px", background: "#fff" }}>
-              <option value="">All Species</option>
-              {speciesWithSales.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <Btn size="sm" variant="secondary" onClick={clearFilters} disabled={!filterActive}>Clear Filters</Btn>
-        </div>
-        {filterActive && (
-          <div style={{ marginTop: "14px", paddingTop: "14px", borderTop: "1px solid var(--cream2)", display: "flex", flexWrap: "wrap", gap: "20px", fontSize: "14px" }}>
-            <span><strong>Filtered total:</strong> <span style={{ color: "var(--ink2)" }}>{filteredHeadCount}</span> head sold</span>
-            <span><strong>Revenue:</strong> <span style={{ fontWeight: 600, color: "var(--green)" }}>${filteredRevenue.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></span>
-            <span><strong>Net gain:</strong> <span style={{ fontWeight: 600, color: filteredNetGain >= 0 ? "var(--green)" : "var(--danger2)" }}>${filteredNetGain.toLocaleString("en-US", { minimumFractionDigits: 2 })}</span></span>
-          </div>
-        )}
-      </Card>
+          </Card>
+        );
+      })()}
 
       {/* Inner tab bar */}
       {(() => {
@@ -698,17 +728,17 @@ export default function Sales({ animals, setAnimals, loadSales, setLoadSales, ex
           { id: "purchases", label: "Purchases" },
         ];
         return (
-          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", padding: "4px 0 16px" }}>
+          <div style={{ display: "flex", gap: "8px", padding: "4px 0 16px", overflowX: "auto", whiteSpace: "nowrap" }}>
             {tabs.map(t => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setLedgerTab(t.id)}
                 style={{
-                  padding: "7px 18px",
+                  padding: "6px 14px",
                   borderRadius: "999px",
                   border: "none",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: 600,
                   cursor: "pointer",
                   background: ledgerTab === t.id ? "var(--green)" : "var(--cream2)",

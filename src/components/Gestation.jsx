@@ -81,6 +81,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   const [deletingGestationId, setDeletingGestationId] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [editForm, setEditForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false });
+  const [gestationTab, setGestationTab] = useState("active");
 
   const females = animalsList.filter(a => isFemale(a) && !a.cull);
 
@@ -456,231 +457,272 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
         );
       })()}
 
-      {!active.length && !showAdd && !showCalfForm && (
-        <Card style={{ padding: "60px", textAlign: "center" }}>
-          <div style={{ fontSize: "40px", marginBottom: "10px" }}>📅</div>
-          <div style={{ color: "var(--muted)", fontSize: "15px" }}>No active breeding records.</div>
-        </Card>
-      )}
-
-      {active.length > 0 && (
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
-          <label htmlFor="gestation-sort" style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", whiteSpace: "nowrap", flexShrink: 0 }}>Sort by:</label>
-          <div style={{ position: "relative", flex: 1, maxWidth: "260px" }}>
-            <select
-              id="gestation-sort"
-              value={activeSort}
-              onChange={e => setActiveSort(e.target.value)}
-              style={{
-                width: "100%",
-                appearance: "none",
-                WebkitAppearance: "none",
-                padding: "8px 36px 8px 12px",
-                fontSize: "14px",
-                fontWeight: 500,
-                fontFamily: "inherit",
-                color: "var(--ink)",
-                background: "var(--cream)",
-                border: "1.5px solid var(--green)",
-                borderRadius: "var(--radius)",
-                cursor: "pointer",
-                outline: "none",
-              }}
-              onFocus={e => { e.target.style.borderColor = "var(--brass)"; e.target.style.boxShadow = "0 0 0 2px rgba(201,149,42,0.18)"; }}
-              onBlur={e => { e.target.style.borderColor = "var(--green)"; e.target.style.boxShadow = "none"; }}
-            >
-              {ACTIVE_SORT_OPTIONS.map(opt => (
-                <option key={opt.id} value={opt.id}>{opt.label}</option>
-              ))}
-            </select>
-            {/* Chevron */}
-            <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--green)", fontSize: "11px" }}>▼</span>
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
-        {activeSorted.map(g => {
-          const animal = animalsList.find(a => a.id === g.animalId);
-          const dueD = daysUntilDue(g);
-          const pct = progress(breedingDateForProgress(g), g.gestationDays);
-          const overdue = isOverdue(g);
-          const urgent = dueD.isRange ? (dueD.start <= 7 && dueD.end >= 0) : (dueD.start >= 0 && dueD.start <= 7);
-          const badgeText = formatGestationDaysRemaining(dueD);
-          return (
-            <Card key={g.id} id={`gestation-card-${g.id}`} className="hl-gestation-card" style={{ padding: "20px 24px", borderLeft: `4px solid ${overdue ? "var(--danger2)" : urgent ? "var(--brass)" : "var(--green3)"}`, boxShadow: g.id === highlightedId ? "0 0 0 3px var(--brass), var(--shadow)" : undefined, transition: "box-shadow 0.6s ease-out" }}>
-              <div className="hl-gestation-card-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => { if (animal) { setViewingAnimal(animal); setTab("animals"); } }}
-                  onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && animal) { e.preventDefault(); setViewingAnimal(animal); setTab("animals"); } }}
-                  style={{ display: "flex", alignItems: "center", gap: "12px", cursor: animal ? "pointer" : undefined }}
-                >
-                  <span style={{ fontSize: "28px" }}>{SPECIES[animal?.species]?.emoji}</span>
-                  <div>
-                    <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", textDecoration: "underline", textDecorationColor: "var(--green3)", textUnderlineOffset: "3px" }}>
-                      {getAnimalName(animal)}
-                      {g.inbreedingWarning && (
-                        <span style={{ fontSize: "10px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.2)", padding: "2px 6px", borderRadius: "4px", letterSpacing: "0.5px", textDecoration: "none" }}>INBRED WARNING</span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: "13px", color: "var(--muted)" }}>
-                      {getAnimalName(animal)}{g.sire ? ` × ${g.sire}` : ""} · {fmtExposure(g)}
-                    </div>
-                  </div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <Badge color={overdue ? "var(--danger2)" : urgent ? "var(--brass2)" : "var(--green3)"}>
-                    {badgeText}
-                  </Badge>
-                  <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>Due {fmtDueRange(g)}</div>
-                </div>
-              </div>
-              <div style={{ marginBottom: "6px" }}>
-                <ProgressBar value={pct} color={overdue ? "var(--danger2)" : "var(--green3)"} height={8} />
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
-                <span>{Math.round(pct)}% complete</span>
-                <span>{g.gestationDays} day gestation{g.runningWithBull ? " (range)" : ""}</span>
-              </div>
-              {g.notes && <p style={{ fontSize: "13px", color: "var(--ink2)", fontStyle: "italic", marginBottom: "12px" }}>{g.notes}</p>}
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
-                <Btn size="sm" onClick={() => markDelivered(g.id)}>✓ Mark Delivered</Btn>
-                <Btn size="sm" variant="secondary" onClick={() => { if (editingGestationId === g.id) { setEditingGestationId(null); } else { startEdit(g); setDeletingGestationId(null); } }}>
-                  {editingGestationId === g.id ? "Cancel Edit" : "Edit"}
-                </Btn>
-                {deletingGestationId === g.id ? (
-                  <>
-                    <span style={{ fontSize: "13px", color: "var(--danger2)", fontWeight: 500 }}>Delete this breeding record?</span>
-                    <Btn size="sm" variant="danger" onClick={() => remove(g.id)}>Yes, Delete</Btn>
-                    <Btn size="sm" variant="secondary" onClick={() => setDeletingGestationId(null)}>Cancel</Btn>
-                  </>
-                ) : (
-                  <Btn size="sm" variant="ghost" onClick={() => { setDeletingGestationId(g.id); setEditingGestationId(null); }}>Delete</Btn>
-                )}
-              </div>
-              {editingGestationId === g.id && (() => {
-                const editSireOptions = getBreedingMalesForSpecies(animalsList, animal?.species);
-                return (
-                  <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--cream2)" }}>
-                    <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "12px" }}>Edit Breeding Record</div>
-                    <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                      <DateInputWithValidation
-                        label={editForm.runningWithBull ? "Turn Out Date *" : "Breeding Date *"}
-                        breedingDueTwoDigitYear
-                        value={editForm.breedingDate}
-                        onValueChange={v => setEditForm(p => ({ ...p, breedingDate: v }))}
-                      />
-                      {editForm.runningWithBull && (
-                        <DateInputWithValidation
-                          label="Pull Date (optional)"
-                          breedingDueTwoDigitYear
-                          value={editForm.breedingDateEnd}
-                          onValueChange={v => setEditForm(p => ({ ...p, breedingDateEnd: v }))}
-                        />
-                      )}
-                      {!editForm.sireNotInHerd ? (
-                        <Select label="Sire (optional)" value={editForm.sireAnimalId || ""} onChange={e => {
-                          const v = e.target.value;
-                          if (v === "unknown") setEditForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
-                          else if (!v) setEditForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
-                          else { const m = animalsList.find(x => x.id === v); setEditForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" })); }
-                        }}>
-                          <option value="">— None —</option>
-                          <option value="unknown">Unknown</option>
-                          {editSireOptions.map(m => (
-                            <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>
-                          ))}
-                        </Select>
-                      ) : (
-                        <Input label="Sire (outside bull)" value={editForm.sire} onChange={e => setEditForm(p => ({ ...p, sire: e.target.value }))} placeholder="Unknown or type bull name" />
-                      )}
-                    </div>
-                    <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
-                      <input type="checkbox" checked={editForm.runningWithBull} onChange={e => setEditForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDateEnd : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
-                      <span>Running with Bull (date range)</span>
-                    </label>
-                    <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
-                      <input type="checkbox" checked={editForm.sireNotInHerd} onChange={e => setEditForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireAnimalId: "", sire: p.sire || "" } : { sireAnimalId: "", sire: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
-                      <span>Bull not in my herd</span>
-                    </label>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <Btn size="sm" onClick={() => saveEdit(g.id)}>Save Changes</Btn>
-                      <Btn size="sm" variant="secondary" onClick={() => setEditingGestationId(null)}>Cancel</Btn>
-                    </div>
-                  </div>
-                );
-              })()}
-            </Card>
-          );
-        })}
+      {/* Gestation inner tab bar */}
+      <div style={{ display: "flex", gap: "8px", padding: "4px 0 16px", overflowX: "auto", whiteSpace: "nowrap" }}>
+        {[
+          { id: "active", label: `Active (${active.length})` },
+          { id: "delivered", label: `Delivered (${delivered.length})` },
+        ].map(t => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setGestationTab(t.id)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: "999px",
+              border: "none",
+              fontSize: "12px",
+              fontWeight: 600,
+              cursor: "pointer",
+              background: gestationTab === t.id ? "var(--green)" : "var(--cream2)",
+              color: gestationTab === t.id ? "#fff" : "var(--ink)",
+              transition: "background 0.15s, color 0.15s",
+              whiteSpace: "nowrap",
+              touchAction: "manipulation",
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {delivered.length > 0 && (
+      {gestationTab === "active" && (
         <>
-          <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, color: "var(--muted)", marginBottom: "12px" }}>Delivered Records</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            {delivered.map(g => {
+          {!active.length && !showAdd && !showCalfForm && (
+            <Card style={{ padding: "60px", textAlign: "center" }}>
+              <div style={{ fontSize: "40px", marginBottom: "10px" }}>📅</div>
+              <div style={{ color: "var(--muted)", fontSize: "15px" }}>No active breeding records.</div>
+            </Card>
+          )}
+
+          {active.length > 0 && (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <label htmlFor="gestation-sort" style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", whiteSpace: "nowrap", flexShrink: 0 }}>Sort by:</label>
+              <div style={{ position: "relative", flex: 1, maxWidth: "260px" }}>
+                <select
+                  id="gestation-sort"
+                  value={activeSort}
+                  onChange={e => setActiveSort(e.target.value)}
+                  style={{
+                    width: "100%",
+                    appearance: "none",
+                    WebkitAppearance: "none",
+                    padding: "8px 36px 8px 12px",
+                    fontSize: "14px",
+                    fontWeight: 500,
+                    fontFamily: "inherit",
+                    color: "var(--ink)",
+                    background: "var(--cream)",
+                    border: "1.5px solid var(--green)",
+                    borderRadius: "var(--radius)",
+                    cursor: "pointer",
+                    outline: "none",
+                  }}
+                  onFocus={e => { e.target.style.borderColor = "var(--brass)"; e.target.style.boxShadow = "0 0 0 2px rgba(201,149,42,0.18)"; }}
+                  onBlur={e => { e.target.style.borderColor = "var(--green)"; e.target.style.boxShadow = "none"; }}
+                >
+                  {ACTIVE_SORT_OPTIONS.map(opt => (
+                    <option key={opt.id} value={opt.id}>{opt.label}</option>
+                  ))}
+                </select>
+                <span style={{ position: "absolute", right: "10px", top: "50%", transform: "translateY(-50%)", pointerEvents: "none", color: "var(--green)", fontSize: "11px" }}>▼</span>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "24px" }}>
+            {activeSorted.map(g => {
               const animal = animalsList.find(a => a.id === g.animalId);
-              const hasCalf = g.calf && (g.calf.stillborn || g.calf.name || g.calf.tag || g.calf.sex || g.calf.birthWeight || g.calf.weaningDate);
-              const offspringTerm = getOffspringTerm(animal?.species);
+              const dueD = daysUntilDue(g);
+              const pct = progress(breedingDateForProgress(g), g.gestationDays);
+              const overdue = isOverdue(g);
+              const urgent = dueD.isRange ? (dueD.start <= 7 && dueD.end >= 0) : (dueD.start >= 0 && dueD.start <= 7);
+              const badgeText = formatGestationDaysRemaining(dueD);
               return (
-                <Card key={g.id} className="hl-delivered-row" style={{ padding: "14px 20px", opacity: 0.65 }}>
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 12px", marginBottom: !hasCalf ? "8px" : "0" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                      <span>{SPECIES[animal?.species]?.emoji}</span>
+                <Card key={g.id} id={`gestation-card-${g.id}`} className="hl-gestation-card" style={{ padding: "20px 24px", borderLeft: `4px solid ${overdue ? "var(--danger2)" : urgent ? "var(--brass)" : "var(--green3)"}`, boxShadow: g.id === highlightedId ? "0 0 0 3px var(--brass), var(--shadow)" : undefined, transition: "box-shadow 0.6s ease-out" }}>
+                  <div className="hl-gestation-card-head" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => { if (animal) { setViewingAnimal(animal); setTab("animals"); } }}
+                      onKeyDown={e => { if ((e.key === "Enter" || e.key === " ") && animal) { e.preventDefault(); setViewingAnimal(animal); setTab("animals"); } }}
+                      style={{ display: "flex", alignItems: "center", gap: "12px", cursor: animal ? "pointer" : undefined }}
+                    >
+                      <span style={{ fontSize: "28px" }}>{SPECIES[animal?.species]?.emoji}</span>
                       <div>
-                        <span style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(animal)}</span>
-                        <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{animal?.species}</span>
+                        <div style={{ fontFamily: "'Playfair Display'", fontSize: "17px", fontWeight: 600, display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap", textDecoration: "underline", textDecorationColor: "var(--green3)", textUnderlineOffset: "3px" }}>
+                          {getAnimalName(animal)}
+                          {g.inbreedingWarning && (
+                            <span style={{ fontSize: "10px", fontWeight: 600, color: "#c45c26", background: "rgba(196,92,38,0.2)", padding: "2px 6px", borderRadius: "4px", letterSpacing: "0.5px", textDecoration: "none" }}>INBRED WARNING</span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: "13px", color: "var(--muted)" }}>
+                          {getAnimalName(animal)}{g.sire ? ` × ${g.sire}` : ""} · {fmtExposure(g)}
+                        </div>
                       </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "auto" }}>
-                      <Badge color="var(--green)">Delivered</Badge>
-                      <span style={{ fontSize: "13px", color: "var(--muted)" }}>Due {fmtDueRange(g)}</span>
-                      <Btn size="sm" variant="ghost" onClick={() => remove(g.id)}>×</Btn>
+                    <div style={{ textAlign: "right" }}>
+                      <Badge color={overdue ? "var(--danger2)" : urgent ? "var(--brass2)" : "var(--green3)"}>
+                        {badgeText}
+                      </Badge>
+                      <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "4px" }}>Due {fmtDueRange(g)}</div>
                     </div>
                   </div>
-                  {!hasCalf && (
-                    <div style={{ marginTop: "2px" }}>
-                      <button
-                        type="button"
-                        onClick={() => { setDeliveringId(g.id); setEditingCalfGestationId(null); setShowCalfForm(true); setDeliveryForm({ deliveryDate: todayLocalISODate(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" }); }}
-                        style={{ background: "none", border: "none", padding: 0, fontSize: "13px", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}
-                      >
-                        Add delivery record
-                      </button>
-                    </div>
-                  )}
-                  {hasCalf && (
-                    <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--cream2)" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
-                      <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Delivery</div>
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <Btn size="sm" variant="ghost" onClick={() => {
-                          setEditingCalfGestationId(g.id); setDeliveringId(g.id);
-                          const rawD = g.deliveredAt ? (g.deliveredAt.slice(0, 10) || todayLocalISODate()) : todayLocalISODate();
-                          setDeliveryForm({ deliveryDate: sanitizeDate(rawD) || todayLocalISODate(), outcome: g.calf.stillborn ? "stillborn" : "live", offspringCount: g.calf.offspringCount ?? 1, birthWeight: g.calf.birthWeight != null ? String(g.calf.birthWeight) : "", notes: g.calf.notes || "" });
-                          setShowCalfForm(true);
-                        }}>Edit</Btn>
-                        <Btn size="sm" variant="ghost" onClick={() => deleteCalfRecord(g.id)}>Delete</Btn>
+                  <div style={{ marginBottom: "6px" }}>
+                    <ProgressBar value={pct} color={overdue ? "var(--danger2)" : "var(--green3)"} height={8} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "var(--muted)", marginBottom: "12px" }}>
+                    <span>{Math.round(pct)}% complete</span>
+                    <span>{g.gestationDays} day gestation{g.runningWithBull ? " (range)" : ""}</span>
+                  </div>
+                  {g.notes && <p style={{ fontSize: "13px", color: "var(--ink2)", fontStyle: "italic", marginBottom: "12px" }}>{g.notes}</p>}
+                  <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
+                    <Btn size="sm" onClick={() => markDelivered(g.id)}>✓ Mark Delivered</Btn>
+                    <Btn size="sm" variant="secondary" onClick={() => { if (editingGestationId === g.id) { setEditingGestationId(null); } else { startEdit(g); setDeletingGestationId(null); } }}>
+                      {editingGestationId === g.id ? "Cancel Edit" : "Edit"}
+                    </Btn>
+                    {deletingGestationId === g.id ? (
+                      <>
+                        <span style={{ fontSize: "13px", color: "var(--danger2)", fontWeight: 500 }}>Delete this breeding record?</span>
+                        <Btn size="sm" variant="danger" onClick={() => remove(g.id)}>Yes, Delete</Btn>
+                        <Btn size="sm" variant="secondary" onClick={() => setDeletingGestationId(null)}>Cancel</Btn>
+                      </>
+                    ) : (
+                      <Btn size="sm" variant="ghost" onClick={() => { setDeletingGestationId(g.id); setEditingGestationId(null); }}>Delete</Btn>
+                    )}
+                  </div>
+                  {editingGestationId === g.id && (() => {
+                    const editSireOptions = getBreedingMalesForSpecies(animalsList, animal?.species);
+                    return (
+                      <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--cream2)" }}>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "12px" }}>Edit Breeding Record</div>
+                        <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
+                          <DateInputWithValidation
+                            label={editForm.runningWithBull ? "Turn Out Date *" : "Breeding Date *"}
+                            breedingDueTwoDigitYear
+                            value={editForm.breedingDate}
+                            onValueChange={v => setEditForm(p => ({ ...p, breedingDate: v }))}
+                          />
+                          {editForm.runningWithBull && (
+                            <DateInputWithValidation
+                              label="Pull Date (optional)"
+                              breedingDueTwoDigitYear
+                              value={editForm.breedingDateEnd}
+                              onValueChange={v => setEditForm(p => ({ ...p, breedingDateEnd: v }))}
+                            />
+                          )}
+                          {!editForm.sireNotInHerd ? (
+                            <Select label="Sire (optional)" value={editForm.sireAnimalId || ""} onChange={e => {
+                              const v = e.target.value;
+                              if (v === "unknown") setEditForm(p => ({ ...p, sireAnimalId: "unknown", sire: "Unknown" }));
+                              else if (!v) setEditForm(p => ({ ...p, sireAnimalId: "", sire: "" }));
+                              else { const m = animalsList.find(x => x.id === v); setEditForm(p => ({ ...p, sireAnimalId: v, sire: m ? getAnimalName(m) : "" })); }
+                            }}>
+                              <option value="">— None —</option>
+                              <option value="unknown">Unknown</option>
+                              {editSireOptions.map(m => (
+                                <option key={m.id} value={m.id}>{getAnimalName(m)}{m.tag ? ` #${m.tag}` : ""}</option>
+                              ))}
+                            </Select>
+                          ) : (
+                            <Input label="Sire (outside bull)" value={editForm.sire} onChange={e => setEditForm(p => ({ ...p, sire: e.target.value }))} placeholder="Unknown or type bull name" />
+                          )}
+                        </div>
+                        <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
+                          <input type="checkbox" checked={editForm.runningWithBull} onChange={e => setEditForm(p => ({ ...p, runningWithBull: e.target.checked, breedingDateEnd: e.target.checked ? p.breedingDateEnd : "" }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                          <span>Running with Bull (date range)</span>
+                        </label>
+                        <label style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px", cursor: "pointer", fontSize: "14px", color: "var(--ink2)" }}>
+                          <input type="checkbox" checked={editForm.sireNotInHerd} onChange={e => setEditForm(p => ({ ...p, sireNotInHerd: e.target.checked, ...(e.target.checked ? { sireAnimalId: "", sire: p.sire || "" } : { sireAnimalId: "", sire: "" }) }))} style={{ width: "18px", height: "18px", accentColor: "var(--green)" }} />
+                          <span>Bull not in my herd</span>
+                        </label>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <Btn size="sm" onClick={() => saveEdit(g.id)}>Save Changes</Btn>
+                          <Btn size="sm" variant="secondary" onClick={() => setEditingGestationId(null)}>Cancel</Btn>
+                        </div>
                       </div>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px", fontSize: "13px" }}>
-                      {g.calf.stillborn ? <div><span style={{ color: "var(--muted)" }}>Outcome:</span> <strong>Stillborn</strong>{(g.calf.offspringCount ?? 1) > 1 ? ` · ${g.calf.offspringCount} offspring` : ""}</div> : <div><span style={{ color: "var(--muted)" }}>Outcome:</span> <strong>Live birth</strong>{(g.calf.offspringCount ?? 1) > 1 ? ` · ${g.calf.offspringCount} offspring` : ""}</div>}
-                      {g.calf.name && <div><span style={{ color: "var(--muted)" }}>Name:</span> <strong>{g.calf.name}</strong></div>}
-                      {g.calf.tag && <div><span style={{ color: "var(--muted)" }}>Tag:</span> <strong>#{g.calf.tag}</strong></div>}
-                      {(g.calf.sex || g.calf.dob) && (() => { const term = getAgeBasedSexTerm({ ...g.calf, species: animal?.species }, []); return term !== "—" ? <div><span style={{ color: "var(--muted)" }}>Sex:</span> <strong>{term}</strong></div> : null; })()}
-                      {g.calf.birthWeight != null && <div><span style={{ color: "var(--muted)" }}>Birth Weight:</span> <strong>{g.calf.birthWeight} lbs</strong></div>}
-                      {g.calf.weaningDate && <div><span style={{ color: "var(--muted)" }}>Weaning:</span> <strong>{fmt(g.calf.weaningDate)}</strong></div>}
-                      {g.calf.notes && <div><span style={{ color: "var(--muted)" }}>Notes:</span> <strong>{g.calf.notes}</strong></div>}
-                    </div>
-                  </div>
-                  )}
+                    );
+                  })()}
                 </Card>
               );
             })}
           </div>
+        </>
+      )}
+
+      {gestationTab === "delivered" && (
+        <>
+          {delivered.length === 0 ? (
+            <Card style={{ padding: "60px", textAlign: "center" }}>
+              <div style={{ fontSize: "40px", marginBottom: "10px" }}>✓</div>
+              <div style={{ color: "var(--muted)", fontSize: "15px" }}>No delivered records yet.</div>
+            </Card>
+          ) : (
+            <>
+              <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, color: "var(--muted)", marginBottom: "12px" }}>Delivered Records</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                {delivered.map(g => {
+                  const animal = animalsList.find(a => a.id === g.animalId);
+                  const hasCalf = g.calf && (g.calf.stillborn || g.calf.name || g.calf.tag || g.calf.sex || g.calf.birthWeight || g.calf.weaningDate);
+                  const offspringTerm = getOffspringTerm(animal?.species);
+                  return (
+                    <Card key={g.id} className="hl-delivered-row" style={{ padding: "14px 20px", opacity: 0.65 }}>
+                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "8px 12px", marginBottom: !hasCalf ? "8px" : "0" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                          <span>{SPECIES[animal?.species]?.emoji}</span>
+                          <div>
+                            <span style={{ fontWeight: 600, fontSize: "14px" }}>{getAnimalName(animal)}</span>
+                            <span style={{ color: "var(--muted)", fontSize: "13px", marginLeft: "8px" }}>{animal?.species}</span>
+                          </div>
+                        </div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginLeft: "auto" }}>
+                          <Badge color="var(--green)">Delivered</Badge>
+                          <span style={{ fontSize: "13px", color: "var(--muted)" }}>Due {fmtDueRange(g)}</span>
+                          <Btn size="sm" variant="ghost" onClick={() => remove(g.id)}>×</Btn>
+                        </div>
+                      </div>
+                      {!hasCalf && (
+                        <div style={{ marginTop: "2px" }}>
+                          <button
+                            type="button"
+                            onClick={() => { setDeliveringId(g.id); setEditingCalfGestationId(null); setShowCalfForm(true); setDeliveryForm({ deliveryDate: todayLocalISODate(), outcome: "live", offspringCount: 1, birthWeight: "", notes: "" }); }}
+                            style={{ background: "none", border: "none", padding: 0, fontSize: "13px", color: "var(--green)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}
+                          >
+                            Add delivery record
+                          </button>
+                        </div>
+                      )}
+                      {hasCalf && (
+                        <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid var(--cream2)" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                            <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px" }}>Delivery</div>
+                            <div style={{ display: "flex", gap: "6px" }}>
+                              <Btn size="sm" variant="ghost" onClick={() => {
+                                setEditingCalfGestationId(g.id); setDeliveringId(g.id);
+                                const rawD = g.deliveredAt ? (g.deliveredAt.slice(0, 10) || todayLocalISODate()) : todayLocalISODate();
+                                setDeliveryForm({ deliveryDate: sanitizeDate(rawD) || todayLocalISODate(), outcome: g.calf.stillborn ? "stillborn" : "live", offspringCount: g.calf.offspringCount ?? 1, birthWeight: g.calf.birthWeight != null ? String(g.calf.birthWeight) : "", notes: g.calf.notes || "" });
+                                setShowCalfForm(true);
+                              }}>Edit</Btn>
+                              <Btn size="sm" variant="ghost" onClick={() => deleteCalfRecord(g.id)}>Delete</Btn>
+                            </div>
+                          </div>
+                          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "8px", fontSize: "13px" }}>
+                            {g.calf.stillborn ? <div><span style={{ color: "var(--muted)" }}>Outcome:</span> <strong>Stillborn</strong>{(g.calf.offspringCount ?? 1) > 1 ? ` · ${g.calf.offspringCount} offspring` : ""}</div> : <div><span style={{ color: "var(--muted)" }}>Outcome:</span> <strong>Live birth</strong>{(g.calf.offspringCount ?? 1) > 1 ? ` · ${g.calf.offspringCount} offspring` : ""}</div>}
+                            {g.calf.name && <div><span style={{ color: "var(--muted)" }}>Name:</span> <strong>{g.calf.name}</strong></div>}
+                            {g.calf.tag && <div><span style={{ color: "var(--muted)" }}>Tag:</span> <strong>#{g.calf.tag}</strong></div>}
+                            {(g.calf.sex || g.calf.dob) && (() => { const term = getAgeBasedSexTerm({ ...g.calf, species: animal?.species }, []); return term !== "—" ? <div><span style={{ color: "var(--muted)" }}>Sex:</span> <strong>{term}</strong></div> : null; })()}
+                            {g.calf.birthWeight != null && <div><span style={{ color: "var(--muted)" }}>Birth Weight:</span> <strong>{g.calf.birthWeight} lbs</strong></div>}
+                            {g.calf.weaningDate && <div><span style={{ color: "var(--muted)" }}>Weaning:</span> <strong>{fmt(g.calf.weaningDate)}</strong></div>}
+                            {g.calf.notes && <div><span style={{ color: "var(--muted)" }}>Notes:</span> <strong>{g.calf.notes}</strong></div>}
+                          </div>
+                        </div>
+                      )}
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </>
       )}
     </div>

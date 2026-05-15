@@ -770,6 +770,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
   const [showBreedingForm, setShowBreedingForm] = useState(false);
   const [breedingForm, setBreedingForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false, notes: "" });
   const [deletingGestationIdProfile, setDeletingGestationIdProfile] = useState(null);
+  const [profileCourtingForm, setProfileCourtingForm] = useState({ gestationId: null, courtingDate: "", notes: "" });
   const [showHeatForm, setShowHeatForm] = useState(false);
   const [heatForm, setHeatForm] = useState({ observedDate: "", intensity: "Moderate", notes: "", breedingType: "Natural Service", semenName: "", semenCost: "", sireId: "" });
   const [showMoveForm, setShowMoveForm] = useState(false);
@@ -1340,6 +1341,27 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
       ));
     }
     setDeletingGestationIdProfile(null);
+  }
+
+  function saveProfileCourting() {
+    const { gestationId, courtingDate, notes } = profileCourtingForm;
+    if (!gestationId || !courtingDate) return;
+    const g = (gestations || []).find(x => x.id === gestationId);
+    const animal = (animals || []).find(a => a.id === g?.animalId);
+    const gestDays = g?.gestationDays || SPECIES[animal?.species]?.days || 283;
+    const courtingDueDate = dueDate(courtingDate, gestDays);
+    const observation = {
+      id: Date.now().toString(),
+      date: courtingDate,
+      ...(notes.trim() && { notes: notes.trim() }),
+      courtingDueDate,
+    };
+    setGestations(p => (p ?? []).map(gr =>
+      gr.id === gestationId
+        ? { ...gr, courtingObservations: [...(gr.courtingObservations || []), observation] }
+        : gr
+    ));
+    setProfileCourtingForm({ gestationId: null, courtingDate: "", notes: "" });
   }
 
   const todayStrForHeat = new Date().toISOString().split("T")[0];
@@ -3638,12 +3660,48 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
                                 <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>{fmtExposure(g)}</div>
                                 <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "4px" }}>Sire: {sireLabel}</div>
                                 <div style={{ fontSize: "13px", color: "var(--ink2)", marginBottom: "8px" }}>Due {fmtDueRange(g)}</div>
-                                <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
                                   <div style={{ flex: "1 1 120px", height: "8px", background: "var(--cream2)", borderRadius: "4px", overflow: "hidden" }}>
                                     <div style={{ height: "100%", width: `${Math.min(100, Math.max(0, prog))}%`, background: "var(--brass)", borderRadius: "4px", transition: "width 0.2s ease" }} />
                                   </div>
                                   <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--brass)" }}>{Math.round(prog)}%</span>
                                 </div>
+                                {g.courtingObservations && g.courtingObservations.length > 0 && (
+                                  <div style={{ marginBottom: "8px" }}>
+                                    <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "4px" }}>Courting Observed</div>
+                                    {g.courtingObservations.map(obs => (
+                                      <div key={obs.id} style={{ fontSize: "12px", color: "var(--ink2)", padding: "4px 8px", background: "rgba(255,255,255,0.5)", borderRadius: "4px", marginBottom: "3px", display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                                        <span style={{ fontWeight: 600 }}>{fmt(obs.date)}</span>
+                                        {obs.courtingDueDate && <span style={{ color: "var(--muted)" }}>· Est. due {fmt(obs.courtingDueDate)}</span>}
+                                        {obs.notes && <span>· {obs.notes}</span>}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                {g.runningWithBull && (
+                                  <div>
+                                    <Btn size="sm" variant="ghost" style={{ fontSize: "12px", padding: "4px 10px" }} onClick={() => {
+                                      if (profileCourtingForm.gestationId === g.id) {
+                                        setProfileCourtingForm({ gestationId: null, courtingDate: "", notes: "" });
+                                      } else {
+                                        setProfileCourtingForm({ gestationId: g.id, courtingDate: new Date().toISOString().split("T")[0], notes: "" });
+                                      }
+                                    }}>Log Courting</Btn>
+                                    {profileCourtingForm.gestationId === g.id && (
+                                      <div style={{ marginTop: "10px", paddingTop: "10px", borderTop: "1px solid rgba(201,149,42,0.2)" }}>
+                                        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "8px" }}>Log Courting Observation</div>
+                                        <div style={{ marginBottom: "8px" }}>
+                                          <DateInputWithValidation label="Courting Date *" breedingDueTwoDigitYear value={profileCourtingForm.courtingDate} onValueChange={v => setProfileCourtingForm(p => ({ ...p, courtingDate: v }))} />
+                                        </div>
+                                        <Textarea label="Notes (optional)" value={profileCourtingForm.notes} onChange={e => setProfileCourtingForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "8px" }} />
+                                        <div style={{ display: "flex", gap: "8px" }}>
+                                          <Btn size="sm" onClick={saveProfileCourting} disabled={!profileCourtingForm.courtingDate}>Save</Btn>
+                                          <Btn size="sm" variant="secondary" onClick={() => setProfileCourtingForm({ gestationId: null, courtingDate: "", notes: "" })}>Cancel</Btn>
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

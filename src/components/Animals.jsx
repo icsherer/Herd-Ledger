@@ -1872,6 +1872,7 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
     function saveMove() {
       const canonical = getCanonicalPastureNames(animals, pastures);
       const resolvedName = resolvePastureName(moveForm.pastureName?.trim(), canonical) || undefined;
+      console.log('[saveMove] moveForm.pastureName:', moveForm.pastureName, '| resolvedName:', resolvedName);
       const movementId = Date.now().toString() + "-" + a.id;
       const move = {
         pastureName: resolvedName,
@@ -5499,12 +5500,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
       {runningWithBullPrompt && (
         <div className="hl-modal-overlay" style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={() => {
-          const rev = runningWithBullPrompt.revertMove;
-          if (rev) {
-            setAnimals(prev => prev.map(an => (an.id === rev.animalId ? rev.previousAnimal : an)));
-            if (rev.journalEntryId && setNotes) setNotes(prev => prev.filter(n => n.id !== rev.journalEntryId));
-            setViewingAnimal(prev => (prev?.id === rev.animalId ? rev.previousAnimal : prev));
-          }
           setRunningWithBullPrompt(null);
           setRunningWithBullStep("ask");
           setRunningWithBullForm({ startDate: "", endDate: "" });
@@ -5513,12 +5508,6 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
               <span style={{ fontFamily: "'Playfair Display'", fontSize: "18px", fontWeight: 600 }}>Running with Bull</span>
               <button type="button" onClick={() => {
-                const rev = runningWithBullPrompt.revertMove;
-                if (rev) {
-                  setAnimals(prev => prev.map(an => (an.id === rev.animalId ? rev.previousAnimal : an)));
-                  if (rev.journalEntryId && setNotes) setNotes(prev => prev.filter(n => n.id !== rev.journalEntryId));
-                  setViewingAnimal(prev => (prev?.id === rev.animalId ? rev.previousAnimal : prev));
-                }
                 setRunningWithBullPrompt(null);
                 setRunningWithBullStep("ask");
                 setRunningWithBullForm({ startDate: "", endDate: "" });

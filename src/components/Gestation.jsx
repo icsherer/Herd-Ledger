@@ -79,6 +79,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   const [activeSort, setActiveSort] = useState("dueSoonest");
   const [editingGestationId, setEditingGestationId] = useState(null);
   const [deletingGestationId, setDeletingGestationId] = useState(null);
+  const [markingOpenId, setMarkingOpenId] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [editForm, setEditForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false });
   const [gestationTab, setGestationTab] = useState("active");
@@ -293,6 +294,24 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
       ));
     }
     setDeletingGestationId(null);
+  }
+
+  function markOpen(id) {
+    const g = gestationsList.find(x => x.id === id);
+    setGestations(p => (p ?? []).filter(gr => gr.id !== id));
+    if (setAnimals) {
+      setAnimals(prev => prev.map(a => {
+        if (a.id !== g?.animalId) return a;
+        const updated = { ...a, extra_data: { ...(a.extra_data || {}), openDate: todayLocalISODate() } };
+        if (g?.linkedHeatCycleId) {
+          updated.heatCycles = (a.heatCycles || []).map(h =>
+            h.id === g.linkedHeatCycleId ? { ...h, linkedGestationId: undefined } : h
+          );
+        }
+        return updated;
+      }));
+    }
+    setMarkingOpenId(null);
   }
 
   function startEdit(g) {
@@ -578,17 +597,26 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                   {g.notes && <p style={{ fontSize: "13px", color: "var(--ink2)", fontStyle: "italic", marginBottom: "12px" }}>{g.notes}</p>}
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                     <Btn size="sm" onClick={() => markDelivered(g.id)}>✓ Mark Delivered</Btn>
-                    <Btn size="sm" variant="secondary" onClick={() => { if (editingGestationId === g.id) { setEditingGestationId(null); } else { startEdit(g); setDeletingGestationId(null); } }}>
+                    <Btn size="sm" variant="secondary" onClick={() => { if (editingGestationId === g.id) { setEditingGestationId(null); } else { startEdit(g); setDeletingGestationId(null); setMarkingOpenId(null); } }}>
                       {editingGestationId === g.id ? "Cancel Edit" : "Edit"}
                     </Btn>
-                    {deletingGestationId === g.id ? (
+                    {markingOpenId === g.id ? (
+                      <>
+                        <span style={{ fontSize: "13px", color: "var(--danger2)", fontWeight: 500 }}>Confirm animal is open (not pregnant)?</span>
+                        <Btn size="sm" variant="danger" onClick={() => markOpen(g.id)}>Yes, Mark Open</Btn>
+                        <Btn size="sm" variant="secondary" onClick={() => setMarkingOpenId(null)}>Cancel</Btn>
+                      </>
+                    ) : deletingGestationId === g.id ? (
                       <>
                         <span style={{ fontSize: "13px", color: "var(--danger2)", fontWeight: 500 }}>Delete this breeding record?</span>
                         <Btn size="sm" variant="danger" onClick={() => remove(g.id)}>Yes, Delete</Btn>
                         <Btn size="sm" variant="secondary" onClick={() => setDeletingGestationId(null)}>Cancel</Btn>
                       </>
                     ) : (
-                      <Btn size="sm" variant="ghost" onClick={() => { setDeletingGestationId(g.id); setEditingGestationId(null); }}>Delete</Btn>
+                      <>
+                        <Btn size="sm" variant="ghost" onClick={() => { setMarkingOpenId(g.id); setDeletingGestationId(null); setEditingGestationId(null); }}>Mark Open</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { setDeletingGestationId(g.id); setEditingGestationId(null); setMarkingOpenId(null); }}>Delete</Btn>
+                      </>
                     )}
                   </div>
                   {editingGestationId === g.id && (() => {

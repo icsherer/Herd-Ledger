@@ -83,7 +83,6 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   const [highlightedId, setHighlightedId] = useState(null);
   const [editForm, setEditForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false });
   const [gestationTab, setGestationTab] = useState("active");
-  const [courtingForm, setCourtingForm] = useState({ gestationId: null, courtingDate: "", notes: "" });
 
   const females = animalsList.filter(a => isFemale(a) && !a.cull);
 
@@ -137,25 +136,34 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     const totalDays = SPECIES[animal.species]?.days || 150;
     const minDays = SPECIES[animal.species]?.minDays ?? totalDays;
     const maxDays = SPECIES[animal.species]?.maxDays ?? totalDays;
-    const end = (form.runningWithBull && (form.breedingDateEnd || "").trim()) ? (sanitizeDate(form.breedingDateEnd) || null) : null;
-    let dueStart, dueEnd;
-    if (end) {
-      dueStart = dueDate(start, totalDays);
-      dueEnd = dueDate(end, totalDays);
-    } else {
-      const range = dueDateRangeFromSingleDate(start, minDays, maxDays);
-      dueStart = range.dueDateStart;
-      dueEnd = range.dueDateEnd;
-    }
     const sireDisplay = form.sireAnimalId === "unknown" ? "Unknown" : (form.sire || undefined);
     const sireId = form.sireAnimalId && form.sireAnimalId !== "unknown" ? form.sireAnimalId : undefined;
+
+    if (form.runningWithBull) {
+      const end = (form.breedingDateEnd || "").trim() ? (sanitizeDate(form.breedingDateEnd) || undefined) : undefined;
+      setAnimals(prev => (prev ?? []).map(a =>
+        a.id === form.animalId
+          ? { ...a, bullExposure: {
+              startDate: start,
+              ...(end && { endDate: end }),
+              ...(sireId && { sireId }),
+              ...(sireDisplay && { sireName: sireDisplay }),
+              ...(form.notes?.trim() && { notes: form.notes.trim() }),
+            }}
+          : a
+      ));
+      setForm({ animalId: "", breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", notes: "" });
+      setShowAdd(false);
+      return;
+    }
+
+    const { dueDateStart, dueDateEnd } = dueDateRangeFromSingleDate(start, minDays, maxDays);
     const record = {
       animalId: form.animalId,
       breedingDate: start,
-      ...(form.runningWithBull && { breedingDateEnd: end || undefined, runningWithBull: true }),
-      dueDate: dueStart,
-      dueDateStart: dueStart,
-      dueDateEnd: dueEnd,
+      dueDate: dueDateStart,
+      dueDateStart,
+      dueDateEnd,
       sire: sireDisplay,
       ...(sireId && { sireAnimalId: sireId }),
       notes: form.notes,
@@ -371,26 +379,6 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     setEditingGestationId(null);
   }
 
-  function saveCourting() {
-    const { gestationId, courtingDate, notes } = courtingForm;
-    if (!gestationId || !courtingDate) return;
-    const g = gestationsList.find(x => x.id === gestationId);
-    const animal = animalsList.find(a => a.id === g?.animalId);
-    const gestDays = g?.gestationDays || SPECIES[animal?.species]?.days || 283;
-    const courtingDueDate = dueDate(courtingDate, gestDays);
-    const observation = {
-      id: Date.now().toString(),
-      date: courtingDate,
-      ...(notes.trim() && { notes: notes.trim() }),
-      courtingDueDate,
-    };
-    setGestations(p => (p ?? []).map(gr =>
-      gr.id === gestationId
-        ? { ...gr, courtingObservations: [...(gr.courtingObservations || []), observation] }
-        : gr
-    ));
-    setCourtingForm({ gestationId: null, courtingDate: "", notes: "" });
-  }
 
   const delivered = gestationsList.filter(g => g.status === "Delivered");
 
@@ -436,18 +424,22 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
           </label>
           <Textarea label="Notes" value={form.notes} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
           {form.animalId && form.breedingDate && (() => {
+            if (form.runningWithBull) {
+              return (
+                <div style={{ marginTop: "12px", padding: "10px 14px", background: "var(--cream)", borderRadius: "var(--radius)", fontSize: "13px", color: "var(--ink2)" }}>
+                  📋 Bull exposure will be saved — log a courting observation on the animal profile to create a gestation record.
+                </div>
+              );
+            }
             const a = animalsList.find(x => x.id === form.animalId);
             const days = SPECIES[a?.species]?.days;
             const minDays = SPECIES[a?.species]?.minDays ?? days;
             const maxDays = SPECIES[a?.species]?.maxDays ?? days;
             if (!days) return null;
-            const hasEnd = form.runningWithBull && (form.breedingDateEnd || "").trim();
-            const dueStr = hasEnd
-              ? `${fmt(dueDate(form.breedingDate, days))} – ${fmt(dueDate(form.breedingDateEnd, days))}`
-              : (() => { const r = dueDateRangeFromSingleDate(form.breedingDate, minDays, maxDays); return `${fmt(r.dueDateStart)} – ${fmt(r.dueDateEnd)}`; })();
+            const r = dueDateRangeFromSingleDate(form.breedingDate, minDays, maxDays);
             return (
               <div style={{ marginTop: "12px", padding: "10px 14px", background: "var(--cream)", borderRadius: "var(--radius)", fontSize: "13px", color: "var(--ink2)" }}>
-                📅 Estimated due: <strong>{dueStr}</strong> · Gestation: <strong>{days} days</strong>
+                📅 Estimated due: <strong>{fmt(r.dueDateStart)} – {fmt(r.dueDateEnd)}</strong> · Gestation: <strong>{days} days</strong>
               </div>
             );
           })()}
@@ -617,21 +609,9 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                     <span>{g.gestationDays} day gestation{g.runningWithBull ? " (range)" : ""}</span>
                   </div>
                   {g.notes && <p style={{ fontSize: "13px", color: "var(--ink2)", fontStyle: "italic", marginBottom: "12px" }}>{g.notes}</p>}
-                  {g.courtingObservations && g.courtingObservations.length > 0 && (
-                    <div style={{ marginBottom: "12px" }}>
-                      <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "6px" }}>Courting Observed</div>
-                      {g.courtingObservations.map(obs => (
-                        <div key={obs.id} style={{ fontSize: "13px", color: "var(--ink2)", padding: "6px 10px", background: "var(--cream)", borderRadius: "var(--radius)", marginBottom: "4px", display: "flex", flexWrap: "wrap", gap: "6px", alignItems: "center" }}>
-                          <span style={{ fontWeight: 600 }}>{fmt(obs.date)}</span>
-                          {obs.courtingDueDate && <span style={{ color: "var(--muted)" }}>· Est. due {fmt(obs.courtingDueDate)}</span>}
-                          {obs.notes && <span>· {obs.notes}</span>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
                   <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", alignItems: "center" }}>
                     <Btn size="sm" onClick={() => markDelivered(g.id)}>✓ Mark Delivered</Btn>
-                    <Btn size="sm" variant="secondary" onClick={() => { if (editingGestationId === g.id) { setEditingGestationId(null); } else { startEdit(g); setDeletingGestationId(null); setMarkingOpenId(null); setCourtingForm({ gestationId: null, courtingDate: "", notes: "" }); } }}>
+                    <Btn size="sm" variant="secondary" onClick={() => { if (editingGestationId === g.id) { setEditingGestationId(null); } else { startEdit(g); setDeletingGestationId(null); setMarkingOpenId(null); } }}>
                       {editingGestationId === g.id ? "Cancel Edit" : "Edit"}
                     </Btn>
                     {markingOpenId === g.id ? (
@@ -648,36 +628,11 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
                       </>
                     ) : (
                       <>
-                        <Btn size="sm" variant="ghost" onClick={() => { setMarkingOpenId(g.id); setDeletingGestationId(null); setEditingGestationId(null); setCourtingForm({ gestationId: null, courtingDate: "", notes: "" }); }}>Mark Open</Btn>
-                        <Btn size="sm" variant="ghost" onClick={() => { setDeletingGestationId(g.id); setEditingGestationId(null); setMarkingOpenId(null); setCourtingForm({ gestationId: null, courtingDate: "", notes: "" }); }}>Delete</Btn>
-                        {g.runningWithBull && (
-                          <Btn size="sm" variant="ghost" onClick={() => {
-                            if (courtingForm.gestationId === g.id) {
-                              setCourtingForm({ gestationId: null, courtingDate: "", notes: "" });
-                            } else {
-                              setCourtingForm({ gestationId: g.id, courtingDate: todayLocalISODate(), notes: "" });
-                              setEditingGestationId(null);
-                              setMarkingOpenId(null);
-                              setDeletingGestationId(null);
-                            }
-                          }}>Log Courting</Btn>
-                        )}
+                        <Btn size="sm" variant="ghost" onClick={() => { setMarkingOpenId(g.id); setDeletingGestationId(null); setEditingGestationId(null); }}>Mark Open</Btn>
+                        <Btn size="sm" variant="ghost" onClick={() => { setDeletingGestationId(g.id); setEditingGestationId(null); setMarkingOpenId(null); }}>Delete</Btn>
                       </>
                     )}
                   </div>
-                  {courtingForm.gestationId === g.id && (
-                    <div style={{ marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--cream2)" }}>
-                      <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "12px" }}>Log Courting Observation</div>
-                      <div className="hl-form-grid-3" style={{ marginBottom: "12px" }}>
-                        <DateInputWithValidation label="Courting Date *" breedingDueTwoDigitYear value={courtingForm.courtingDate} onValueChange={v => setCourtingForm(p => ({ ...p, courtingDate: v }))} />
-                      </div>
-                      <Textarea label="Notes (optional)" value={courtingForm.notes} onChange={e => setCourtingForm(p => ({ ...p, notes: e.target.value }))} rows={2} style={{ marginBottom: "12px" }} />
-                      <div style={{ display: "flex", gap: "8px" }}>
-                        <Btn size="sm" onClick={saveCourting} disabled={!courtingForm.courtingDate}>Save</Btn>
-                        <Btn size="sm" variant="secondary" onClick={() => setCourtingForm({ gestationId: null, courtingDate: "", notes: "" })}>Cancel</Btn>
-                      </div>
-                    </div>
-                  )}
                   {editingGestationId === g.id && (() => {
                     const editSireOptions = getBreedingMalesForSpecies(animalsList, animal?.species);
                     return (

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { SPECIES } from "../lib/constants.js";
-import { getAnimalName, fmt, dueDate, dueDateRangeFromSingleDate, progress, fmtDueRange, fmtExposure, daysUntilDue, isOverdue, formatGestationDaysRemaining, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies, getAgeBasedSexTerm } from "../lib/helpers.js";
+import { SPECIES, HEAT_CYCLE_DAYS_BY_SPECIES, HEAT_CYCLE_DAYS_DEFAULT } from "../lib/constants.js";
+import { getAnimalName, fmt, dueDate, dueDateRangeFromSingleDate, progress, fmtDueRange, fmtExposure, daysUntilDue, isOverdue, formatGestationDaysRemaining, birthDateWithinGestationWindow, breedingDateFromDelivery, breedingDateForProgress, getOffspringTerm, isFemale, getBreedingMalesForSpecies, getAgeBasedSexTerm, parseDateSafe } from "../lib/helpers.js";
 import { sanitizeDate, sanitizeBirthDate, todayLocalISODate } from "../lib/dateUtils.js";
 import { Card, Btn, Input, Select, Textarea, SectionTitle, ProgressBar, Badge } from "./ui.jsx";
 import DateInputWithValidation from "./DateInputWithValidation.jsx";
@@ -82,15 +82,33 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
   const [markingOpenId, setMarkingOpenId] = useState(null);
   const [highlightedId, setHighlightedId] = useState(null);
   const [editForm, setEditForm] = useState({ breedingDate: "", breedingDateEnd: "", runningWithBull: false, sire: "", sireAnimalId: "", sireNotInHerd: false });
-  const [gestationTab, setGestationTab] = useState("active");
+  const [gestationTab, setGestationTab] = useState("heat");
+  const [showLogHeat, setShowLogHeat] = useState(false);
+  const [logHeatForm, setLogHeatForm] = useState({ animalId: "", date: todayLocalISODate(), intensity: "Moderate" });
+  const [logAIFormId, setLogAIFormId] = useState(null);
+  const [logAIForm, setLogAIForm] = useState({ date: todayLocalISODate(), semenLot: "", notes: "" });
 
   const females = animalsList.filter(a => isFemale(a) && !a.cull);
+  const activeFemales = animalsList.filter(a =>
+    isFemale(a) && !a.cull &&
+    !(a.sale && a.sale.dateSold) && !a.deceased && !a.butchered && !a.transfer
+  );
 
   const selectedDam = form.animalId ? animalsList.find(x => x.id === form.animalId) : null;
   const sireOptions = selectedDam ? getBreedingMalesForSpecies(animalsList, selectedDam.species) : [];
 
   const active = useMemo(() => gestationsList.filter(g => g.status !== "Delivered" && animalsList.some(a => a.id === g.animalId)), [gestationsList, animalsList]);
   const activeSorted = useMemo(() => sortActiveGestations(active, activeSort, animalsList), [active, activeSort, animalsList]);
+
+  const allHeatEntries = useMemo(() => {
+    const entries = [];
+    for (const a of animalsList) {
+      for (const h of (a.heatCycles || [])) {
+        entries.push({ animal: a, heat: h });
+      }
+    }
+    return entries.sort((x, y) => (y.heat.observedDate || "").localeCompare(x.heat.observedDate || ""));
+  }, [animalsList]);
 
   useEffect(() => {
     if (!form.animalId) return;
@@ -128,6 +146,82 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
     const clearTimer = setTimeout(() => setHighlightedId(null), 2400);
     return () => { clearTimeout(scrollTimer); clearTimeout(clearTimer); };
   }, [highlightGestationId]);
+
+  function getDaysSince(dateStr) {
+    const d = parseDateSafe(dateStr);
+    if (!d) return NaN;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.floor((today.getTime() - d.getTime()) / 86400000);
+  }
+
+  function getHeatStatus(heat, animal) {
+    const cycleDays = HEAT_CYCLE_DAYS_BY_SPECIES[animal.species] ?? HEAT_CYCLE_DAYS_DEFAULT;
+    if (heat.observedDate) {
+      const observed = parseDateSafe(heat.observedDate);
+      if (observed) {
+        const windowEnd = new Date(observed.getTime() + cycleDays * 86400000).toISOString().split("T")[0];
+        const hasReturn = (animal.heatCycles || []).some(h =>
+          h.id !== heat.id &&
+          h.observedDate > heat.observedDate &&
+          h.observedDate <= windowEnd
+        );
+        if (hasReturn) return "Not Bred";
+      }
+    }
+    if (heat.linkedGestationId || heat.confirmed) {
+      return heat.breedingType === "AI (Artificial Insemination)" ? "Bred - AI" : "Bred - Natural";
+    }
+    return "Watching";
+  }
+
+  function saveLogHeat() {
+    const date = sanitizeDate(logHeatForm.date);
+    if (!logHeatForm.animalId || !date) return;
+    const newHeat = { id: Date.now().toString(), observedDate: date, intensity: logHeatForm.intensity };
+    setAnimals(prev => (prev ?? []).map(a =>
+      a.id === logHeatForm.animalId
+        ? { ...a, heatCycles: [...(a.heatCycles || []), newHeat] }
+        : a
+    ));
+    setLogHeatForm({ animalId: "", date: todayLocalISODate(), intensity: "Moderate" });
+    setShowLogHeat(false);
+  }
+
+  function saveLogAI(animal, heat) {
+    const breedingDate = sanitizeDate(logAIForm.date) || heat.observedDate;
+    if (!breedingDate) return;
+    const totalDays = SPECIES[animal.species]?.days || 150;
+    const minDays = SPECIES[animal.species]?.minDays ?? totalDays;
+    const maxDays = SPECIES[animal.species]?.maxDays ?? totalDays;
+    const { dueDateStart, dueDateEnd } = dueDateRangeFromSingleDate(breedingDate, minDays, maxDays);
+    const gestId = Date.now().toString();
+    setGestations(p => [...(p ?? []), {
+      id: gestId,
+      animalId: animal.id,
+      breedingDate,
+      dueDate: dueDateStart,
+      dueDateStart,
+      dueDateEnd,
+      sire: logAIForm.semenLot?.trim() || undefined,
+      notes: logAIForm.notes?.trim() || undefined,
+      gestationDays: totalDays,
+      status: "Active",
+      createdAt: new Date().toISOString(),
+      linkedHeatCycleId: heat.id,
+    }]);
+    setAnimals(prev => (prev ?? []).map(a =>
+      a.id === animal.id
+        ? { ...a, heatCycles: (a.heatCycles || []).map(h =>
+            h.id === heat.id
+              ? { ...h, linkedGestationId: gestId, confirmed: true, confirmedDate: todayLocalISODate(), breedingType: "AI (Artificial Insemination)" }
+              : h
+          )}
+        : a
+    ));
+    setLogAIFormId(null);
+    setLogAIForm({ date: todayLocalISODate(), semenLot: "", notes: "" });
+  }
 
   function add() {
     const start = sanitizeDate(form.breedingDate);
@@ -493,6 +587,7 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
       {/* Gestation inner tab bar */}
       <div style={{ display: "flex", gap: "8px", padding: "4px 0 16px", overflowX: "auto", whiteSpace: "nowrap" }}>
         {[
+          { id: "heat", label: `Heat (${allHeatEntries.length})` },
           { id: "active", label: `Active (${active.length})` },
           { id: "delivered", label: `Delivered (${delivered.length})` },
         ].map(t => (
@@ -518,6 +613,121 @@ export default function Gestation({ animals, setAnimals, gestations, setGestatio
           </button>
         ))}
       </div>
+
+      {gestationTab === "heat" && (
+        <>
+          <div style={{ marginBottom: "16px" }}>
+            {!showLogHeat ? (
+              <Btn onClick={() => setShowLogHeat(true)}>+ Log Heat</Btn>
+            ) : (
+              <Card style={{ padding: "20px 24px", borderLeft: "4px solid var(--brass)" }}>
+                <div style={{ fontFamily: "'Playfair Display'", fontSize: "16px", fontWeight: 600, marginBottom: "14px" }}>Log Heat Observation</div>
+                <div className="hl-form-grid-3" style={{ marginBottom: "14px" }}>
+                  <Select label="Animal *" value={logHeatForm.animalId} onChange={e => setLogHeatForm(p => ({ ...p, animalId: e.target.value }))}>
+                    <option value="">— Select —</option>
+                    {activeFemales.map(a => <option key={a.id} value={a.id}>{getAnimalName(a)} ({a.species})</option>)}
+                  </Select>
+                  <DateInputWithValidation label="Date Observed *" value={logHeatForm.date} onValueChange={v => setLogHeatForm(p => ({ ...p, date: v }))} />
+                  <Select label="Intensity" value={logHeatForm.intensity} onChange={e => setLogHeatForm(p => ({ ...p, intensity: e.target.value }))}>
+                    <option value="Mild">Mild</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Strong">Strong</option>
+                  </Select>
+                </div>
+                <div style={{ display: "flex", gap: "10px" }}>
+                  <Btn onClick={saveLogHeat}>Save</Btn>
+                  <Btn variant="secondary" onClick={() => { setShowLogHeat(false); setLogHeatForm({ animalId: "", date: todayLocalISODate(), intensity: "Moderate" }); }}>Cancel</Btn>
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {allHeatEntries.length === 0 ? (
+            <Card style={{ padding: "60px", textAlign: "center" }}>
+              <div style={{ fontSize: "40px", marginBottom: "10px" }}>🌡️</div>
+              <div style={{ color: "var(--muted)", fontSize: "15px" }}>No heat observations logged yet.</div>
+              <div style={{ color: "var(--muted)", fontSize: "13px", marginTop: "6px" }}>Log from animal profiles or use the button above.</div>
+            </Card>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "24px" }}>
+              {allHeatEntries.map(({ animal, heat }) => {
+                const status = getHeatStatus(heat, animal);
+                const daysSinceObs = getDaysSince(heat.observedDate);
+                const inReturnWindow = Number.isFinite(daysSinceObs) && daysSinceObs >= 18 && daysSinceObs <= 21;
+                const aiFormKey = `${animal.id}:${heat.id}`;
+                const borderColor = status === "Not Bred"
+                  ? "var(--danger2)"
+                  : inReturnWindow && status === "Watching"
+                    ? "var(--brass)"
+                    : status === "Watching"
+                      ? "var(--cream3)"
+                      : "var(--green3)";
+                const badgeColor = status === "Not Bred" ? "var(--danger2)" : status === "Watching" ? "var(--brass2)" : "var(--green3)";
+                return (
+                  <Card key={`${animal.id}-${heat.id}`} style={{ padding: "14px 18px", borderLeft: `4px solid ${borderColor}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "8px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "10px", minWidth: 0 }}>
+                        <span style={{ fontSize: "22px", flexShrink: 0 }}>{SPECIES[animal.species]?.emoji}</span>
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => { setViewingAnimal(animal); setTab("animals"); }}
+                            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setViewingAnimal(animal); setTab("animals"); } }}
+                            style={{ fontWeight: 600, fontSize: "15px", cursor: "pointer", textDecoration: "underline", textDecorationColor: "var(--green3)", textUnderlineOffset: "3px", display: "inline-block" }}
+                          >
+                            {getAnimalName(animal)}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "var(--muted)", marginTop: "2px" }}>
+                            {fmt(heat.observedDate)}{Number.isFinite(daysSinceObs) ? ` · ${daysSinceObs}d ago` : ""}
+                          </div>
+                        </div>
+                      </div>
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "4px", flexShrink: 0 }}>
+                        <Badge color={badgeColor}>{status}</Badge>
+                        <span style={{ fontSize: "12px", color: "var(--muted)" }}>{heat.intensity || "—"}</span>
+                      </div>
+                    </div>
+
+                    {inReturnWindow && status === "Watching" && (
+                      <div style={{ marginTop: "8px", padding: "5px 10px", background: "rgba(201,149,42,0.13)", borderRadius: "var(--radius)", fontSize: "12px", color: "var(--brass2)", fontWeight: 600 }}>
+                        Watch for return heat — day {daysSinceObs} of {HEAT_CYCLE_DAYS_BY_SPECIES[animal.species] ?? HEAT_CYCLE_DAYS_DEFAULT}
+                      </div>
+                    )}
+
+                    {status === "Watching" && logAIFormId !== aiFormKey && (
+                      <div style={{ marginTop: "8px" }}>
+                        <button
+                          type="button"
+                          onClick={() => { setLogAIFormId(aiFormKey); setLogAIForm({ date: todayLocalISODate(), semenLot: "", notes: "" }); }}
+                          style={{ fontSize: "13px", color: "var(--green)", fontWeight: 600, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
+                        >
+                          Log AI
+                        </button>
+                      </div>
+                    )}
+
+                    {logAIFormId === aiFormKey && (
+                      <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "1px solid var(--cream2)" }}>
+                        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: "10px" }}>Log AI Breeding</div>
+                        <div className="hl-form-grid-3" style={{ marginBottom: "10px" }}>
+                          <DateInputWithValidation label="AI Date *" value={logAIForm.date} onValueChange={v => setLogAIForm(p => ({ ...p, date: v }))} />
+                          <Input label="Semen Lot / Bull" value={logAIForm.semenLot} onChange={e => setLogAIForm(p => ({ ...p, semenLot: e.target.value }))} placeholder="e.g. Lot #123" />
+                          <Textarea label="Notes" value={logAIForm.notes} onChange={e => setLogAIForm(p => ({ ...p, notes: e.target.value }))} rows={2} />
+                        </div>
+                        <div style={{ display: "flex", gap: "8px" }}>
+                          <Btn size="sm" onClick={() => saveLogAI(animal, heat)}>Save & Create Gestation</Btn>
+                          <Btn size="sm" variant="secondary" onClick={() => setLogAIFormId(null)}>Cancel</Btn>
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
 
       {gestationTab === "active" && (
         <>

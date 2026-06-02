@@ -142,7 +142,8 @@ export function isMale(animal) {
 
 /** Intact male used for breeding (bull, stallion, etc.). Male calves under 6 months never count — they don't trigger breeding warnings. */
 export function isBreedingMale(animal) {
-  if (!animal || animal.deceased || !BREEDING_MALE_SEX_TERMS.includes(animal.sex)) return false;
+  if (!animal || animal.deceased || (animal.sale && animal.sale.dateSold) || animal.butchered || animal.transfer) return false;
+  if (!BREEDING_MALE_SEX_TERMS.includes(animal.sex)) return false;
   const months = getAgeInMonths(animal.dob);
   if (months != null && months < 6) return false;
   return true;
@@ -154,7 +155,7 @@ export function getEligibleFemalesForRunningWithBull(animals, gestations, pastur
   if (!species) return [];
   const activeGestationAnimalIds = new Set((gestations || []).filter(g => g.status !== "Delivered").map(g => g.animalId));
   return (animals || []).filter(a => {
-    if (a.deceased || a.sale) return false;
+    if (a.deceased || (a.sale && a.sale.dateSold) || a.butchered || a.transfer) return false;
     if (a.species !== species) return false;
     if (!isSexuallyMatureFemale(a)) return false;
     if (activeGestationAnimalIds.has(a.id)) return false;
@@ -166,7 +167,7 @@ export function getEligibleFemalesForRunningWithBull(animals, gestations, pastur
 /** Intact males of the given species (e.g. bulls for Cattle, rams for Sheep). For use in sire dropdowns. */
 export function getBreedingMalesForSpecies(animals, species) {
   if (!species) return [];
-  return (animals || []).filter(a => !a.deceased && !a.sale && a.species === species && isBreedingMale(a));
+  return (animals || []).filter(a => !a.deceased && !(a.sale && a.sale.dateSold) && !a.butchered && !a.transfer && a.species === species && isBreedingMale(a));
 }
 
 export function getBreedingMaleInPasture(animals, pastureName) {

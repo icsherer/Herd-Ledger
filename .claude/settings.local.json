@@ -4,7 +4,8 @@
       "Bash(npm run:*)",
       "Bash(npm install:*)",
       "Bash(Select-String -Path \"src/components/Animals.jsx\" -Pattern \"showFilter|filterOpen|Filter.*Done|Done.*button\" -n)",
-      "Bash(Select-Object -First 30)"
+      "Bash(Select-Object -First 30)",
+      "Bash(findstr /N \"getBreedingMaleInPasture\\\\|runningWithBull\\\\|Running with Bull\\\\|movements\\\\|sale.dateSold\\\\|deceased\\\\|butchered\\\\|transfer\" src/components/Animals.jsx)"
     ]
   }
 }

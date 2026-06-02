@@ -83,7 +83,7 @@ export default function Pastures({ animals, setAnimals, pastures, setPastures, p
     }
   }, [runningWithBullCheckPending, animals, gestations, pendingMove?.nextAnimals]);
 
-  const pastureEligible = (animals || []).filter(a => PASTURE_SPECIES.includes(a.species) && !a.deceased && !a.sale);
+  const pastureEligible = (animals || []).filter(a => PASTURE_SPECIES.includes(a.species) && !a.deceased && !(a.sale && a.sale.dateSold) && !a.butchered && !a.transfer);
   const sortedNames = getCanonicalPastureNames(animals, pastures);
   const allPastureNames = pastureEligible.some(a => !(a.movements?.[0]?.pastureName || "").trim()) ? ["— Not assigned —", ...sortedNames] : sortedNames;
 

@@ -1690,7 +1690,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         notes: saleForm.notes?.trim() || undefined,
       };
       setAnimals(prev =>
-        prev.map(an => (an.id === a.id ? { ...an, sale: saleRec } : an))
+        prev.map(an => {
+          if (an.id !== a.id) return an;
+          const movements = an.movements || [];
+          const clearedMovements = movements.length > 0 && (movements[0].pastureName || "").trim()
+            ? [{ ...movements[0], pastureName: "" }, ...movements.slice(1)]
+            : movements;
+          return { ...an, sale: saleRec, movements: clearedMovements };
+        })
       );
       setViewing(prev =>
         prev && prev.id === a.id ? { ...prev, sale: saleRec } : prev
@@ -1701,7 +1708,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
     function saveButchered() {
       const rec = { date: butcheredForm.date || undefined, notes: butcheredForm.notes?.trim() || undefined };
-      setAnimals(prev => prev.map(an => an.id === a.id ? { ...an, butchered: rec } : an));
+      setAnimals(prev => prev.map(an => {
+        if (an.id !== a.id) return an;
+        const movements = an.movements || [];
+        const clearedMovements = movements.length > 0 && (movements[0].pastureName || "").trim()
+          ? [{ ...movements[0], pastureName: "" }, ...movements.slice(1)]
+          : movements;
+        return { ...an, butchered: rec, movements: clearedMovements };
+      }));
       setViewing(prev => prev && prev.id === a.id ? { ...prev, butchered: rec } : prev);
       setShowButcheredForm(false);
       setButcheredForm({ date: "", notes: "" });
@@ -1709,7 +1723,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
 
     function saveDeceased() {
       const rec = { date: deceasedForm.date || undefined, notes: deceasedForm.notes?.trim() || undefined };
-      setAnimals(prev => prev.map(an => an.id === a.id ? { ...an, deceased: rec } : an));
+      setAnimals(prev => prev.map(an => {
+        if (an.id !== a.id) return an;
+        const movements = an.movements || [];
+        const clearedMovements = movements.length > 0 && (movements[0].pastureName || "").trim()
+          ? [{ ...movements[0], pastureName: "" }, ...movements.slice(1)]
+          : movements;
+        return { ...an, deceased: rec, movements: clearedMovements };
+      }));
       setViewing(prev => prev && prev.id === a.id ? { ...prev, deceased: rec } : prev);
       setShowDeceasedForm(false);
       setDeceasedForm({ date: "", notes: "" });
@@ -1722,7 +1743,14 @@ export default function Animals({ animals, setAnimals, offspring, setOffspring, 
         recipient: transferForm.recipient?.trim() || undefined,
         notes: transferForm.notes?.trim() || undefined,
       };
-      setAnimals(prev => prev.map(an => an.id === a.id ? { ...an, transfer: rec } : an));
+      setAnimals(prev => prev.map(an => {
+        if (an.id !== a.id) return an;
+        const movements = an.movements || [];
+        const clearedMovements = movements.length > 0 && (movements[0].pastureName || "").trim()
+          ? [{ ...movements[0], pastureName: "" }, ...movements.slice(1)]
+          : movements;
+        return { ...an, transfer: rec, movements: clearedMovements };
+      }));
       setViewing(prev => prev && prev.id === a.id ? { ...prev, transfer: rec } : prev);
       setShowTransferForm(false);
       setTransferForm({ date: "", reason: "", recipient: "", notes: "" });

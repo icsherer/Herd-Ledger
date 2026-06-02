@@ -67,16 +67,42 @@ async function loadAllDataFallback(userId) {
   });
 }
 
+function sanitizeAnimals(animals) {
+  return animals.map(a => {
+    const isArchived = (a.sale && a.sale.dateSold) || a.deceased || a.butchered || a.transfer;
+    let out = { ...a };
+
+    // Rule 3: remove empty sale objects (sale exists but no dateSold)
+    if (out.sale && !out.sale.dateSold) {
+      out.sale = undefined;
+    }
+
+    if (isArchived) {
+      // Rule 1: clear current pasture on archived animals
+      if (Array.isArray(out.movements) && out.movements.length > 0 && out.movements[0].pastureName) {
+        out.movements = [{ ...out.movements[0], pastureName: '' }, ...out.movements.slice(1)];
+      }
+
+      // Rule 2: clear bull exposure on archived animals
+      if (out.bullExposure !== undefined) {
+        out.bullExposure = undefined;
+      }
+    }
+
+    return out;
+  });
+}
+
 function buildResult({ animalsRows, tasksRows, gestRows, contactRows, expenseRows,
   feederRows, salesRows, notesRows, pastureRows, feedLogRows, settingsRow, offspringRawData }) {
 
-  const animals = (animalsRows || [])
+  const animals = sanitizeAnimals((animalsRows || [])
     .filter(r => !r.deleted_at)
     .map(r => ({
       ...(r.extra_data || {}),
       id: r.id, name: r.name, tag: r.tag, species: r.species,
       breed: r.breed, sex: r.sex, dob: r.dob, notes: r.notes,
-    }));
+    })));
 
   const tasks = (tasksRows || []).map(r => ({
     id: r.id, name: r.name, dueDate: r.due_date, dueTime: r.due_time,
